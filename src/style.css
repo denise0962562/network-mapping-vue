@@ -1,0 +1,117 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+    themes: winter --default, dark --prefersdark;
+}
+
+.resource_card {
+    @apply card bg-base-100 card-border m-2.5 border-base-300 w-1/4 p-2.5;
+}
+
+.big_card {
+    @apply card bg-base-100 card-border m-2.5 border-base-300 w-[calc(50%+20px)] p-2.5;
+}
+
+.task_input_items {
+    @apply input validator mt-2.5 w-full;
+}
+
+.input_items_text {
+    @apply inline-flex w-[calc(120px)] justify-end text-base;
+}
+
+.input_items_required::before {
+    content: "* " ;
+    color:red;
+}
+
+
+.scan_status {
+    border-radius: 8px;
+    padding: 5px;
+    width: 100%;
+}
+
+.scan_wait {
+    @apply bg-gray-400;
+}
+
+.scan_faild {
+    background-color: oklab(0.9768 0.0150957 0.0036041);
+    color: oklch(0.71 0.194 13.428);
+}
+
+.scan_success {
+    background-color: oklab(0.9808 -0.0135573 0.00408725);
+    color: oklch(0.76 0.177 163.223);
+}
+
+.scan_open {
+    background-color: oklab(0.9792 -0.00776358 -0.0101768);
+    color: oklch(0.74 0.16 232.661);
+}
+
+/* daisyui的选择器没有生效，现在手动选择导航栏选项激活 */
+.menu li > a.active {
+  background-color: var(--color-base-300);
+  color: var(--color-base-content);
+}
+
+/* search页面的css */
+.search-box-wrapper {
+    position: relative;
+    margin-bottom: 30px;
+}
+.search-input {
+    width: 100%;
+    padding: 18px 60px 18px 24px;
+    font-size: 1.1rem;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 50px;
+    color: var(--text-primary);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s;
+    outline: none;
+}
+
+.search-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15), 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+.search-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--accent-blue);
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #0f172a;
+    transition: transform 0.2s;
+}
+.search-btn:hover { transform: translateY(-50%) scale(1.05); }
+@keyframes fadeIn {
+    from {
+    opacity: 0;
+    }
+    to {
+    opacity: 1;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.9s ease-out forwards;
+}
+
+/* task.vue中的css */
+
+
+
+/* task.vue css结束 */

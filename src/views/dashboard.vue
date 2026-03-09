@@ -1,0 +1,253 @@
+<template>
+  <div class="flex pl-5 pr-5 pt-2.5 pb-2.5">
+
+    <!-- <div class="card bg-base-100 card-border m-2.5 border-base-300 w-1/3 p-2.5"> -->
+      <!-- <div id="system-scan-ip-count"></div> -->
+    <!-- </div> -->
+
+    <!-- CPU-RAM-Disk卡片 -->
+    <div class="resource_card">
+      <div class="stat-title">系统资源状态</div>
+      <div class="stat-value">资源利用</div>
+      <div id="system-resource-radialbar"></div>
+
+    </div>
+
+    <div class="resource_card">
+      <div class="stat-title">扫描器在线状态</div>
+      <div class="stat-value">在线: 1/5</div>
+      <div id="system-resource-scanner"></div>
+    </div>
+
+    <div class="resource_card">
+      <div class="stat-title">数据库状态</div>
+      <div class="stat-value">Postgresql</div>
+      <div id="system-database-status"></div>
+    </div>
+
+    <div class="resource_card">
+      <div class="stat-title"></div>
+    </div>
+  </div>   
+  <!-- 资源卡片结束 -->
+
+  <!-- 系统信息及扫描日志卡片 -->
+  <div class="flex pl-5 pr-5 pt-2.5 pb-2.5">
+    <div class="big_card">
+      
+      <!-- 系统信息列表 -->
+      <ul class="list ">
+
+        <li class="p-4 pb-2 text-xs opacity-60 tracking-wide">系统详细信息</li>
+        
+        <li class="list-row items-">
+
+          <div>系统运行状态</div>
+
+          
+          <div class="list-col-grow flex items-center justify-end gap-2">
+            <div aria-label="success" class="status status-success"></div>
+            <span class="text-xs opacity-60">运行中 (Uptime: 3days)</span>
+          </div>
+
+        </li>
+        
+        <li class="list-row">
+          <div>操作系统信息：</div>
+          <div class="list-col-grow justify-end">
+            <span class="text-xs opacity-60">Linux hostname 6.8.0-40-generic #40-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul  5 10:34:03 UTC 2024 x86_64 x86_64 x86_64 GNU/Linux</span>
+          </div>
+        </li>
+
+
+        <li class="list-row">
+          <div>
+            <div>网络接口信息</div>
+            <div class="text-xs uppercase font-semibold opacity-60">Cappuccino</div>
+          </div>
+          <div class="list-col-grow flex flex-col gap-1 text-xs opacity-60">
+            
+            <!-- 每一个接口一行，两端分布 -->
+            <div class="flex justify-end gap-2">
+              <span>net</span>
+              <span>发送/接收: 34 MB / 99 MB</span>
+            </div>
+
+            <div class="flex justify-end gap-2">
+              <span>eth0</span>
+              <span>发送/接收: 34 MB / 34 MB</span>
+            </div>
+
+          </div>
+
+        </li>
+        
+        <li class="list-row">
+          <div>
+            <div>Sabrino Gardener</div>
+            <div class="text-xs uppercase font-semibold opacity-60">Cappuccino</div>
+          </div>
+
+        </li>
+        
+      </ul>
+
+    </div>
+    <!-- 系统信息卡片结束 -->
+
+    <!-- 当前任务卡片 -->
+    <div class="big_card">
+ 
+      <div class="overflow-x-auto">
+        <table class="table table-fixed min-w-[600px]">
+          <!-- head -->
+          <thead>
+            <tr>
+              <th class="w-8"></th>
+              <th class="w-20">任务</th>
+              <th class="w-24 truncate">扫描器</th>
+              <th class="w-36 max-w-36">目标</th>
+              <th class="w-20">发起人</th>
+              <th class="w-24">状态</th>
+              <th class="max-w-36">备注</th>
+            </tr>
+          </thead>
+          <!-- tbody -->
+          <tbody class="">
+            <!-- row start -->
+            <!-- <tr>
+              <th class="w-10">1</th>
+              <th>121212</th>
+              <th class="w-28 truncate">sadfeadsf</th>
+              <th class="w-36 truncate">221.233.151.58/24</th>
+              <th>System</th>
+              <th>Today</th>
+              <th class="w-24"><span class="scan_status scan_faild">错误</span></th>
+              <th></th>
+            </tr> -->
+
+            <transition-group name="tasktable">
+              <tr v-for="(taskitem, index) in taskList" :key="taskitem.taskid" class="hover:bg-base-300">
+                <td class="w-8">{{ index + 1}}</td>
+                <td class="w-20 truncate">{{ taskitem.taskid }}</td>
+                <td class="w-24 truncate">{{ taskitem.scannerId }}</td>
+                <td class="w-36 max-w-36 truncate">{{ taskitem.target }}</td>
+                <td class="w-20">{{ taskitem.operationPerson }}</td>
+                <td class="w-24"><span class="scan_status w-full" :class="stateConfig[taskitem.status].class">{{ stateConfig[taskitem.status].text }}</span></td>
+                <td class="max-w-36 truncate">{{ taskitem.remark }}</td>
+              </tr>
+            </transition-group>
+          </tbody>
+
+        </table>
+      </div>
+
+    </div>
+    <!-- 当前任务卡片结束 -->
+
+  </div>
+    
+
+</template>
+
+<style scoped>
+  .tasktable-enter-active,.tasktable-leave-active {
+    transition: all 0.5s ease;
+  }
+  .tasktable-enter-form,.tasktable-leave-to {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+</style>
+
+<script setup>
+import { computed, ref, TransitionGroup } from 'vue'
+
+const datalabel = ref(true)
+
+// 仪表盘中任务表最大显示10行
+const taskTableMaxRows = ref(10)
+
+const series = ref([
+  {
+    name: "STOCK ABC",
+    data: [30, 40, 35, 50, 22, 50, 70]
+  },
+  {
+    name: "B",
+    data: [40, 40, 11, 50, 49, 60, 70]
+  }
+])
+
+const chartOptions = ref({
+  chart: {
+    type: 'area',
+    height: 350,
+  },
+  dataLabels: {
+    enabled: datalabel.value
+  },
+  stroke: {
+    curve: 'smooth'
+  },
+  title: {
+    text: 'Fundamental Analysis of Stocks',
+    align: 'left'
+  },
+  subtitle: {
+    text: 'Price Movements',
+    align: 'left'
+  },
+  xaxis: {
+    type: 'datetime',
+    categories: ["2018-09-19T00:00:00.000Z", "2018-09-19T01:30:00.000Z", "2018-09-19T02:30:00.000Z", "2018-09-19T03:30:00.000Z", "2018-09-19T04:30:00.000Z", "2018-09-19T05:30:00.000Z", "2018-09-19T06:30:00.000Z"]
+  },
+  yaxis: {
+    opposite: true
+  },
+  legend: {
+    horizontalAlign: 'left'
+  }
+})
+
+const chartref = ref(null)
+
+function showDataLabel() {
+  datalabel.value = !datalabel.value
+  chartref.value.updateOptions({
+    dataLabels: {
+      enabled: datalabel.value
+    }
+  })
+  console.log(`显示标签:${datalabel.value}`)
+}
+
+// status: 0 => 扫描中 、1 => 扫描结束 、2 => 待扫描 、3 => 出现错误
+const taskList = ref([
+  {
+    taskid: "sdcdsa",
+    scannerId: "scanner-01",
+    target: "221.233.151.58/24",
+    operationPerson: 'System',
+    startin: "Today",
+    status: 0,
+    remark: ''
+  },
+  {
+    taskid: "sdcdsb",
+    scannerId: "scanner-01",
+    target: "47.122.119.248/24,212.59.218.33/24",
+    operationPerson: 'Admin',
+    startin: "Today",
+    status: 1,
+    remark: ''
+  }
+])
+
+const stateConfig = {
+  0: {class: 'scan_open', text: '扫描中'},
+  1: {class: 'scan_success', text: '成功'},
+  2: {class: 'scan_wait', text: '等待'},
+  3: {class: 'scan_faild', text: '错误'}
+}
+</script>
