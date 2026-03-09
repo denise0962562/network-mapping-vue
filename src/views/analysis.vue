@@ -34,9 +34,7 @@ const appServiceStats = [
 ]
 
 const pieSourceData = computed(() => {
-  if (serviceDimension.value === 'protocol') {
-    return protocolStats
-  }
+  if (serviceDimension.value === 'protocol') return protocolStats
 
   if (!ignoreVersionDiff.value) {
     return appServiceStats.map((item) => ({
@@ -49,115 +47,172 @@ const pieSourceData = computed(() => {
     acc[item.app] = (acc[item.app] || 0) + item.value
     return acc
   }, {})
-
   return Object.entries(grouped).map(([name, value]) => ({ name, value }))
 })
 
 const pieTopData = computed(() => {
-  return [...pieSourceData.value]
-    .sort((a, b) => b.value - a.value)
-    .slice(0, topN.value)
+  return [...pieSourceData.value].sort((a, b) => b.value - a.value).slice(0, topN.value)
 })
-
 const pieSeries = computed(() => pieTopData.value.map((item) => item.value))
 const pieLabels = computed(() => pieTopData.value.map((item) => item.name))
 
 const pieOptions = computed(() => ({
-  chart: {
-    type: 'pie'
-  },
+  chart: { type: 'pie' },
   labels: pieLabels.value,
-  legend: {
-    position: 'bottom'
-  },
-  dataLabels: {
-    enabled: true
-  },
-  stroke: {
-    width: 1
-  },
-  tooltip: {
-    y: {
-      formatter: (value) => `${value}`
-    }
-  }
+  legend: { position: 'bottom' },
+  dataLabels: { enabled: true },
+  stroke: { width: 1 }
 }))
 
-const heatmapSeries = ref([
-  {
-    name: 'Week 1',
-    data: [
-      { x: 'Mon', y: 48 },
-      { x: 'Tue', y: 52 },
-      { x: 'Wed', y: 46 },
-      { x: 'Thu', y: 61 },
-      { x: 'Fri', y: 68 },
-      { x: 'Sat', y: 34 },
-      { x: 'Sun', y: 29 }
-    ]
-  },
-  {
-    name: 'Week 2',
-    data: [
-      { x: 'Mon', y: 53 },
-      { x: 'Tue', y: 58 },
-      { x: 'Wed', y: 50 },
-      { x: 'Thu', y: 66 },
-      { x: 'Fri', y: 72 },
-      { x: 'Sat', y: 39 },
-      { x: 'Sun', y: 31 }
-    ]
-  },
-  {
-    name: 'Week 3',
-    data: [
-      { x: 'Mon', y: 57 },
-      { x: 'Tue', y: 64 },
-      { x: 'Wed', y: 55 },
-      { x: 'Thu', y: 70 },
-      { x: 'Fri', y: 78 },
-      { x: 'Sat', y: 42 },
-      { x: 'Sun', y: 36 }
-    ]
-  },
-  {
-    name: 'Week 4',
-    data: [
-      { x: 'Mon', y: 60 },
-      { x: 'Tue', y: 67 },
-      { x: 'Wed', y: 59 },
-      { x: 'Thu', y: 73 },
-      { x: 'Fri', y: 80 },
-      { x: 'Sat', y: 45 },
-      { x: 'Sun', y: 38 }
-    ]
-  }
-])
+const recentWeeks = 12
+const weekdayRows = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
-const heatmapOptions = ref({
-  chart: {
-    type: 'heatmap',
-    toolbar: {
-      show: false
-    }
-  },
-  dataLabels: {
-    enabled: false
-  },
-  colors: ['#008FFB'],
-  xaxis: {
-    type: 'category',
+function startOfWeekMonday(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const day = d.getDay() // Sun=0
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function pseudoRandom(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453
+  return x - Math.floor(x)
+}
+
+function simulateDailyScanCount(date) {
+  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
+  const r1 = pseudoRandom(dayOfYear)
+  const r2 = pseudoRandom(dayOfYear + 99)
+  const r3 = pseudoRandom(dayOfYear + 199)
+  const missingChance = pseudoRandom(dayOfYear + 777)
+
+  // simulate missing records: keep cells empty when no data
+  if (missingChance < 0.08) return null
+
+  let count = 8000 + Math.floor(r1 * 12000)
+  if (r2 > 0.96) {
+    count += 280000 + Math.floor(r3 * 720000)
+  } else if (r2 > 0.86) {
+    count += 50000 + Math.floor(r3 * 180000)
+  }
+  return count
+}
+
+const weekStarts = computed(() => {
+  const today = new Date()
+  const currentWeekStart = startOfWeekMonday(today)
+  const arr = []
+  for (let i = recentWeeks - 1; i >= 0; i -= 1) {
+    const d = new Date(currentWeekStart)
+    d.setDate(d.getDate() - i * 7)
+    arr.push(d)
+  }
+  return arr
+})
+
+const weekLabels = computed(() => {
+  return weekStarts.value.map((d) => {
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${m}/${day}`
+  })
+})
+
+const heatmapSeries = computed(() => {
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+
+  return weekdayRows.map((rowName, rowIndex) => ({
+    name: rowName,
+    data: weekStarts.value.map((weekStart, weekIndex) => {
+      const date = new Date(weekStart)
+      date.setDate(date.getDate() + rowIndex)
+
+      const yyyy = date.getFullYear()
+      const mm = String(date.getMonth() + 1).padStart(2, '0')
+      const dd = String(date.getDate()).padStart(2, '0')
+      const dateLabel = `${yyyy}-${mm}-${dd}`
+
+      if (date > today) {
+        return { x: weekLabels.value[weekIndex], y: null, dateLabel }
+      }
+
+      return {
+        x: weekLabels.value[weekIndex],
+        y: simulateDailyScanCount(date),
+        dateLabel
+      }
+    })
+  }))
+})
+
+const allHeatValues = computed(() => {
+  return heatmapSeries.value
+    .flatMap((series) => series.data.map((point) => point.y))
+    .filter((value) => value !== null)
+    .sort((a, b) => a - b)
+})
+
+function quantile(sortedArr, q) {
+  if (!sortedArr.length) return 0
+  const pos = (sortedArr.length - 1) * q
+  const base = Math.floor(pos)
+  const rest = pos - base
+  if (sortedArr[base + 1] !== undefined) {
+    return sortedArr[base] + rest * (sortedArr[base + 1] - sortedArr[base])
+  }
+  return sortedArr[base]
+}
+
+const heatmapOptions = computed(() => {
+  const values = allHeatValues.value
+  const minVal = values[0] ?? 0
+  const maxVal = values[values.length - 1] ?? 0
+  const q40 = quantile(values, 0.4)
+  const q80 = quantile(values, 0.8)
+
+  return {
+    chart: {
+      type: 'heatmap',
+      toolbar: { show: false }
+    },
+    dataLabels: { enabled: false },
+    xaxis: {
+      type: 'category',
+      title: { text: '最近12周（按周起始日）' }
+    },
+    yaxis: {
+      title: { text: '周几' }
+    },
     title: {
-      text: 'Weekday'
+      text: '扫描数热力图（最近12周）'
+    },
+    plotOptions: {
+      heatmap: {
+        shadeIntensity: 1,
+        colorScale: {
+          ranges: [
+            { from: minVal, to: q40, name: '0% - 40%', color: 'rgb(0, 143, 251)' },
+            { from: q40 + 1, to: q80, name: '40% - 80%', color: 'rgb(0, 227, 150)' },
+            { from: q80 + 1, to: maxVal, name: '80% - 100%', color: 'rgb(255, 69, 96)' }
+          ]
+        }
+      }
+    },
+    tooltip: {
+      custom({ series, seriesIndex, dataPointIndex, w }) {
+        const point = w.config.series[seriesIndex].data[dataPointIndex]
+        const value = series[seriesIndex][dataPointIndex]
+        if (value === null || value === undefined) return ''
+        return `<div class="p-2 text-xs">
+          <div><strong>${w.config.series[seriesIndex].name}</strong></div>
+          <div>日期: ${point.dateLabel}</div>
+          <div>扫描IP数: ${value}</div>
+        </div>`
+      }
     }
-  },
-  yaxis: {
-    title: {
-      text: 'Week'
-    }
-  },
-  title: {
-    text: 'Weekly Scan Count Heatmap'
   }
 })
 </script>
@@ -189,7 +244,12 @@ const heatmapOptions = ref({
 
           <label class="form-control w-full">
             <span class="label-text text-xs mb-1">忽略版本差异</span>
-            <input v-model="ignoreVersionDiff" type="checkbox" class="toggle toggle-primary mt-2" :disabled="serviceDimension === 'protocol'" />
+            <input
+              v-model="ignoreVersionDiff"
+              type="checkbox"
+              class="toggle toggle-primary mt-2"
+              :disabled="serviceDimension === 'protocol'"
+            />
           </label>
         </div>
 
@@ -199,10 +259,10 @@ const heatmapOptions = ref({
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="mb-3">
           <h3 class="font-semibold">扫描数热力图</h3>
-          <p class="text-xs opacity-60">Y 轴为周，X 轴为周几</p>
+          <p class="text-xs opacity-60">Y 轴为周几，X 轴为最近 12 周，无数据天留空</p>
         </div>
 
-        <apexchart type="heatmap" height="360" :options="heatmapOptions" :series="heatmapSeries" />
+        <apexchart type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
       </div>
     </div>
   </div>
