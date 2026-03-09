@@ -48,23 +48,6 @@
 
       <!--  -->
       <div class="flex flex-col space-y-2">
-        <details class="collapse bg-base-100 border border-base-300" name="my-accordion-det-1">
-          <summary class="collapse-title font-semibold">
-
-          </summary>
-          <div class="collapse-content text-sm">
-
-          </div>
-        </details>
-        <details class="collapse bg-base-100 border border-base-300" name="my-accordion-det-1">
-          <summary class="collapse-title font-semibold">I forgot my password. What should I do?</summary>
-          <div class="collapse-content text-sm">Click on "Forgot Password" on the login page and follow the instructions sent to your email.</div>
-        </details>
-        <details class="collapse bg-base-100 border border-base-300" name="my-accordion-det-1">
-          <summary class="collapse-title font-semibold">How do I update my profile information?</summary>
-          <div class="collapse-content text-sm">Go to "My Account" settings and select "Edit Profile" to make changes.</div>
-        </details>
-
         <div class="overflow-x-auto">
           <!-- 开始 -->
           <table class="table table-fixed w-full">
