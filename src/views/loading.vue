@@ -9,8 +9,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 <style scoped>
   .loadingspinner {
-    --square: 26px;
-    --offset: 30px;
+    --square: 16px;
+    --offset: 20px;
     --duration: 2.4s;
     --delay: 0.2s;
     --timing-function: ease-in-out;
