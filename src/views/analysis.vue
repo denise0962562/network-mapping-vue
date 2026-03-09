@@ -1,10 +1,32 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import Loading from './loading.vue'
 
 const topOptions = [5, 7, 10]
 const topN = ref(5)
 const serviceDimension = ref('protocol')
 const ignoreVersionDiff = ref(true)
+
+const isPieLoading = ref(true)
+const isHeatmapLoading = ref(true)
+let pieLoadingTimer = null
+let heatmapLoadingTimer = null
+
+function triggerPieLoading(duration = 450) {
+  if (pieLoadingTimer) clearTimeout(pieLoadingTimer)
+  isPieLoading.value = true
+  pieLoadingTimer = setTimeout(() => {
+    isPieLoading.value = false
+  }, duration)
+}
+
+function triggerHeatmapLoading(duration = 650) {
+  if (heatmapLoadingTimer) clearTimeout(heatmapLoadingTimer)
+  isHeatmapLoading.value = true
+  heatmapLoadingTimer = setTimeout(() => {
+    isHeatmapLoading.value = false
+  }, duration)
+}
 
 const protocolStats = [
   { name: 'HTTP', value: 31 },
@@ -47,12 +69,11 @@ const pieSourceData = computed(() => {
     acc[item.app] = (acc[item.app] || 0) + item.value
     return acc
   }, {})
+
   return Object.entries(grouped).map(([name, value]) => ({ name, value }))
 })
 
-const pieTopData = computed(() => {
-  return [...pieSourceData.value].sort((a, b) => b.value - a.value).slice(0, topN.value)
-})
+const pieTopData = computed(() => [...pieSourceData.value].sort((a, b) => b.value - a.value).slice(0, topN.value))
 const pieSeries = computed(() => pieTopData.value.map((item) => item.value))
 const pieLabels = computed(() => pieTopData.value.map((item) => item.name))
 
@@ -69,7 +90,7 @@ const weekdayRows = ['周一', '周二', '周三', '周四', '周五', '周六',
 
 function startOfWeekMonday(date) {
   const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const day = d.getDay() // Sun=0
+  const day = d.getDay()
   const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
   d.setHours(0, 0, 0, 0)
@@ -88,7 +109,6 @@ function simulateDailyScanCount(date) {
   const r3 = pseudoRandom(dayOfYear + 199)
   const missingChance = pseudoRandom(dayOfYear + 777)
 
-  // simulate missing records: keep cells empty when no data
   if (missingChance < 0.08) return null
 
   let count = 8000 + Math.floor(r1 * 12000)
@@ -112,13 +132,13 @@ const weekStarts = computed(() => {
   return arr
 })
 
-const weekLabels = computed(() => {
-  return weekStarts.value.map((d) => {
+const weekLabels = computed(() =>
+  weekStarts.value.map((d) => {
     const m = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')
     return `${m}/${day}`
   })
-})
+)
 
 const heatmapSeries = computed(() => {
   const today = new Date()
@@ -148,12 +168,12 @@ const heatmapSeries = computed(() => {
   }))
 })
 
-const allHeatValues = computed(() => {
-  return heatmapSeries.value
+const allHeatValues = computed(() =>
+  heatmapSeries.value
     .flatMap((series) => series.data.map((point) => point.y))
     .filter((value) => value !== null)
     .sort((a, b) => a - b)
-})
+)
 
 function quantile(sortedArr, q) {
   if (!sortedArr.length) return 0
@@ -174,21 +194,11 @@ const heatmapOptions = computed(() => {
   const q80 = quantile(values, 0.8)
 
   return {
-    chart: {
-      type: 'heatmap',
-      toolbar: { show: false }
-    },
+    chart: { type: 'heatmap', toolbar: { show: false } },
     dataLabels: { enabled: false },
-    xaxis: {
-      type: 'category',
-      title: { text: '最近12周（按周起始日）' }
-    },
-    yaxis: {
-      title: { text: '周几' }
-    },
-    title: {
-      text: '扫描数热力图（最近12周）'
-    },
+    xaxis: { type: 'category', title: { text: '最近12周（按周起始日）' } },
+    yaxis: { title: { text: '周几' } },
+    title: { text: '扫描数热力图（最近12周）' },
     plotOptions: {
       heatmap: {
         shadeIntensity: 1,
@@ -214,6 +224,15 @@ const heatmapOptions = computed(() => {
       }
     }
   }
+})
+
+onMounted(() => {
+  triggerPieLoading()
+  triggerHeatmapLoading()
+})
+
+watch([topN, serviceDimension, ignoreVersionDiff], () => {
+  triggerPieLoading(350)
 })
 </script>
 
@@ -253,7 +272,10 @@ const heatmapOptions = computed(() => {
           </label>
         </div>
 
-        <apexchart type="pie" height="320" :options="pieOptions" :series="pieSeries" />
+        <div v-if="isPieLoading" class="py-8">
+          <Loading />
+        </div>
+        <apexchart v-else type="pie" height="320" :options="pieOptions" :series="pieSeries" />
       </div>
 
       <div class="card bg-base-100 card-border border-base-300 p-4">
@@ -262,7 +284,10 @@ const heatmapOptions = computed(() => {
           <p class="text-xs opacity-60">Y 轴为周几，X 轴为最近 12 周，无数据天留空</p>
         </div>
 
-        <apexchart type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
+        <div v-if="isHeatmapLoading" class="py-8">
+          <Loading />
+        </div>
+        <apexchart v-else type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
       </div>
     </div>
   </div>
