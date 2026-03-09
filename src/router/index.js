@@ -7,6 +7,7 @@ const router = createRouter({
     {path: '/create_scan', component: () => import('../views/createscan.vue')},
     {path: '/task/:taskid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})', component: () => import('../views/routertest.vue')},
     {path: '/task', component: () => import('../views/task.vue')},
+    {path: '/analysis', component: () => import('../views/analysis.vue')},
     {path: '/setting', component: () => import('../views/setting.vue')},
     { path: '/:pathMatch(.*)*', component: () => import('../views/NotFound-404.vue')}
   ],
