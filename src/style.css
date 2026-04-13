@@ -1,7 +1,7 @@
 @import "tailwindcss";
-@plugin "daisyui"  {
-    themes: winter --default, dark --prefersdark;
-}
+@plugin "daisyui" {
+   themes: light --default, dark --prefersdark;
+ }
 
 .resource_card {
     @apply card bg-base-100 card-border border-base-300 w-full p-2.5;
