@@ -1,11 +1,27 @@
 <script setup>
-import { computed } from 'vue';
-import { RouterView } from 'vue-router';
-import { useRoute } from 'vue-router';
+import { computed, ref } from 'vue';
+import { RouterView, useRoute, useRouter } from 'vue-router';
 
 const route = useRoute()
+const router = useRouter()
 const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
+const logoutLoading = ref(false)
 
+async function handleLogout() {
+  if (logoutLoading.value) return
+  logoutLoading.value = true
+  try {
+    await fetch('/api/logout', {
+      method: 'GET',
+      credentials: 'include'
+    })
+  } catch (error) {
+    console.error('logout failed', error)
+  } finally {
+    logoutLoading.value = false
+    router.push('/')
+  }
+}
 </script>
 
 <template>
@@ -60,7 +76,7 @@ const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
             <router-link exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Dashboard" to="/">
               <!-- Settings icon -->
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
-              <span class="is-drawer-close:hidden">Dashboard</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">Dashboard</span>
             </router-link>
           </li>
 
@@ -71,7 +87,7 @@ const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
                   <path d="M12 5v14"></path>
                   <path d="M5 12h14"></path>
               </svg>
-              <span class="is-drawer-close:hidden">创建扫描</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">创建扫描</span>
             </router-link>
           </li>
 
@@ -83,7 +99,7 @@ const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
                   <circle cx="11" cy="11" r="8"></circle>
                   <path d="M21 21l-4.35-4.35"></path>
               </svg>
-              <span class="is-drawer-close:hidden">搜索</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">搜索</span>
             </router-link>
           </li>
 
@@ -93,7 +109,7 @@ const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
               <!-- Task icon -->
                <!-- from lucide -->
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-              <span class="is-drawer-close:hidden">任务</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">任务</span>
             </router-link>
           </li>
 
@@ -102,7 +118,7 @@ const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
               <!-- Analysis icon -->
               <!-- from lucide -->
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M5 21V3"/><path d="M12 21V9"/><path d="M19 21v-6"/></svg>
-              <span class="is-drawer-close:hidden">数据分析</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">数据分析</span>
             </router-link>
           </li>
 
@@ -113,13 +129,38 @@ const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
               <!-- Settings icon -->
               <!-- from lucide -->
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
-              <span class="is-drawer-close:hidden">设置</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">设置</span>
             </router-link>
           </li>
         </ul>
+
+        <div class="w-full border-t border-base-300">
+          <ul class="menu w-full">
+            <li>
+              <button
+                class="is-drawer-close:tooltip is-drawer-close:tooltip-right is-drawer-close:justify-center"
+                data-tip="退出登录"
+                :disabled="logoutLoading"
+                @click="handleLogout"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4">
+                  <path d="m16 17 5-5-5-5"/>
+                  <path d="M21 12H9"/>
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                </svg>
+                <span class="is-drawer-close:hidden whitespace-nowrap overflow-hidden text-ellipsis">{{ logoutLoading ? '退出中...' : '退出登录' }}</span>
+              </button>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.drawer-side .menu li > a,
+.drawer-side .menu li > button {
+  min-height: 2.5rem;
+}
+</style>
