@@ -4,11 +4,11 @@
 }
 
 .resource_card {
-    @apply card bg-base-100 card-border m-2.5 border-base-300 w-1/4 p-2.5;
+    @apply card bg-base-100 card-border border-base-300 w-full p-2.5;
 }
 
 .big_card {
-    @apply card bg-base-100 card-border m-2.5 border-base-300 w-[calc(50%+20px)] p-2.5;
+    @apply card bg-base-100 card-border border-base-300 w-full p-2.5;
 }
 
 .task_input_items {

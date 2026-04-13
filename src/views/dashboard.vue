@@ -1,5 +1,5 @@
 <template>
-  <div class="flex pl-5 pr-5 pt-2.5 pb-2.5">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 p-5">
 
     <!-- <div class="card bg-base-100 card-border m-2.5 border-base-300 w-1/3 p-2.5"> -->
       <!-- <div id="system-scan-ip-count"></div> -->
@@ -32,7 +32,7 @@
   <!-- 资源卡片结束 -->
 
   <!-- 系统信息及扫描日志卡片 -->
-  <div class="flex pl-5 pr-5 pt-2.5 pb-2.5">
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 p-5">
     <div class="big_card">
       
       <!-- 系统信息列表 -->
