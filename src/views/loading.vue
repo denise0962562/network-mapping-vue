@@ -1,5 +1,5 @@
-<!-- 来自 https://uiverse.io/Nawsome/slimy-tiger-93 -->
-<!-- Copyright - 2026 Nawsome  
+<!-- 来自 https://uiverse.io/mrhyddenn/black-bullfrog-16 -->
+<!-- Copyright - 2026 mrhyddenn  
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -8,260 +8,157 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. -->
 
 <style scoped>
-  .loadingspinner {
-    --square: 16px;
-    --offset: 20px;
-    --duration: 2.4s;
-    --delay: 0.2s;
-    --timing-function: ease-in-out;
-    --in-duration: 0.4s;
-    --in-delay: 0.1s;
-    --in-timing-function: ease-out;
-    width: calc( 3 * var(--offset) + var(--square));
-    height: calc( 2 * var(--offset) + var(--square));
-    padding: 0px;
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: 10px;
-    margin-bottom: 30px;
+  .spinner {
+    font-size: 28px;
     position: relative;
-  }
-
-  .loadingspinner div {
     display: inline-block;
-    background: darkorange;
-      /*background: var(--text-color);*/
-      /*box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.4);*/
-    border: none;
-    border-radius: 2px;
-    width: var(--square);
-    height: var(--square);
+    width: 1em;
+    height: 1em;
+  }
+
+  .spinner.center {
     position: absolute;
-    padding: 0px;
-    margin: 0px;
-    font-size: 6pt;
-    color: black;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: auto;
   }
 
-  .loadingspinner #square1 {
-    left: calc( 0 * var(--offset) );
-    top: calc( 0 * var(--offset) );
-    animation: square1 var(--duration) var(--delay) var(--timing-function) infinite,
-                 squarefadein var(--in-duration) calc(1 * var(--in-delay)) var(--in-timing-function) both;
+  .spinner .spinner-blade {
+    position: absolute;
+    left: 0.4629em;
+    bottom: 0;
+    width: 0.074em;
+    height: 0.2777em;
+    border-radius: 0.0555em;
+    background-color: transparent;
+    -webkit-transform-origin: center -0.2222em;
+    -ms-transform-origin: center -0.2222em;
+    transform-origin: center -0.2222em;
+    animation: spinner-fade9234 1s infinite linear;
   }
 
-  .loadingspinner #square2 {
-    left: calc( 0 * var(--offset) );
-    top: calc( 1 * var(--offset) );
-    animation: square2 var(--duration) var(--delay) var(--timing-function) infinite,
-                squarefadein var(--in-duration) calc(1 * var(--in-delay)) var(--in-timing-function) both;
+  .spinner .spinner-blade:nth-child(1) {
+    -webkit-animation-delay: 0s;
+    animation-delay: 0s;
+    -webkit-transform: rotate(0deg);
+    -ms-transform: rotate(0deg);
+    transform: rotate(0deg);
   }
 
-  .loadingspinner #square3 {
-    left: calc( 1 * var(--offset) );
-    top: calc( 1 * var(--offset) );
-    animation: square3 var(--duration) var(--delay) var(--timing-function) infinite,
-                 squarefadein var(--in-duration) calc(2 * var(--in-delay)) var(--in-timing-function) both;
+  .spinner .spinner-blade:nth-child(2) {
+    -webkit-animation-delay: 0.083s;
+    animation-delay: 0.083s;
+    -webkit-transform: rotate(30deg);
+    -ms-transform: rotate(30deg);
+    transform: rotate(30deg);
   }
 
-  .loadingspinner #square4 {
-    left: calc( 2 * var(--offset) );
-    top: calc( 1 * var(--offset) );
-    animation: square4 var(--duration) var(--delay) var(--timing-function) infinite,
-                 squarefadein var(--in-duration) calc(3 * var(--in-delay)) var(--in-timing-function) both;
+  .spinner .spinner-blade:nth-child(3) {
+    -webkit-animation-delay: 0.166s;
+    animation-delay: 0.166s;
+    -webkit-transform: rotate(60deg);
+    -ms-transform: rotate(60deg);
+    transform: rotate(60deg);
   }
 
-  .loadingspinner #square5 {
-    left: calc( 3 * var(--offset) );
-    top: calc( 1 * var(--offset) );
-    animation: square5 var(--duration) var(--delay) var(--timing-function) infinite,
-                 squarefadein var(--in-duration) calc(4 * var(--in-delay)) var(--in-timing-function) both;
+  .spinner .spinner-blade:nth-child(4) {
+    -webkit-animation-delay: 0.249s;
+    animation-delay: 0.249s;
+    -webkit-transform: rotate(90deg);
+    -ms-transform: rotate(90deg);
+    transform: rotate(90deg);
   }
 
-  @keyframes square1 {
+  .spinner .spinner-blade:nth-child(5) {
+    -webkit-animation-delay: 0.332s;
+    animation-delay: 0.332s;
+    -webkit-transform: rotate(120deg);
+    -ms-transform: rotate(120deg);
+    transform: rotate(120deg);
+  }
+
+  .spinner .spinner-blade:nth-child(6) {
+    -webkit-animation-delay: 0.415s;
+    animation-delay: 0.415s;
+    -webkit-transform: rotate(150deg);
+    -ms-transform: rotate(150deg);
+    transform: rotate(150deg);
+  }
+
+  .spinner .spinner-blade:nth-child(7) {
+    -webkit-animation-delay: 0.498s;
+    animation-delay: 0.498s;
+    -webkit-transform: rotate(180deg);
+    -ms-transform: rotate(180deg);
+    transform: rotate(180deg);
+  }
+
+  .spinner .spinner-blade:nth-child(8) {
+    -webkit-animation-delay: 0.581s;
+    animation-delay: 0.581s;
+    -webkit-transform: rotate(210deg);
+    -ms-transform: rotate(210deg);
+    transform: rotate(210deg);
+  }
+
+  .spinner .spinner-blade:nth-child(9) {
+    -webkit-animation-delay: 0.664s;
+    animation-delay: 0.664s;
+    -webkit-transform: rotate(240deg);
+    -ms-transform: rotate(240deg);
+    transform: rotate(240deg);
+  }
+
+  .spinner .spinner-blade:nth-child(10) {
+    -webkit-animation-delay: 0.747s;
+    animation-delay: 0.747s;
+    -webkit-transform: rotate(270deg);
+    -ms-transform: rotate(270deg);
+    transform: rotate(270deg);
+  }
+
+  .spinner .spinner-blade:nth-child(11) {
+    -webkit-animation-delay: 0.83s;
+    animation-delay: 0.83s;
+    -webkit-transform: rotate(300deg);
+    -ms-transform: rotate(300deg);
+    transform: rotate(300deg);
+  }
+
+  .spinner .spinner-blade:nth-child(12) {
+    -webkit-animation-delay: 0.913s;
+    animation-delay: 0.913s;
+    -webkit-transform: rotate(330deg);
+    -ms-transform: rotate(330deg);
+    transform: rotate(330deg);
+  }
+
+  @keyframes spinner-fade9234 {
     0% {
-      left: calc( 0 * var(--offset) );
-      top: calc( 0 * var(--offset) );
-    }
-
-    8.333% {
-      left: calc( 0 * var(--offset) );
-      top: calc( 1 * var(--offset) );
+      background-color: #69717d;
     }
 
     100% {
-      left: calc( 0 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-  }
-
-  @keyframes square2 {
-    0% {
-      left: calc( 0 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    8.333% {
-      left: calc( 0 * var(--offset) );
-      top: calc( 2 * var(--offset) );
-    }
-
-    16.67% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 2 * var(--offset) );
-    }
-
-    25.00% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    83.33% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    91.67% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 0 * var(--offset) );
-    }
-
-    100% {
-      left: calc( 0 * var(--offset) );
-      top: calc( 0 * var(--offset) );
-    }
-  }
-
-  @keyframes square3 {
-    0%,100% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    16.67% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    25.00% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 0 * var(--offset) );
-    }
-
-    33.33% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 0 * var(--offset) );
-    }
-
-    41.67% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    66.67% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    75.00% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 2 * var(--offset) );
-    }
-
-    83.33% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 2 * var(--offset) );
-    }
-
-    91.67% {
-      left: calc( 1 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-  }
-
-  @keyframes square4 {
-    0% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    33.33% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    41.67% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 2 * var(--offset) );
-    }
-
-    50.00% {
-      left: calc( 3 * var(--offset) );
-      top: calc( 2 * var(--offset) );
-    }
-
-    58.33% {
-      left: calc( 3 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    100% {
-      left: calc( 3 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-  }
-
-  @keyframes square5 {
-    0% {
-      left: calc( 3 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    50.00% {
-      left: calc( 3 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    58.33% {
-      left: calc( 3 * var(--offset) );
-      top: calc( 0 * var(--offset) );
-    }
-
-    66.67% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 0 * var(--offset) );
-    }
-
-    75.00% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-
-    100% {
-      left: calc( 2 * var(--offset) );
-      top: calc( 1 * var(--offset) );
-    }
-  }
-
-  @keyframes squarefadein {
-    0% {
-      transform: scale(0.75);
-      opacity: 0.0;
-    }
-
-    100% {
-      transform: scale(1.0);
-      opacity: 1.0;
+      background-color: transparent;
     }
   }
 </style>
 
 <template>
-  <div class="loadingspinner">
-    <div id="square1"></div>
-    <div id="square2"></div>
-    <div id="square3"></div>
-    <div id="square4"></div>
-    <div id="square5"></div>
+  <div class="spinner center">
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
+      <div class="spinner-blade"></div>
   </div>
 </template>
