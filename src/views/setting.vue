@@ -6,6 +6,13 @@ const listenConfig = ref({
   port: '8080'
 })
 
+const securityConfig = ref({
+  maxLoginRetries: 3,
+  lockMinutes: 30,
+  apiRateLimit: 50,
+  pageRateLimit: 50
+})
+
 const mailConfig = ref({
   recipient: 'security-team@example.com',
   smtpHost: 'smtp.example.com',
@@ -24,27 +31,59 @@ const notificationPrefs = ref({
 })
 
 const savedListenConfig = ref({ ...listenConfig.value })
+const savedSecurityConfig = ref({ ...securityConfig.value })
 const savedMailConfig = ref({ ...mailConfig.value })
 const savedNotificationPrefs = ref({ ...notificationPrefs.value })
 const showSenderKey = ref(false)
 
-const showListenSave = computed(() => {
-  return JSON.stringify(listenConfig.value) !== JSON.stringify(savedListenConfig.value)
-})
-
+const showListenSave = computed(() => JSON.stringify(listenConfig.value) !== JSON.stringify(savedListenConfig.value))
+const showSecuritySave = computed(() => JSON.stringify(securityConfig.value) !== JSON.stringify(savedSecurityConfig.value))
 const showNotifySave = computed(() => {
   const mailChanged = JSON.stringify(mailConfig.value) !== JSON.stringify(savedMailConfig.value)
   const prefChanged = JSON.stringify(notificationPrefs.value) !== JSON.stringify(savedNotificationPrefs.value)
   return mailChanged || prefChanged
 })
 
+function clampLoginRetries() {
+  let value = Number(securityConfig.value.maxLoginRetries)
+  if (!Number.isFinite(value)) value = 3
+  value = Math.floor(value)
+  if (value <= 0) value = 1
+  if (value >= 5) value = 4
+  securityConfig.value.maxLoginRetries = value
+}
+
+function normalizeLockMinutes() {
+  let value = Number(securityConfig.value.lockMinutes)
+  if (!Number.isFinite(value)) value = 30
+  value = Math.max(1, Math.floor(value))
+  securityConfig.value.lockMinutes = value
+}
+
+function normalizeRateLimit(field) {
+  let value = Number(securityConfig.value[field])
+  if (!Number.isFinite(value)) value = 50
+  value = Math.max(0, Math.floor(value))
+  securityConfig.value[field] = value
+}
+
 function saveListenConfig() {
   savedListenConfig.value = { ...listenConfig.value }
+}
+
+function saveSecurityConfig() {
+  clampLoginRetries()
+  normalizeLockMinutes()
+  savedSecurityConfig.value = { ...securityConfig.value }
 }
 
 function saveNotifyConfig() {
   savedMailConfig.value = { ...mailConfig.value }
   savedNotificationPrefs.value = { ...notificationPrefs.value }
+}
+
+function testMailServer() {
+  console.log('test mail server', mailConfig.value)
 }
 </script>
 
@@ -59,12 +98,7 @@ function saveNotifyConfig() {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-3">
           <h3 class="font-semibold">当前监听主机和端口</h3>
-          <button
-            class="btn rounded-lg btn-primary btn-sm"
-            :class="showListenSave ? 'visible' : 'invisible'"
-            :disabled="!showListenSave"
-            @click="saveListenConfig"
-          >
+          <button class="btn rounded-lg btn-primary btn-sm" :class="showListenSave ? 'visible' : 'invisible'" :disabled="!showListenSave" @click="saveListenConfig">
             保存
           </button>
         </div>
@@ -83,14 +117,79 @@ function saveNotifyConfig() {
       </div>
 
       <div class="card bg-base-100 card-border border-base-300 p-4">
+        <div class="flex items-start justify-between mb-3">
+          <h3 class="font-semibold">系统安全</h3>
+          <button class="btn rounded-lg btn-primary btn-sm" :class="showSecuritySave ? 'visible' : 'invisible'" :disabled="!showSecuritySave" @click="saveSecurityConfig">
+            保存
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="form-control w-full">
+            <span class="label-text mb-1">限制登录错误次数</span>
+            <input
+              v-model.number="securityConfig.maxLoginRetries"
+              type="number"
+              min="1"
+              max="4"
+              step="1"
+              class="input input-bordered w-full"
+              @blur="clampLoginRetries"
+              @input="clampLoginRetries"
+            />
+            <span class="label-text-alt opacity-60 mt-1">仅允许输入 1-4 的整数，默认 3</span>
+          </label>
+
+          <label class="form-control w-full">
+            <span class="label-text mb-1">锁定时间 <span class="text-xs opacity-60">（分钟）</span></span>
+            <input
+              v-model.number="securityConfig.lockMinutes"
+              type="number"
+              min="1"
+              step="1"
+              class="input input-bordered w-full"
+              placeholder="例如: 30"
+              @blur="normalizeLockMinutes"
+              @input="normalizeLockMinutes"
+            />
+          </label>
+
+          <label class="form-control w-full">
+            <span class="label-text mb-1">请求速率限制（API 路径）</span>
+            <input
+              v-model.number="securityConfig.apiRateLimit"
+              type="number"
+              min="0"
+              step="1"
+              class="input input-bordered w-full"
+              placeholder="50"
+              @blur="normalizeRateLimit('apiRateLimit')"
+              @input="normalizeRateLimit('apiRateLimit')"
+            />
+            <span class="label-text-alt opacity-60 mt-1">单位：次/秒，0 表示不限制</span>
+          </label>
+
+          <label class="form-control w-full">
+            <span class="label-text mb-1">请求速率限制（普通页面）</span>
+            <input
+              v-model.number="securityConfig.pageRateLimit"
+              type="number"
+              min="0"
+              step="1"
+              class="input input-bordered w-full"
+              placeholder="50"
+              @blur="normalizeRateLimit('pageRateLimit')"
+              @input="normalizeRateLimit('pageRateLimit')"
+            />
+            <span class="label-text-alt opacity-60 mt-1">单位：次/秒，0 表示不限制</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-4">
           <h3 class="font-semibold">通知</h3>
-          <button
-            class="btn rounded-lg btn-primary btn-sm"
-            :class="showNotifySave ? 'visible' : 'invisible'"
-            :disabled="!showNotifySave"
-            @click="saveNotifyConfig"
-          >
+          <button class="btn rounded-lg btn-primary btn-sm" :class="showNotifySave ? 'visible' : 'invisible'" :disabled="!showNotifySave" @click="saveNotifyConfig">
             保存
           </button>
         </div>
@@ -216,6 +315,8 @@ function saveNotifyConfig() {
                     </button>
                   </div>
                 </label>
+
+                <button class="btn btn-neutral w-full mt-2" @click="testMailServer">测试邮件服务器</button>
               </div>
             </div>
           </div>
