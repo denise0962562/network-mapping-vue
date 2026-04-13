@@ -1,33 +1,24 @@
 <template>
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 p-5">
+    <div class="card bg-base-100 card-border border-base-300 p-4">
+      <div class="mb-3">
+        <h3 class="font-semibold">服务器资源利用状态</h3>
+        <p class="text-xs opacity-60">使用率 / 空闲率（100% 堆叠）</p>
+      </div>
+      <apexchart type="bar" height="320" :options="resourceChartOptions" :series="resourceChartSeries" />
+    </div>
+
+    <div class="card bg-base-100 card-border border-base-300 p-4">
+      <div class="mb-3">
+        <h3 class="font-semibold">最近 7 天扫描情况</h3>
+        <p class="text-xs opacity-60">按扫描器统计</p>
+      </div>
+      <apexchart type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" />
+    </div>
+  </div>
+
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 p-5">
-
-    <!-- <div class="card bg-base-100 card-border m-2.5 border-base-300 w-1/3 p-2.5"> -->
-      <!-- <div id="system-scan-ip-count"></div> -->
-    <!-- </div> -->
-
-    <!-- CPU-RAM-Disk卡片 -->
-    <div class="resource_card">
-      <div class="stat-title">系统资源状态</div>
-      <div class="stat-value">资源利用</div>
-      <div id="system-resource-radialbar"></div>
-
-    </div>
-
-    <div class="resource_card">
-      <div class="stat-title">扫描器在线状态</div>
-      <div class="stat-value">在线: 1/5</div>
-      <div id="system-resource-scanner"></div>
-    </div>
-
-    <div class="resource_card">
-      <div class="stat-title">数据库状态</div>
-      <div class="stat-value">Postgresql</div>
-      <div id="system-database-status"></div>
-    </div>
-
-    <div class="resource_card">
-      <div class="stat-title"></div>
-    </div>
+    
   </div>   
   <!-- 资源卡片结束 -->
 
@@ -164,6 +155,130 @@
 import { computed, ref, TransitionGroup } from 'vue'
 
 const datalabel = ref(true)
+
+const resourceChartSeries = ref([
+  {
+    name: '使用',
+    data: [68, 74, 59, 20]
+  },
+  {
+    name: '空闲',
+    data: [32, 26, 41, 80]
+  }
+])
+
+const resourceChartOptions = ref({
+  chart: {
+    type: 'bar',
+    height: 320,
+    stacked: true,
+    stackType: '100%'
+  },
+  responsive: [
+    {
+      breakpoint: 480,
+      options: {
+        legend: {
+          position: 'bottom',
+          offsetX: -10,
+          offsetY: 0
+        }
+      }
+    }
+  ],
+  xaxis: {
+    categories: ['CPU', 'RAM', 'Disk', '扫描器在线']
+  },
+  fill: {
+    opacity: 1
+  },
+  legend: {
+    position: 'right',
+    offsetX: 0,
+    offsetY: 40
+  }
+})
+
+const scanChartSeries = ref([
+  {
+    name: 'scanner-01',
+    data: [32, 45, 36, 51, 49, 40, 43]
+  },
+  {
+    name: 'scanner-02',
+    data: [21, 26, 29, 24, 31, 28, 33]
+  },
+  {
+    name: 'scanner-03',
+    data: [12, 18, 15, 20, 17, 16, 19]
+  },
+  {
+    name: 'scanner-04',
+    data: [8, 11, 10, 14, 13, 12, 15]
+  }
+])
+
+const scanChartOptions = ref({
+  chart: {
+    type: 'bar',
+    height: 320,
+    stacked: true,
+    toolbar: {
+      show: true
+    },
+    zoom: {
+      enabled: true
+    }
+  },
+  responsive: [
+    {
+      breakpoint: 480,
+      options: {
+        legend: {
+          position: 'bottom',
+          offsetX: -10,
+          offsetY: 0
+        }
+      }
+    }
+  ],
+  plotOptions: {
+    bar: {
+      horizontal: false,
+      borderRadius: 10,
+      borderRadiusApplication: 'end',
+      borderRadiusWhenStacked: 'last',
+      dataLabels: {
+        total: {
+          enabled: true,
+          style: {
+            fontSize: '13px',
+            fontWeight: 900
+          }
+        }
+      }
+    }
+  },
+  xaxis: {
+    type: 'datetime',
+    categories: [
+      '2026-04-07T00:00:00.000Z',
+      '2026-04-08T00:00:00.000Z',
+      '2026-04-09T00:00:00.000Z',
+      '2026-04-10T00:00:00.000Z',
+      '2026-04-11T00:00:00.000Z',
+      '2026-04-12T00:00:00.000Z',
+      '2026-04-13T00:00:00.000Z'
+    ]
+  },
+  legend: {
+    position: 'right',
+    offsetY: 40
+  },
+  fill: {
+    opacity: 1
+  }
+})
 
 // 仪表盘中任务表最大显示10行
 const taskTableMaxRows = ref(10)
