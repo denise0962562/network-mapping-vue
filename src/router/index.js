@@ -7,6 +7,7 @@ const router = createRouter({
     { path: '/create_scan', component: () => import('../views/createscan.vue'), meta: { title: '创建扫描' } },
     { path: '/task/:taskid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})', component: () => import('../views/taskdetail.vue'), meta: { title: '任务详情' } },
     { path: '/task', component: () => import('../views/task.vue'), meta: { title: '任务' } },
+    { path: '/scanner', component: () => import('../views/Scanner.vue'), meta: { title: '扫描器' } },
     { path: '/analysis', component: () => import('../views/analysis.vue'), meta: { title: '数据分析' } },
     { path: '/open-source', component: () => import('../views/open-source.vue'), meta: { title: '开源项目' } },
     { path: '/setting', component: () => import('../views/setting.vue'), meta: { title: '设置' } },
