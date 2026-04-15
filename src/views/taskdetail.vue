@@ -18,8 +18,8 @@ const taskMeta = ref({
 })
 
 const summaryStats = ref([
-  { title: '存活 IP 数', value: '128', desc: '较昨日 +9' },
-  { title: '存活端口数', value: '412', desc: '较昨日 +26' },
+  { title: '存活 IP 数', value: '128', desc: '' },
+  { title: '存活端口数', value: '412', desc: '' },
   { title: '漏洞数', value: '17', desc: '高危 3 / 中危 6 / 低危 8' },
   { title: '扫描耗时', value: '18m 42s', desc: '总耗时' }
 ])

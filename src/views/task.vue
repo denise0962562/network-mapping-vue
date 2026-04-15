@@ -24,13 +24,13 @@ const draftFilters = ref(getDefaultFilters())
 const appliedFilters = ref(getDefaultFilters())
 
 const taskItems = ref([
-  { taskId: 'sdcdsa', scannerId: 'scanner-01', target: '221.233.151.58/24', operator: 'System', startTime: '2026-03-08T10:20:00', status: 0, remark: 'test remark' },
-  { taskId: 'sdcdsb', scannerId: 'scanner-01', target: '47.122.119.248/24,212.59.218.33/24', operator: 'Admin', startTime: '2026-03-08T15:30:00', status: 1, remark: 'scanner-01 Admin remark' },
-  { taskId: 'sdcdsc', scannerId: 'scanner-02', target: '10.0.0.0/24', operator: 'Alice', startTime: '2026-03-09T09:00:00', status: 2, remark: 'waiting for scanner' },
-  { taskId: 'sdcdsd', scannerId: 'scanner-03', target: '172.16.12.1', operator: 'Bob', startTime: '2026-03-09T11:00:00', status: 3, remark: 'connection timeout' },
-  { taskId: 'sdcdse', scannerId: 'scanner-02', target: '8.8.8.8', operator: 'System', startTime: '2026-03-09T12:30:00', status: 1, remark: 'finished successfully' },
-  { taskId: 'sdcdsf', scannerId: 'scanner-04', target: '192.168.2.0/24', operator: 'Admin', startTime: '2026-03-09T13:20:00', status: 0, remark: 'running' },
-  { taskId: 'sdcdsg', scannerId: 'scanner-05', target: '43.132.11.22', operator: 'Cathy', startTime: '2026-03-09T14:05:00', status: 1, remark: 'done' }
+  { taskId: '018f3f5a-6b20-7f4a-8c31-3e7f4ab12d90', scannerId: 'scanner-01', target: '221.233.151.58/24', operator: 'System', startTime: '2026-03-08T10:20:00', status: 0, remark: 'test remark' },
+  { taskId: '018f3f5a-8d11-7a2c-9f6b-12d948c3e771', scannerId: 'scanner-01', target: '47.122.119.248/24,212.59.218.33/24', operator: 'Admin', startTime: '2026-03-08T15:30:00', status: 1, remark: 'scanner-01 Admin remark' },
+  { taskId: '018f3f5a-b721-7c6d-ab42-6f2b3a1d9e54', scannerId: 'scanner-02', target: '10.0.0.0/24', operator: 'Alice', startTime: '2026-03-09T09:00:00', status: 2, remark: 'waiting for scanner' },
+  { taskId: '018f3f5a-d0af-71e5-8a8f-c17b4d2e9063', scannerId: 'scanner-03', target: '172.16.12.1', operator: 'Bob', startTime: '2026-03-09T11:00:00', status: 3, remark: 'connection timeout' },
+  { taskId: '018f3f5a-f43d-79b0-9d33-8e1a5c4f7208', scannerId: 'scanner-02', target: '8.8.8.8', operator: 'System', startTime: '2026-03-09T12:30:00', status: 1, remark: 'finished successfully' },
+  { taskId: '018f3f5b-19c4-7d93-a4b1-2c9d5e6f8017', scannerId: 'scanner-04', target: '192.168.2.0/24', operator: 'Admin', startTime: '2026-03-09T13:20:00', status: 0, remark: 'running' },
+  { taskId: '018f3f5b-3d52-741a-8eb9-7a4d1c2f6530', scannerId: 'scanner-05', target: '43.132.11.22', operator: 'Cathy', startTime: '2026-03-09T14:05:00', status: 1, remark: 'done' }
 ])
 
 const stateConfig = {
@@ -228,7 +228,7 @@ onMounted(() => {
               <table class="table table-fixed w-full">
                 <thead>
                   <tr>
-                    <th class="w-10"></th>
+                    <th class="w-8"></th>
                     <th class="w-24">任务ID</th>
                     <th class="w-24">扫描器</th>
                     <th class="w-44">目标</th>
@@ -241,8 +241,12 @@ onMounted(() => {
                   <template v-if="pagedTaskItems.length > 0">
                     <template v-for="(taskItem, index) in pagedTaskItems" :key="taskItem.taskId">
                       <tr class="hover:bg-base-300 cursor-pointer" @click="toggleRow(taskItem.taskId)">
-                        <td class="w-10">{{ (currentPage - 1) * appliedFilters.pageSize + index + 1 }}</td>
-                        <td class="w-24 truncate">{{ taskItem.taskId }}</td>
+                        <td class="w-8">{{ (currentPage - 1) * appliedFilters.pageSize + index + 1 }}</td>
+                        <td class="w-24 truncate">
+                          <router-link class="link" :to="`/task/${taskItem.taskId}`" @click.stop>
+                            {{ taskItem.taskId }}
+                          </router-link>
+                        </td>
                         <td class="w-24 truncate">{{ taskItem.scannerId }}</td>
                         <td class="w-44 truncate">{{ taskItem.target }}</td>
                         <td class="w-24 truncate">{{ taskItem.operator }}</td>

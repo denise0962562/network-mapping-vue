@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const scannerForm = ref({
   name: '',
@@ -43,6 +43,22 @@ const scannerList = ref([
   }
 ])
 
+const pageSize = ref(7)
+const currentPage = ref(1)
+
+const totalPages = computed(() => {
+  const pages = Math.ceil(scannerList.value.length / pageSize.value)
+  return pages > 0 ? pages : 1
+})
+
+const pagedScannerList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return scannerList.value.slice(start, end)
+})
+
+const pageNumbers = computed(() => Array.from({ length: totalPages.value }, (_, i) => i + 1))
+
 function createScanner() {
   if (!scannerForm.value.name.trim()) return
   const nextIndex = scannerList.value.length + 1
@@ -60,6 +76,12 @@ function createScanner() {
   scannerForm.value.name = ''
   scannerForm.value.region = ''
   scannerForm.value.networkType = 'ipv4'
+  currentPage.value = totalPages.value
+}
+
+function changePage(page) {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
 }
 </script>
 
@@ -110,7 +132,7 @@ function createScanner() {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in scannerList" :key="`${item.index}-${item.name}`">
+                <tr v-for="item in pagedScannerList" :key="`${item.index}-${item.name}`">
                   <td>{{ item.index }}</td>
                   <td>{{ item.name }}</td>
                   <td>{{ item.region }}</td>
@@ -123,6 +145,23 @@ function createScanner() {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <div class="flex items-center justify-between mt-3">
+            <div class="text-xs opacity-70">第 {{ currentPage }} / {{ totalPages }} 页</div>
+            <div class="join">
+              <button class="join-item btn btn-xs" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">上一页</button>
+              <button
+                v-for="p in pageNumbers"
+                :key="p"
+                class="join-item btn btn-xs"
+                :class="{ 'btn-active': p === currentPage }"
+                @click="changePage(p)"
+              >
+                {{ p }}
+              </button>
+              <button class="join-item btn btn-xs" :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">下一页</button>
+            </div>
           </div>
         </div>
       </div>
