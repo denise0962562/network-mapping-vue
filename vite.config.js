@@ -24,7 +24,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'index.html',
-        search: 'search.html'
+        search: 'search.html',
+        login: 'login.html'
       }
     }
   }

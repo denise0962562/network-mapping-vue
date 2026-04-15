@@ -54,8 +54,8 @@
         </label>
       </div>
 
-      <div class="flex justify-end mt-1">
-        <button class="btn rounded-lg btn-primary w-full md:w-auto" id="task_submit">提交</button>
+      <div class="flex justify-end mt-3">
+        <button class="btn rounded-lg btn-neutral w-full md:w-auto" id="task_submit">提交</button>
       </div>
     </div>
   </div>

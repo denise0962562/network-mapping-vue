@@ -173,7 +173,7 @@ onMounted(() => {
           </label>
 
           <div class="flex items-end">
-            <button class="btn rounded-lg btn-primary w-full" :disabled="isLoadingData" @click="applySearch">搜索</button>
+            <button class="btn rounded-lg btn-neutral w-full" :disabled="isLoadingData" @click="applySearch">搜索</button>
           </div>
 
           <div class="flex items-end">
