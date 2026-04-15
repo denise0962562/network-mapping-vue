@@ -51,6 +51,12 @@ const timelineSteps = ref([
 
 const activeStepIndex = ref(5)
 
+const asnIspRows = ref([
+  { index: 1, ipCidr: '10.12.4.0/24', name: 'ExampleNet', asnumber: 'AS45102', adminC: 'CN-OPS-01' },
+  { index: 2, ipCidr: '172.16.33.8/32', name: 'MetroCloud', asnumber: 'AS58453', adminC: 'HK-NOC-22' },
+  { index: 3, ipCidr: '43.132.11.22/32', name: 'GlobalTransit', asnumber: 'AS3257', adminC: 'SG-ADMIN-7' }
+])
+
 function isNodeActive(index) {
   return index <= activeStepIndex.value
 }
@@ -62,6 +68,21 @@ function isPrevLineActive(index) {
 function isNextLineActive(index) {
   return index < timelineSteps.value.length - 1 && index < activeStepIndex.value
 }
+
+async function copyTaskId() {
+  const text = taskId.value
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch (error) {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+  }
+}
 </script>
 
 <template>
@@ -72,7 +93,10 @@ function isNextLineActive(index) {
           任务 UUID：{{ displayTaskId }}
         </h2>
         <div class="tooltip tooltip-bottom" :data-tip="taskId">
-          <button class="btn btn-ghost btn-xs">UUID</button>
+          <button class="btn btn-ghost btn-xs gap-1" @click="copyTaskId">
+            UUID
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-files-icon lucide-files size-3.5"><path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z"/><path d="M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1"/></svg>
+          </button>
         </div>
       </div>
 
@@ -156,6 +180,32 @@ function isNextLineActive(index) {
                 <hr v-if="index < timelineSteps.length - 1" :class="isNextLineActive(index) ? 'bg-neutral' : ''" />
               </li>
             </ul>
+          </div>
+        </div>
+
+        <div class="card bg-base-100 card-border border-base-300 p-4">
+          <h3 class="font-semibold mb-3">ASN&ISP</h3>
+          <div class="overflow-x-auto rounded-box border border-base-300">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>IP/CIDR</th>
+                  <th>Name</th>
+                  <th>ASNumber</th>
+                  <th>Admin-c</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in asnIspRows" :key="`${row.index}-${row.ipCidr}`">
+                  <td>{{ row.index }}</td>
+                  <td>{{ row.ipCidr }}</td>
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.asnumber }}</td>
+                  <td>{{ row.adminC }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
