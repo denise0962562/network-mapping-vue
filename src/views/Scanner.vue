@@ -9,6 +9,7 @@ const scannerForm = ref({
 
 const scannerList = ref([
   {
+    id: '550e8400-e29b-41d4-a716-446655440001',
     index: 1,
     name: 'scanner-01',
     region: '华东-上海',
@@ -20,6 +21,7 @@ const scannerList = ref([
     totalTasks: 143
   },
   {
+    id: '550e8400-e29b-41d4-a716-446655440002',
     index: 2,
     name: 'scanner-02',
     region: '华南-深圳',
@@ -31,6 +33,7 @@ const scannerList = ref([
     totalTasks: 98
   },
   {
+    id: '550e8400-e29b-41d4-a716-446655440003',
     index: 3,
     name: 'scanner-03',
     region: '亚太-香港',
@@ -59,10 +62,22 @@ const pagedScannerList = computed(() => {
 
 const pageNumbers = computed(() => Array.from({ length: totalPages.value }, (_, i) => i + 1))
 
+function createUuidV4() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16)
+    const value = char === 'x' ? random : (random & 0x3) | 0x8
+    return value.toString(16)
+  })
+}
+
 function createScanner() {
   if (!scannerForm.value.name.trim()) return
   const nextIndex = scannerList.value.length + 1
   scannerList.value.push({
+    id: createUuidV4(),
     index: nextIndex,
     name: scannerForm.value.name.trim(),
     region: scannerForm.value.region.trim() || '-',
@@ -132,9 +147,13 @@ function changePage(page) {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in pagedScannerList" :key="`${item.index}-${item.name}`">
+                <tr v-for="item in pagedScannerList" :key="item.id">
                   <td>{{ item.index }}</td>
-                  <td>{{ item.name }}</td>
+                  <td>
+                    <router-link class="link" :to="`/scanner/${item.id}`">
+                      {{ item.name }}
+                    </router-link>
+                  </td>
                   <td>{{ item.region }}</td>
                   <td>{{ item.ip }}</td>
                   <td>{{ item.status }}</td>
