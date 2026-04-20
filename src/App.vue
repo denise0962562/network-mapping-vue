@@ -1,26 +1,26 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
+import { expireCookie } from './utils/csrf'
+import http from './utils/http'
 
 const route = useRoute()
 const router = useRouter()
 const navbarTitle = computed(() => route.meta?.title || 'Dashboard')
 const logoutLoading = ref(false)
-const drawerOpen = ref(false)
+const drawerOpen = ref(true)
 
 async function handleLogout() {
   if (logoutLoading.value) return
   logoutLoading.value = true
   try {
-    await fetch('/api/logout', {
-      method: 'GET',
-      credentials: 'include'
-    })
+    await http.get('/api/logout')
   } catch (error) {
     console.error('logout failed', error)
   } finally {
+    expireCookie('csrf_token')
     logoutLoading.value = false
-    router.push('/')
+    window.location.href = '/login'
   }
 }
 </script>
@@ -75,57 +75,57 @@ async function handleLogout() {
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="创建扫描" to="/create_scan">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="鍒涘缓鎵弿" to="/create_scan">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4">
                 <path d="M12 5v14"></path>
                 <path d="M5 12h14"></path>
               </svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">创建扫描</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">鍒涘缓鎵弿</span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="搜索" target="_blank" to="/search">
+            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="鎼滅储" target="_blank" to="/search">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4">
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="M21 21l-4.35-4.35"></path>
               </svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">搜索</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">鎼滅储</span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="扫描器" to="/scanner">
+            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="鎵弿鍣? to="/scanner">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M15 14h.01"/><path d="M9 6h6"/><path d="M9 10h6"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">扫描器</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">鎵弿鍣?/span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="任务" to="/task">
+            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="浠诲姟" to="/task">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">任务</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">浠诲姟</span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="数据分析" to="/analysis">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="鏁版嵁鍒嗘瀽" to="/analysis">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M5 21V3"/><path d="M12 21V9"/><path d="M19 21v-6"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">数据分析</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">鏁版嵁鍒嗘瀽</span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="开源项目" to="/open-source">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="寮€婧愰」鐩? to="/open-source">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M16 18 22 12 16 6"/><path d="M8 6 2 12l6 6"/><path d="m14.5 4-5 16"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">开源项目</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">寮€婧愰」鐩?/span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="设置" to="/setting">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="璁剧疆" to="/setting">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">设置</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">璁剧疆</span>
             </router-link>
           </li>
         </ul>
@@ -133,13 +133,13 @@ async function handleLogout() {
         <div class="w-full border-t border-base-300">
           <ul class="menu w-full">
             <li>
-              <button class="is-drawer-close:tooltip is-drawer-close:tooltip-right is-drawer-close:justify-center" data-tip="退出登录" :disabled="logoutLoading" @click="handleLogout">
+              <button class="is-drawer-close:tooltip is-drawer-close:tooltip-right is-drawer-close:justify-center" data-tip="閫€鍑虹櫥褰? :disabled="logoutLoading" @click="handleLogout">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4">
                   <path d="m16 17 5-5-5-5"/>
                   <path d="M21 12H9"/>
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                 </svg>
-                <span class="is-drawer-close:hidden whitespace-nowrap overflow-hidden text-ellipsis">{{ logoutLoading ? '退出中...' : '退出登录' }}</span>
+                <span class="is-drawer-close:hidden whitespace-nowrap overflow-hidden text-ellipsis">{{ logoutLoading ? '閫€鍑轰腑...' : '閫€鍑虹櫥褰? }}</span>
               </button>
             </li>
           </ul>

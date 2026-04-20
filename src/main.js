@@ -3,9 +3,15 @@ import App from './App.vue'
 import router from './router'
 import './style.css'
 import ApexCharts from 'vue3-apexcharts'
+import { getCookieValue } from './utils/csrf'
 
-const app = createApp(App)
+const csrfToken = getCookieValue('csrf_token')
 
-app.use(router)
-app.component('apexchart',ApexCharts)
-app.mount('#app')
+if (!csrfToken) {
+  window.location.replace('/login')
+} else {
+  const app = createApp(App)
+  app.use(router)
+  app.component('apexchart', ApexCharts)
+  app.mount('#app')
+}
