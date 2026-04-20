@@ -1,11 +1,35 @@
 ﻿<script setup>
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import http from './utils/http'
 import { getCookieValue, expireCookie } from './utils/csrf'
 
 const username = ref('')
 const password = ref('')
 const isLoggingIn = ref(false)
+const showLoginError = ref(false)
+
+let loginErrorTimer = null
+
+function clearLoginErrorTimer() {
+  if (loginErrorTimer) {
+    clearTimeout(loginErrorTimer)
+    loginErrorTimer = null
+  }
+}
+
+function closeLoginError() {
+  showLoginError.value = false
+  clearLoginErrorTimer()
+}
+
+function openLoginError() {
+  showLoginError.value = true
+  clearLoginErrorTimer()
+  loginErrorTimer = setTimeout(() => {
+    showLoginError.value = false
+    loginErrorTimer = null
+  }, 5000)
+}
 
 onMounted(() => {
   if (getCookieValue('csrf_token')) {
@@ -13,21 +37,34 @@ onMounted(() => {
   }
 })
 
+onBeforeUnmount(() => {
+  clearLoginErrorTimer()
+})
+
 async function handleLogin() {
   if (isLoggingIn.value) return
 
   isLoggingIn.value = true
   try {
-    const response = await http.post('/api/login', {
-      username: username.value,
-      password: password.value,
-    })
+    const response = await http.post(
+      '/api/login',
+      {
+        username: username.value,
+        password: password.value,
+      },
+      {
+        validateStatus: () => true,
+      }
+    )
 
     if (response.status === 200) {
       window.location.href = '/'
+      return
     }
+
+    openLoginError()
   } catch (error) {
-    // 非 200 或请求异常时，按需求暂不处理
+    openLoginError()
   } finally {
     isLoggingIn.value = false
   }
@@ -36,6 +73,24 @@ async function handleLogin() {
 
 <template>
   <div class="flex min-h-screen flex-col bg-gray-200 font-sans">
+    <div class="fixed right-4 top-4 z-50 w-[min(92vw,22rem)]">
+      <transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 translate-y-[-8px]"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-[-8px]"
+      >
+        <div v-if="showLoginError" role="alert" class="alert alert-error alert-soft flex items-center justify-between">
+          <span>登录失败</span>
+          <button type="button" class="btn btn-ghost btn-xs" aria-label="关闭" @click="closeLoginError">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+      </transition>
+    </div>
+
     <div class="flex flex-grow items-center justify-center py-10">
       <div class="card card-lg w-96 overflow-hidden border-base-300 bg-base-100 card-border">
         <div class="border-b border-dashed border-base-300">
