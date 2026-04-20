@@ -13,13 +13,20 @@ async function handleLogout() {
   if (logoutLoading.value) return
   logoutLoading.value = true
   try {
-    await http.get('/logout')
+    const response = await http.get('/logout', {
+      validateStatus: () => true,
+    })
+
+    if (response.status === 500) {
+      throw new Error('logout failed with status 500')
+    }
+
+    expireCookie('csrf_token')
+    window.location.href = '/login'
   } catch (error) {
     console.error('logout failed', error)
   } finally {
-    expireCookie('csrf_token')
     logoutLoading.value = false
-    window.location.href = '/login'
   }
 }
 </script>

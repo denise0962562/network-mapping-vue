@@ -1,10 +1,17 @@
 ﻿<script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import http from './utils/http'
+import { getCookieValue, expireCookie } from './utils/csrf'
 
 const username = ref('')
 const password = ref('')
 const isLoggingIn = ref(false)
+
+onMounted(() => {
+  if (getCookieValue('csrf_token')) {
+    expireCookie('csrf_token')
+  }
+})
 
 async function handleLogin() {
   if (isLoggingIn.value) return
