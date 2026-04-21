@@ -1,5 +1,7 @@
-﻿import axios from 'axios'
-import { getCookieValue } from './csrf'
+import axios from 'axios'
+import { expireCookie, getCookieValue } from './csrf'
+
+let isRedirectingToLogin = false
 
 function shouldAttachCsrf(config) {
   const baseURL = config.baseURL ? new URL(config.baseURL, window.location.origin) : null
@@ -12,6 +14,21 @@ const http = axios.create({
   withCredentials: true,
 })
 
+function handleUnauthorized() {
+  if (getCookieValue('csrf_token')) {
+    expireCookie('csrf_token')
+  }
+
+  if (isRedirectingToLogin) return
+
+  isRedirectingToLogin = true
+  if (window.location.pathname !== '/login') {
+    window.location.replace('/login')
+  } else {
+    isRedirectingToLogin = false
+  }
+}
+
 http.interceptors.request.use((config) => {
   if (shouldAttachCsrf(config)) {
     const token = getCookieValue('csrf_token')
@@ -22,5 +39,20 @@ http.interceptors.request.use((config) => {
   }
   return config
 })
+
+http.interceptors.response.use(
+  (response) => {
+    if (response?.status === 401) {
+      handleUnauthorized()
+    }
+    return response
+  },
+  (error) => {
+    if (error?.response?.status === 401) {
+      handleUnauthorized()
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default http

@@ -4,6 +4,7 @@ import router from './router'
 import './style.css'
 import ApexCharts from 'vue3-apexcharts'
 import { getCookieValue } from './utils/csrf'
+import './utils/http'
 
 const csrfToken = getCookieValue('csrf_token')
 
