@@ -1,12 +1,13 @@
 ﻿<script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import http from '@/utils/http'
 import Loading from './loading.vue'
 
 const expandedRow = ref(null)
 const currentPage = ref(1)
 const isLoadingData = ref(false)
-let loadingTimer = null
-
+const errorMessage = ref('')
+const selectedCount = ref('')
 function getDefaultFilters() {
   return {
     taskId: '',
@@ -15,29 +16,60 @@ function getDefaultFilters() {
     operator: '',
     startTime: '',
     endTime: '',
-    scannerId: '',
-    pageSize: 5
+    scannerId: ''
   }
 }
 
 const draftFilters = ref(getDefaultFilters())
 const appliedFilters = ref(getDefaultFilters())
 
-const taskItems = ref([
-  { taskId: '018f3f5a-6b20-7f4a-8c31-3e7f4ab12d90', name: 'task-01', scannerName: 'scanner-01', scannerId: '550e8400-e29b-41d4-a716-446655440001', target: '221.233.151.58/24', operator: 'System', startTime: '2026-03-08T10:20:00', status: 0, remark: 'test remark' },
-  { taskId: '018f3f5a-8d11-7a2c-9f6b-12d948c3e771', name: 'task-02', scannerName: 'scanner-01', scannerId: '550e8400-e29b-41d4-a716-446655440001', target: '47.122.119.248/24,212.59.218.33/24', operator: 'Admin', startTime: '2026-03-08T15:30:00', status: 1, remark: 'scanner-01 Admin remark' },
-  { taskId: '018f3f5a-b721-7c6d-ab42-6f2b3a1d9e54', name: 'task-03', scannerName: 'scanner-02', scannerId: '550e8400-e29b-41d4-a716-446655440001', target: '10.0.0.0/24', operator: 'Alice', startTime: '2026-03-09T09:00:00', status: 2, remark: 'waiting for scanner' },
-  { taskId: '018f3f5a-d0af-71e5-8a8f-c17b4d2e9063', name: 'task-04', scannerName: 'scanner-03', scannerId: '550e8400-e29b-41d4-a716-446655440001', target: '172.16.12.1', operator: 'Bob', startTime: '2026-03-09T11:00:00', status: 3, remark: 'connection timeout' },
-  { taskId: '018f3f5a-f43d-79b0-9d33-8e1a5c4f7208', name: 'task-05', scannerName: 'scanner-02', scannerId: '550e8400-e29b-41d4-a716-446655440001', target: '8.8.8.8', operator: 'System', startTime: '2026-03-09T12:30:00', status: 1, remark: 'finished successfully' },
-  { taskId: '018f3f5b-19c4-7d93-a4b1-2c9d5e6f8017', name: 'task-06', scannerName: 'scanner-04', scannerId: '550e8400-e29b-41d4-a716-446655440001', target: '192.168.2.0/24', operator: 'Admin', startTime: '2026-03-09T13:20:00', status: 0, remark: 'running' },
-  { taskId: '018f3f5b-3d52-741a-8eb9-7a4d1c2f6530', name: 'task-07', scannerName: 'scanner-05', scannerId: '550e8400-e29b-41d4-a716-446655440001', target: '43.132.11.22', operator: 'Cathy', startTime: '2026-03-09T14:05:00', status: 1, remark: 'done' }
-])
+const taskItems = ref([])
+const totalCount = ref(0)
+const itemCount = ref(0)
+const startId = ref(null)
+const countParam = ref(null)
+const pageStartHistory = ref([null])
+const inferredPageSize = ref(null)
 
 const stateConfig = {
-  0: { class: 'scan_open', text: '扫描中' },
-  1: { class: 'scan_success', text: '成功' },
-  2: { class: 'scan_wait', text: '等待' },
-  3: { class: 'scan_faild', text: '错误' }
+  pending: { class: 'scan_wait', text: '待扫描' },
+  running: { class: 'scan_open', text: '扫描中' },
+  finished: { class: 'scan_success', text: '扫描完成' }
+}
+
+function formatUnixMs(value) {
+  if (value === null || value === undefined) return '-'
+  const date = new Date(Number(value))
+  if (Number.isNaN(date.getTime())) return '-'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const second = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`
+}
+
+function resolveStatus(startAt, endAt) {
+  if (startAt === null || startAt === undefined) return 'pending'
+  if (endAt === null || endAt === undefined) return 'running'
+  return 'finished'
+}
+
+function normalizeTask(item) {
+  const targets = Array.isArray(item.task_target) ? item.task_target.join(', ') : '-'
+  const createTimeMs = Number(item.task_create_time)
+  return {
+    taskId: item.task_id || '-',
+    scannerId: item.scanner_id || '-',
+    target: targets,
+    port: item.task_port || '-',
+    operator: item.task_initiator || '-',
+    createTimeMs: Number.isFinite(createTimeMs) ? createTimeMs : null,
+    createTime: formatUnixMs(item.task_create_time),
+    statusKey: resolveStatus(item.start_at, item.end_at),
+    remark: item.remarks || '-'
+  }
 }
 
 const scannerOptions = computed(() => {
@@ -49,72 +81,120 @@ const filteredTaskItems = computed(() => {
     const matchTaskId = item.taskId.toLowerCase().includes(appliedFilters.value.taskId.trim().toLowerCase())
     const matchTarget = item.target.toLowerCase().includes(appliedFilters.value.target.trim().toLowerCase())
     const matchOperator = item.operator.toLowerCase().includes(appliedFilters.value.operator.trim().toLowerCase())
-    const matchStatus = appliedFilters.value.status === '' || String(item.status) === String(appliedFilters.value.status)
+    const matchStatus = appliedFilters.value.status === '' || item.statusKey === appliedFilters.value.status
     const matchScanner = appliedFilters.value.scannerId === '' || item.scannerId === appliedFilters.value.scannerId
 
-    const itemTime = new Date(item.startTime).getTime()
     const startTime = appliedFilters.value.startTime ? new Date(appliedFilters.value.startTime).getTime() : null
     const endTime = appliedFilters.value.endTime ? new Date(appliedFilters.value.endTime).getTime() : null
-
-    const matchStart = startTime === null || itemTime >= startTime
-    const matchEnd = endTime === null || itemTime <= endTime
+    const matchStart = startTime === null || (item.createTimeMs !== null && item.createTimeMs >= startTime)
+    const matchEnd = endTime === null || (item.createTimeMs !== null && item.createTimeMs <= endTime)
 
     return matchTaskId && matchTarget && matchOperator && matchStatus && matchScanner && matchStart && matchEnd
   })
 })
 
+const nextStart = computed(() => {
+  if (typeof startId.value !== 'number' || typeof itemCount.value !== 'number') return null
+  const candidate = startId.value - itemCount.value
+  if (!Number.isFinite(candidate) || candidate < 0) return null
+  return candidate
+})
+
+const effectivePageSize = computed(() => {
+  if (typeof countParam.value === 'number' && countParam.value > 0) return countParam.value
+  if (typeof inferredPageSize.value === 'number' && inferredPageSize.value > 0) return inferredPageSize.value
+  if (typeof itemCount.value === 'number' && itemCount.value > 0) return itemCount.value
+  return 1
+})
+
 const totalPages = computed(() => {
-  const pages = Math.ceil(filteredTaskItems.value.length / Number(appliedFilters.value.pageSize))
+  const pages = Math.ceil(totalCount.value / effectivePageSize.value)
   return pages > 0 ? pages : 1
 })
 
-const pagedTaskItems = computed(() => {
-  const start = (currentPage.value - 1) * Number(appliedFilters.value.pageSize)
-  const end = start + Number(appliedFilters.value.pageSize)
-  return filteredTaskItems.value.slice(start, end)
+const hasPrevPage = computed(() => currentPage.value > 1)
+const hasNextPage = computed(() => {
+  if (currentPage.value >= totalPages.value) return false
+  if (nextStart.value === null) return false
+  return true
 })
 
-const pageNumbers = computed(() => Array.from({ length: totalPages.value }, (_, index) => index + 1))
+async function fetchTasks({ start, count } = {}) {
+  try {
+    isLoadingData.value = true
+    errorMessage.value = ''
 
-watch(filteredTaskItems, () => {
-  if (currentPage.value > totalPages.value) {
-    currentPage.value = totalPages.value
-  }
-})
+    const params = {}
+    if (typeof start === 'number') params.start = start
+    if (typeof count === 'number') params.count = count
 
-function withLoading(action) {
-  if (loadingTimer) clearTimeout(loadingTimer)
-  isLoadingData.value = true
-  loadingTimer = setTimeout(() => {
-    action()
+    const response = await http.get('/api/task/all', {
+      params: Object.keys(params).length > 0 ? params : undefined
+    })
+
+    const data = response?.data || {}
+    totalCount.value = Number(data.total_c) || 0
+    itemCount.value = Number(data.item_c) || 0
+    startId.value = typeof data.start_id === 'number' ? data.start_id : null
+    if (typeof count === 'number' && count > 0) {
+      inferredPageSize.value = count
+    } else if (inferredPageSize.value === null && itemCount.value > 0) {
+      inferredPageSize.value = itemCount.value
+    }
+    taskItems.value = Array.isArray(data.task_item) ? data.task_item.map(normalizeTask) : []
+    expandedRow.value = null
+    return true
+  } catch {
+    taskItems.value = []
+    totalCount.value = 0
+    itemCount.value = 0
+    startId.value = null
+    errorMessage.value = '任务列表加载失败，请稍后重试'
+    return false
+  } finally {
     isLoadingData.value = false
-  }, 500)
+  }
+}
+
+async function toNextPage() {
+  if (isLoadingData.value || !hasNextPage.value) return
+  const start = nextStart.value
+  const ok = await fetchTasks({ start, count: countParam.value })
+  if (!ok) return
+  currentPage.value += 1
+  pageStartHistory.value[currentPage.value - 1] = start
+}
+
+async function toPrevPage() {
+  if (isLoadingData.value || !hasPrevPage.value) return
+  const prevPage = currentPage.value - 1
+  const start = pageStartHistory.value[prevPage - 1]
+  const ok = await fetchTasks({ start: typeof start === 'number' ? start : undefined, count: countParam.value })
+  if (!ok) return
+  currentPage.value = prevPage
+}
+
+async function refreshWithCount() {
+  if (isLoadingData.value) return
+  countParam.value = selectedCount.value === '' ? null : Number(selectedCount.value)
+  inferredPageSize.value = null
+  currentPage.value = 1
+  pageStartHistory.value = [null]
+  await fetchTasks({ count: countParam.value })
 }
 
 function applySearch() {
-  withLoading(() => {
-    appliedFilters.value = { ...draftFilters.value }
-    currentPage.value = 1
-    expandedRow.value = null
-  })
+  if (isLoadingData.value) return
+  appliedFilters.value = { ...draftFilters.value }
+  expandedRow.value = null
 }
 
 function resetFilters() {
-  withLoading(() => {
-    const defaults = getDefaultFilters()
-    draftFilters.value = { ...defaults }
-    appliedFilters.value = { ...defaults }
-    currentPage.value = 1
-    expandedRow.value = null
-  })
-}
-
-function changePage(page) {
-  if (page < 1 || page > totalPages.value || isLoadingData.value) return
-  withLoading(() => {
-    currentPage.value = page
-    expandedRow.value = null
-  })
+  if (isLoadingData.value) return
+  const defaults = getDefaultFilters()
+  draftFilters.value = { ...defaults }
+  appliedFilters.value = { ...defaults }
+  expandedRow.value = null
 }
 
 function toggleRow(taskId) {
@@ -122,22 +202,8 @@ function toggleRow(taskId) {
   expandedRow.value = expandedRow.value === taskId ? null : taskId
 }
 
-function formatTime(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-  const minute = String(date.getMinutes()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hour}:${minute}`
-}
-
-onMounted(() => {
-  withLoading(() => {
-    expandedRow.value = null
-  })
+onMounted(async () => {
+  await fetchTasks()
 })
 </script>
 
@@ -160,10 +226,9 @@ onMounted(() => {
             <span class="label-text mb-1">状态</span>
             <select v-model="draftFilters.status" class="select select-bordered w-full" :disabled="isLoadingData">
               <option value="">全部</option>
-              <option value="0">扫描中</option>
-              <option value="1">成功</option>
-              <option value="2">等待</option>
-              <option value="3">错误</option>
+              <option value="pending">待扫描</option>
+              <option value="running">扫描中</option>
+              <option value="finished">扫描完成</option>
             </select>
           </label>
 
@@ -204,16 +269,19 @@ onMounted(() => {
               </label>
 
               <label class="form-control w-full">
-                <span class="label-text mb-1">每页条目</span>
-                <select v-model.number="draftFilters.pageSize" class="select select-bordered w-full" :disabled="isLoadingData">
-                  <option :value="5">5</option>
-                  <option :value="10">10</option>
-                  <option :value="20">20</option>
-                  <option :value="50">50</option>
+                <span class="label-text mb-1">每页条目（可选）</span>
+                <select v-model="selectedCount" class="select select-bordered w-full" :disabled="isLoadingData" @change="refreshWithCount">
+                  <option value="">默认</option>
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
                 </select>
               </label>
 
-              <div class="flex items-end text-sm opacity-70">共 {{ filteredTaskItems.length }} 条</div>
+              <div class="flex items-end text-sm opacity-70">
+                总任务数 {{ totalCount }}，本页返回 {{ itemCount }}，筛选后 {{ filteredTaskItems.length }}
+              </div>
             </div>
           </div>
         </details>
@@ -224,46 +292,46 @@ onMounted(() => {
           </div>
 
           <template v-else>
+            <div v-if="errorMessage" class="p-4 text-error text-sm">{{ errorMessage }}</div>
+
             <div class="overflow-x-auto">
               <table class="table table-fixed w-full">
                 <thead>
                   <tr>
                     <th class="w-8"></th>
-                    <th class="w-24">任务ID</th>
-                    <th class="w-24">扫描器</th>
-                    <th class="w-44">目标</th>
+                    <th class="w-40">任务ID</th>
+                    <th class="w-28">扫描器</th>
+                    <th class="w-56">目标</th>
+                    <th class="w-24">端口</th>
                     <th class="w-24">操作者</th>
-                    <th class="w-32">开始时间</th>
                     <th class="w-24">状态</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <template v-if="pagedTaskItems.length > 0">
-                    <template v-for="(taskItem, index) in pagedTaskItems" :key="taskItem.taskId">
+                  <template v-if="filteredTaskItems.length > 0">
+                    <template v-for="(taskItem, index) in filteredTaskItems" :key="taskItem.taskId">
                       <tr class="hover:bg-base-300 cursor-pointer" @click="toggleRow(taskItem.taskId)">
-                        <td class="w-8">{{ (currentPage - 1) * appliedFilters.pageSize + index + 1 }}</td>
-                        <td class="w-24 truncate">
+                        <td class="w-8">{{ (currentPage - 1) * itemCount + index + 1 }}</td>
+                        <td class="w-40 truncate">
                           <router-link class="link" :to="`/task/${taskItem.taskId}`" @click.stop>
                             {{ taskItem.taskId }}
                           </router-link>
                         </td>
-                        <td class="w-24 truncate">
-                          <router-link class="link" :to="`/scanner/${taskItem.scannerId}`" @click.stop>
-                            {{ taskItem.scannerName }}
-                          </router-link>
-                        </td>
-                        <td class="w-44 truncate">{{ taskItem.target }}</td>
+                        <td class="w-28 truncate">{{ taskItem.scannerId }}</td>
+                        <td class="w-56 truncate">{{ taskItem.target }}</td>
+                        <td class="w-24 truncate">{{ taskItem.port }}</td>
                         <td class="w-24 truncate">{{ taskItem.operator }}</td>
-                        <td class="w-32 text-xs">{{ formatTime(taskItem.startTime) }}</td>
                         <td class="w-24">
-                          <span class="scan_status w-full" :class="stateConfig[taskItem.status].class">
-                            {{ stateConfig[taskItem.status].text }}
+                          <span class="scan_status w-full" :class="stateConfig[taskItem.statusKey].class">
+                            {{ stateConfig[taskItem.statusKey].text }}
                           </span>
                         </td>
                       </tr>
                       <tr v-if="expandedRow === taskItem.taskId">
                         <td class="w-10"></td>
-                        <td colspan="6" class="w-full text-sm">{{ taskItem.remark }}</td>
+                        <td colspan="6" class="w-full text-sm">
+                          备注：{{ taskItem.remark }} | 创建时间：{{ taskItem.createTime }}
+                        </td>
                       </tr>
                     </template>
                   </template>
@@ -275,19 +343,13 @@ onMounted(() => {
             </div>
 
             <div class="flex items-center justify-between mt-2 p-3">
-              <div class="text-sm opacity-70">第 {{ currentPage }} / {{ totalPages }} 页</div>
+              <div class="text-sm opacity-70">
+                第 {{ currentPage }} 页，本页 {{ itemCount }} 条，筛选后 {{ filteredTaskItems.length }} 条，总数 {{ totalCount }}
+              </div>
               <div class="join">
-                <button class="join-item btn btn-sm" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">上一页</button>
-                <button
-                  v-for="page in pageNumbers"
-                  :key="page"
-                  class="join-item btn btn-sm"
-                  :class="{ 'btn-active': currentPage === page }"
-                  @click="changePage(page)"
-                >
-                  {{ page }}
-                </button>
-                <button class="join-item btn btn-sm" :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">下一页</button>
+                <button class="join-item btn btn-sm" :disabled="!hasPrevPage || isLoadingData" @click="toPrevPage">上一页</button>
+                <button class="join-item btn btn-sm btn-disabled">第 {{ currentPage }} / {{ totalPages }} 页</button>
+                <button class="join-item btn btn-sm" :disabled="!hasNextPage || isLoadingData" @click="toNextPage">下一页</button>
               </div>
             </div>
           </template>
