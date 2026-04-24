@@ -25,6 +25,7 @@ const appliedFilters = ref(getDefaultFilters())
 
 const taskItems = ref([])
 const totalCount = ref(0)
+const lockedTotalCount = ref(0)
 const itemCount = ref(0)
 const startId = ref(null)
 const countParam = ref(null)
@@ -108,7 +109,7 @@ const effectivePageSize = computed(() => {
 })
 
 const totalPages = computed(() => {
-  const pages = Math.ceil(totalCount.value / effectivePageSize.value)
+  const pages = Math.ceil(lockedTotalCount.value / effectivePageSize.value)
   return pages > 0 ? pages : 1
 })
 
@@ -134,6 +135,11 @@ async function fetchTasks({ start, count } = {}) {
 
     const data = response?.data || {}
     totalCount.value = Number(data.total_c) || 0
+    if (typeof start !== 'number') {
+      lockedTotalCount.value = totalCount.value
+    } else if (lockedTotalCount.value === 0 && totalCount.value > 0) {
+      lockedTotalCount.value = totalCount.value
+    }
     itemCount.value = Number(data.item_c) || 0
     startId.value = typeof data.start_id === 'number' ? data.start_id : null
     if (typeof count === 'number' && count > 0) {
@@ -161,6 +167,7 @@ async function toNextPage() {
   const start = nextStart.value
   const ok = await fetchTasks({ start, count: countParam.value })
   if (!ok) return
+  if (itemCount.value <= 0) return
   currentPage.value += 1
   pageStartHistory.value[currentPage.value - 1] = start
 }
@@ -178,6 +185,7 @@ async function refreshWithCount() {
   if (isLoadingData.value) return
   countParam.value = selectedCount.value === '' ? null : Number(selectedCount.value)
   inferredPageSize.value = null
+  lockedTotalCount.value = 0
   currentPage.value = 1
   pageStartHistory.value = [null]
   await fetchTasks({ count: countParam.value })
@@ -280,7 +288,7 @@ onMounted(async () => {
               </label>
 
               <div class="flex items-end text-sm opacity-70">
-                总任务数 {{ totalCount }}，本页返回 {{ itemCount }}，筛选后 {{ filteredTaskItems.length }}
+                总任务数 {{ lockedTotalCount }}，本页返回 {{ itemCount }}，筛选后 {{ filteredTaskItems.length }}
               </div>
             </div>
           </div>
@@ -311,7 +319,7 @@ onMounted(async () => {
                   <template v-if="filteredTaskItems.length > 0">
                     <template v-for="(taskItem, index) in filteredTaskItems" :key="taskItem.taskId">
                       <tr class="hover:bg-base-300 cursor-pointer" @click="toggleRow(taskItem.taskId)">
-                        <td class="w-8">{{ (currentPage - 1) * itemCount + index + 1 }}</td>
+                        <td class="w-8">{{ (currentPage - 1) * effectivePageSize + index + 1 }}</td>
                         <td class="w-40 truncate">
                           <router-link class="link" :to="`/task/${taskItem.taskId}`" @click.stop>
                             {{ taskItem.taskId }}
@@ -344,7 +352,7 @@ onMounted(async () => {
 
             <div class="flex items-center justify-between mt-2 p-3">
               <div class="text-sm opacity-70">
-                第 {{ currentPage }} 页，本页 {{ itemCount }} 条，筛选后 {{ filteredTaskItems.length }} 条，总数 {{ totalCount }}
+                第 {{ currentPage }} 页，本页 {{ itemCount }} 条，筛选后 {{ filteredTaskItems.length }} 条，总数 {{ lockedTotalCount }}
               </div>
               <div class="join">
                 <button class="join-item btn btn-sm" :disabled="!hasPrevPage || isLoadingData" @click="toPrevPage">上一页</button>
