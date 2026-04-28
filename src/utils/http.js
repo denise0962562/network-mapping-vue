@@ -7,6 +7,7 @@ function shouldAttachCsrf(config) {
   const baseURL = config.baseURL ? new URL(config.baseURL, window.location.origin) : null
   const targetUrl = new URL(config.url || '', baseURL || window.location.origin)
   if (targetUrl.origin !== window.location.origin) return false
+  if (targetUrl.pathname === '/api/login') return false
   return targetUrl.pathname.startsWith('/api') || targetUrl.pathname === '/logout'
 }
 
