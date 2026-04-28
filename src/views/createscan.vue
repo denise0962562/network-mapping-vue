@@ -1,6 +1,8 @@
 <script setup>
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import http from '@/utils/http'
+
+const DRAFT_KEY = 'createscan_draft'
 
 const ip = ref('')
 const port = ref('')
@@ -13,6 +15,37 @@ const ipInputRef = ref(null)
 const portInputRef = ref(null)
 
 let alertTimer = null
+
+function saveDraft() {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({
+    ip: ip.value,
+    port: port.value,
+    level: level.value,
+    remark: remark.value,
+  }))
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return
+    const draft = JSON.parse(raw)
+    if (draft.ip !== undefined) ip.value = draft.ip
+    if (draft.port !== undefined) port.value = draft.port
+    if (draft.level !== undefined) level.value = Number(draft.level)
+    if (draft.remark !== undefined) remark.value = draft.remark
+  } catch {
+    localStorage.removeItem(DRAFT_KEY)
+  }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+}
+
+watch([ip, port, level, remark], saveDraft)
+
+onMounted(loadDraft)
 
 function closeAlert() {
   alertType.value = ''
@@ -51,8 +84,10 @@ async function submitTask() {
       },
     })
 
-    if (response.status === 200) showAlertFor5Seconds('success')
-    else showAlertFor5Seconds('error')
+    if (response.status === 200) {
+      clearDraft()
+      showAlertFor5Seconds('success')
+    } else showAlertFor5Seconds('error')
   } catch {
     showAlertFor5Seconds('error')
   } finally {
