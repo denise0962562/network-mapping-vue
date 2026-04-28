@@ -27,60 +27,37 @@
     <div class="big_card">
       
       <!-- 系统信息列表 -->
-      <ul class="list ">
+      <ul class="list">
 
         <li class="p-4 pb-2 text-xs opacity-60 tracking-wide">系统详细信息</li>
-        
-        <li class="list-row items-">
+
+        <li class="list-row">
 
           <div>系统运行状态</div>
 
-          
           <div class="list-col-grow flex items-center justify-end gap-2">
             <div aria-label="success" class="status status-success"></div>
-            <span class="text-xs opacity-60">运行中 (Uptime: 3days)</span>
+            <span class="text-xs opacity-60">运行中 (Uptime: {{ uptime }})</span>
           </div>
 
         </li>
-        
-        <li class="list-row">
-          <div>操作系统信息：</div>
-          <div class="list-col-grow justify-end">
-            <span class="text-xs opacity-60">Linux hostname 6.8.0-40-generic #40-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul  5 10:34:03 UTC 2024 x86_64 x86_64 x86_64 GNU/Linux</span>
-          </div>
-        </li>
-
 
         <li class="list-row">
           <div>
             <div>网络接口信息</div>
-            <div class="text-xs uppercase font-semibold opacity-60">Cappuccino</div>
           </div>
           <div class="list-col-grow flex flex-col gap-1 text-xs opacity-60">
-            
-            <!-- 每一个接口一行，两端分布 -->
-            <div class="flex justify-end gap-2">
-              <span>net</span>
-              <span>发送/接收: 34 MB / 99 MB</span>
+            <div v-for="iface in networkInterfaces" :key="iface.name" class="flex justify-end gap-2">
+              <span>{{ iface.name }}</span>
+              <span>发送/接收: {{ iface.send }} / {{ iface.receive }}</span>
             </div>
-
-            <div class="flex justify-end gap-2">
-              <span>eth0</span>
-              <span>发送/接收: 34 MB / 34 MB</span>
+            <div v-if="networkInterfaces.length === 0" class="flex justify-end gap-2">
+              <span>暂无数据</span>
             </div>
-
           </div>
 
         </li>
-        
-        <li class="list-row">
-          <div>
-            <div>Sabrino Gardener</div>
-            <div class="text-xs uppercase font-semibold opacity-60">Cappuccino</div>
-          </div>
 
-        </li>
-        
       </ul>
 
     </div>
@@ -152,27 +129,53 @@
 </style>
 
 <script setup>
-import { computed, ref, TransitionGroup } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import http from '@/utils/http'
 
 const datalabel = ref(true)
 
-const resourceChartSeries = ref([
-  {
-    name: '使用',
-    data: [68, 74, 59, 20]
-  },
-  {
-    name: '空闲',
-    data: [32, 26, 41, 80]
+const systemData = ref(null)
+let refreshTimer = null
+
+async function fetchSystemData() {
+  try {
+    const response = await http.get('/api/data/system-data')
+    if (response.data) {
+      systemData.value = response.data
+    }
+  } catch {
+    // 保留上次数据，不做处理
   }
-])
+}
+
+const resourceChartSeries = computed(() => {
+  const status = systemData.value?.status_item?.[0]
+  if (!status) {
+    return [
+      { name: '使用', data: [0, 0, 0] },
+      { name: '空闲', data: [100, 100, 100] }
+    ]
+  }
+
+  const cpuUsage = Number(((status.cpu?.cpu_usage ?? 0)).toFixed(2))
+  const ramUsage = status.ram?.total_ram
+    ? Number(((status.ram.used_ram / status.ram.total_ram) * 100).toFixed(2))
+    : 0
+  const diskUsage = status.disk?.disk_total_space
+    ? Number(((status.disk.disk_total_usage / status.disk.disk_total_space) * 100).toFixed(2))
+    : 0
+
+  return [
+    { name: '使用', data: [cpuUsage, ramUsage, diskUsage] },
+    { name: '空闲', data: [100 - cpuUsage, 100 - ramUsage, 100 - diskUsage] }
+  ]
+})
 
 const resourceChartOptions = ref({
   chart: {
     type: 'bar',
     height: 320,
-    stacked: true,
-    stackType: '100%'
+    stacked: true
   },
   responsive: [
     {
@@ -187,7 +190,15 @@ const resourceChartOptions = ref({
     }
   ],
   xaxis: {
-    categories: ['CPU', 'RAM', 'Disk', '扫描器在线']
+    categories: ['CPU', 'RAM', 'Disk']
+  },
+  yaxis: {
+    min: 0,
+    max: 100,
+    tickAmount: 5,
+    labels: {
+      formatter: (val) => val.toFixed(2) + '%'
+    }
   },
   fill: {
     opacity: 1
@@ -196,6 +207,11 @@ const resourceChartOptions = ref({
     position: 'right',
     offsetX: 0,
     offsetY: 40
+  },
+  tooltip: {
+    y: {
+      formatter: (val) => val + '%'
+    }
   }
 })
 
@@ -327,6 +343,40 @@ const chartOptions = ref({
 
 const chartref = ref(null)
 
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const parts = []
+  if (d > 0) parts.push(`${d}天`)
+  if (h > 0) parts.push(`${h}小时`)
+  if (m > 0 || parts.length === 0) parts.push(`${m}分钟`)
+  return parts.join(' ')
+}
+
+const uptime = computed(() => {
+  const s = systemData.value?.status_item?.[0]?.server_run_time
+  return s !== undefined ? formatUptime(s) : '--'
+})
+
+const networkInterfaces = computed(() => {
+  const net = systemData.value?.status_item?.[0]?.network?.net
+  if (!net) return []
+  return Object.entries(net).map(([name, info]) => ({
+    name,
+    send: formatBytes(Number(info.send)),
+    receive: formatBytes(Number(info.receive)),
+  }))
+})
+
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  const val = (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)
+  return `${val} ${units[i]}`
+}
+
 function showDataLabel() {
   datalabel.value = !datalabel.value
   chartref.value.updateOptions({
@@ -336,6 +386,18 @@ function showDataLabel() {
   })
   console.log(`显示标签:${datalabel.value}`)
 }
+
+onMounted(() => {
+  fetchSystemData()
+  refreshTimer = setInterval(fetchSystemData, 5000)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+})
 
 // status: 0 => 扫描中 、1 => 扫描结束 、2 => 待扫描 、3 => 出现错误
 const taskList = ref([
