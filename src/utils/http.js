@@ -11,6 +11,20 @@ function shouldAttachCsrf(config) {
   return targetUrl.pathname.startsWith('/api') || targetUrl.pathname === '/logout'
 }
 
+function getResponsePathname(response) {
+  const config = response?.config || {}
+  const baseURL = config.baseURL ? new URL(config.baseURL, window.location.origin) : null
+  return new URL(config.url || '', baseURL || window.location.origin).pathname
+}
+
+function shouldHandleUnauthorizedResponse(response) {
+  const pathname = getResponsePathname(response)
+  if (window.location.pathname === '/login' && (pathname === '/api/login' || pathname === '/api/totp/verify')) {
+    return false
+  }
+  return true
+}
+
 const http = axios.create({
   withCredentials: true,
 })
@@ -43,13 +57,13 @@ http.interceptors.request.use((config) => {
 
 http.interceptors.response.use(
   (response) => {
-    if (response?.status === 401) {
+    if (response?.status === 401 && shouldHandleUnauthorizedResponse(response)) {
       handleUnauthorized()
     }
     return response
   },
   (error) => {
-    if (error?.response?.status === 401) {
+    if (error?.response?.status === 401 && shouldHandleUnauthorizedResponse(error.response)) {
       handleUnauthorized()
     }
     return Promise.reject(error)
