@@ -98,7 +98,7 @@ function testMailServer() {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-3">
           <h3 class="font-semibold">当前监听主机和端口</h3>
-          <button class="btn rounded-lg btn-primary btn-sm" :class="showListenSave ? 'visible' : 'invisible'" :disabled="!showListenSave" @click="saveListenConfig">
+          <button class="btn rounded-lg btn-neutral btn-sm" :class="showListenSave ? 'visible' : 'invisible'" :disabled="!showListenSave" @click="saveListenConfig">
             保存
           </button>
         </div>
@@ -119,7 +119,7 @@ function testMailServer() {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-3">
           <h3 class="font-semibold">系统安全</h3>
-          <button class="btn rounded-lg btn-primary btn-sm" :class="showSecuritySave ? 'visible' : 'invisible'" :disabled="!showSecuritySave" @click="saveSecurityConfig">
+          <button class="btn rounded-lg btn-neutral btn-sm" :class="showSecuritySave ? 'visible' : 'invisible'" :disabled="!showSecuritySave" @click="saveSecurityConfig">
             保存
           </button>
         </div>
@@ -189,7 +189,7 @@ function testMailServer() {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-4">
           <h3 class="font-semibold">通知</h3>
-          <button class="btn rounded-lg btn-primary btn-sm" :class="showNotifySave ? 'visible' : 'invisible'" :disabled="!showNotifySave" @click="saveNotifyConfig">
+          <button class="btn rounded-lg btn-neutral btn-sm" :class="showNotifySave ? 'visible' : 'invisible'" :disabled="!showNotifySave" @click="saveNotifyConfig">
             保存
           </button>
         </div>

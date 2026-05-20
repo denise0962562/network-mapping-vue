@@ -8,6 +8,7 @@ const route = useRoute()
 const navbarTitle = computed(() => route.meta?.title || '仪表盘')
 const logoutLoading = ref(false)
 const drawerOpen = ref(true)
+const activeSettingsTab = ref('system')
 
 async function handleLogout() {
   if (logoutLoading.value) return
@@ -72,7 +73,7 @@ async function handleLogout() {
     <div class="drawer-side is-drawer-close:overflow-visible rounded-tr-xl rounded-br-xl border-r-2 border-r-base-300">
       <label for="my-drawer-4" aria-label="close sidebar" class="drawer-overlay"></label>
       <div class="flex min-h-full flex-col items-start bg-base-100 is-drawer-close:w-14 is-drawer-open:w-52">
-        <ul class="menu w-full grow">
+        <ul v-if="activeSettingsTab === 'system'" class="menu w-full grow">
           <li>
             <router-link exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="仪表盘" to="/">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
@@ -135,6 +136,40 @@ async function handleLogout() {
             </router-link>
           </li>
         </ul>
+
+        <ul v-else class="menu w-full grow">
+          <li>
+            <button type="button" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="用户占位导航">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">用户占位导航</span>
+            </button>
+          </li>
+        </ul>
+
+        <div class="w-full px-2 pb-2 is-drawer-close:px-1">
+          <div class="tabs tabs-box w-full">
+            <button
+              type="button"
+              class="tab flex-1 gap-1 px-2 is-drawer-close:px-0"
+              :class="{ 'tab-active': activeSettingsTab === 'system' }"
+              aria-label="系统设置"
+              @click="activeSettingsTab = 'system'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block size-4"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">系统设置</span>
+            </button>
+            <button
+              type="button"
+              class="tab flex-1 gap-1 px-2 is-drawer-close:px-0"
+              :class="{ 'tab-active': activeSettingsTab === 'user' }"
+              aria-label="用户设置"
+              @click="activeSettingsTab = 'user'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block size-4"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">用户设置</span>
+            </button>
+          </div>
+        </div>
 
         <div class="w-full border-t border-base-300">
           <ul class="menu w-full">
