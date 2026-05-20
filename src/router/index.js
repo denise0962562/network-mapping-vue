@@ -12,6 +12,7 @@ const router = createRouter({
     { path: '/analysis', component: () => import('../views/analysis.vue'), meta: { title: '数据分析' } },
     { path: '/open-source', component: () => import('../views/open-source.vue'), meta: { title: '开源项目' } },
     { path: '/setting', component: () => import('../views/setting.vue'), meta: { title: '设置' } },
+    { path: '/user/security', component: () => import('../views/UserSecurity.vue'), meta: { title: '用户安全' } },
     { path: '/:pathMatch(.*)*', component: () => import('../views/NotFound-404.vue'), meta: { title: '404' } }
   ]
 })
