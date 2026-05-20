@@ -147,26 +147,30 @@ async function handleLogout() {
         </ul>
 
         <div class="w-full px-2 pb-2 is-drawer-close:px-1">
-          <div class="tabs tabs-box w-full">
+          <div class="tabs tabs-box w-full is-drawer-close:flex is-drawer-close:flex-col is-drawer-close:items-center is-drawer-open:grid is-drawer-open:grid-cols-2">
             <button
               type="button"
-              class="tab flex-1 gap-1 px-2 is-drawer-close:px-0"
+              class="tab w-full min-w-0 justify-center px-0 is-drawer-close:flex-none"
               :class="{ 'tab-active': activeSettingsTab === 'system' }"
               aria-label="系统设置"
               @click="activeSettingsTab = 'system'"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block size-4"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">系统设置</span>
+              <span class="flex min-w-0 items-center justify-center gap-1 overflow-hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4 shrink-0"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+                <span class="is-drawer-close:hidden whitespace-nowrap">系统设置</span>
+              </span>
             </button>
             <button
               type="button"
-              class="tab flex-1 gap-1 px-2 is-drawer-close:px-0"
+              class="tab w-full min-w-0 justify-center px-0 is-drawer-close:flex-none"
               :class="{ 'tab-active': activeSettingsTab === 'user' }"
               aria-label="用户设置"
               @click="activeSettingsTab = 'user'"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block size-4"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">用户设置</span>
+              <span class="flex min-w-0 items-center justify-center gap-1 overflow-hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4 shrink-0"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span class="is-drawer-close:hidden whitespace-nowrap">用户设置</span>
+              </span>
             </button>
           </div>
         </div>
