@@ -1,18 +1,21 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import http from '@/utils/http'
 
 const userInfo = ref({
-  username: 'admin',
-  email: 'admin@example.com',
-  userType: '管理员',
-  createdAt: '2026-05-01 09:30:00',
-  updatedAt: '2026-05-20 14:20:00',
-  lastLoginAt: '2026-05-20 13:48:12',
-  lastLoginIp: '192.168.1.10',
+  username: '',
+  email: '',
+  userType: '--',
+  createdAt: '--',
+  updatedAt: '--',
+  lastLoginAt: '--',
+  lastLoginIp: '--',
   loginRestricted: false
 })
 
 const savedUserInfo = ref({ ...userInfo.value })
+const loadingUserInfo = ref(false)
+const savingUserInfo = ref(false)
 const showOperationLogs = ref(true)
 const operationLogs = ref([
   { id: 1, action: '更新邮箱', ip: '192.168.1.10', time: '2026-05-20 13:50:18', status: '成功', remark: '' },
@@ -27,11 +30,64 @@ const showSave = computed(() => (
   || userInfo.value.email !== savedUserInfo.value.email
 ))
 
-function saveUserInfo() {
-  savedUserInfo.value = { ...userInfo.value }
-  userInfo.value.updatedAt = new Date().toLocaleString('zh-CN', { hour12: false })
-  savedUserInfo.value.updatedAt = userInfo.value.updatedAt
+function formatTime(value) {
+  if (value === null || value === undefined || value === '') return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--'
+  return date.toLocaleString('zh-CN', { hour12: false })
 }
+
+function normalizeUserInfo(rawUserInfo) {
+  return {
+    username: rawUserInfo?.username || '',
+    email: rawUserInfo?.email || '',
+    userType: rawUserInfo?.role === 1 ? '管理员' : '普通用户',
+    createdAt: formatTime(rawUserInfo?.create_time),
+    updatedAt: '--',
+    lastLoginAt: formatTime(rawUserInfo?.last_login_at),
+    lastLoginIp: rawUserInfo?.last_login_ip || '--',
+    loginRestricted: Boolean(rawUserInfo?.limit_login)
+  }
+}
+
+async function fetchUserInfo() {
+  loadingUserInfo.value = true
+  try {
+    const response = await http.get('/api/userinfo/get')
+    const rawUserInfo = Array.isArray(response.data) ? response.data[0] : response.data
+    const normalizedUserInfo = normalizeUserInfo(rawUserInfo)
+    userInfo.value = normalizedUserInfo
+    savedUserInfo.value = { ...normalizedUserInfo }
+  } catch (error) {
+    console.error('fetch user info failed', error)
+  } finally {
+    loadingUserInfo.value = false
+  }
+}
+
+async function saveUserInfo() {
+  if (!showSave.value || savingUserInfo.value) return
+
+  savingUserInfo.value = true
+  try {
+    const response = await http.post('/api/userinfo/update', {
+      username: userInfo.value.username,
+      email: userInfo.value.email
+    })
+
+    if (response.status === 200) {
+      savedUserInfo.value = { ...userInfo.value }
+    }
+  } catch (error) {
+    console.error('update user info failed', error)
+  } finally {
+    savingUserInfo.value = false
+  }
+}
+
+onMounted(() => {
+  fetchUserInfo()
+})
 </script>
 
 <template>
@@ -47,12 +103,16 @@ function saveUserInfo() {
           <h3 class="font-semibold">账号资料</h3>
           <p class="mt-1 text-xs opacity-60">用户名和邮箱可编辑，其余信息由系统记录。</p>
         </div>
-        <button class="btn btn-neutral btn-sm rounded-lg" :class="showSave ? 'visible' : 'invisible'" :disabled="!showSave" @click="saveUserInfo">
-          保存
+        <button class="btn btn-neutral btn-sm rounded-lg" :class="showSave ? 'visible' : 'invisible'" :disabled="!showSave || savingUserInfo" @click="saveUserInfo">
+          {{ savingUserInfo ? '保存中...' : '保存' }}
         </button>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div v-if="loadingUserInfo" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60">
+        加载中...
+      </div>
+
+      <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <label class="form-control w-full">
           <span class="label-text mb-1">用户名</span>
           <input v-model="userInfo.username" type="text" class="input input-bordered w-full" />
