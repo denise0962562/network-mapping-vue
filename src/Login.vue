@@ -144,7 +144,7 @@ function backToLogin() {
       </transition>
     </div>
 
-    <div class="flex flex-grow items-center justify-center py-10">
+    <div class="flex grow items-center justify-center py-10">
       <transition
         mode="out-in"
         enter-active-class="transition duration-300 ease-out"
@@ -267,7 +267,7 @@ function backToLogin() {
       </transition>
     </div>
 
-    <footer class="footer footer-center bg-base-content p-4 text-base-content text-white sm:footer-horizontal">
+    <footer class="footer footer-center bg-base-content p-4 text-white sm:footer-horizontal">
       <aside>
         <p>Copyright © 2026 - All right reserved by Abdc.world</p>
       </aside>
