@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 import Loading from './loading.vue'
 
@@ -343,60 +344,19 @@ onMounted(async () => {
           </div>
 
           <template v-else>
-            <div v-if="initialLoadFailed" class="grid min-h-80 place-items-center rounded-lg bg-base-200/60 p-6">
-              <div class="max-w-xl text-center">
-                <div class="inline-flex items-center justify-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="size-5 shrink-0 text-error"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="m15 9-6 6" />
-                    <path d="m9 9 6 6" />
-                  </svg>
-                  <div class="text-base font-semibold text-error">加载数据失败</div>
-                </div>
-                <p class="mt-1 text-xs text-error/75">
-                  这通常是由于客户端与服务器的网络不可达或服务器崩溃了<br>
-                  请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员
-                </p>
-              </div>
-            </div>
+            <EmptyState
+              v-if="initialLoadFailed"
+              type="error"
+              title="加载数据失败"
+              :message="'这通常是由于客户端与服务器的网络不可达或服务器崩溃了\n请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员'"
+            />
 
-            <div v-else-if="isServerEmpty" class="grid min-h-80 place-items-center rounded-lg bg-base-200/60 p-6">
-              <div class="max-w-xl text-center">
-                <div class="inline-flex items-center justify-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="size-5 shrink-0 text-base-content/45"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" x2="12" y1="8" y2="12" />
-                    <line x1="12" x2="12.01" y1="16" y2="16" />
-                  </svg>
-                  <div class="text-base font-semibold text-base-content/60">没有数据</div>
-                </div>
-                <p class="mt-1 text-xs text-base-content/45">
-                  这并非错误，而是没能从数据库或存储介质中找到符合要求的数据
-                </p>
-              </div>
-            </div>
+            <EmptyState
+              v-else-if="isServerEmpty"
+              type="info"
+              title="没有数据"
+              message="这并非错误，而是没能从数据库或存储介质中找到符合要求的数据"
+            />
 
             <div v-else class="overflow-x-auto">
               <table class="table table-fixed w-full">
