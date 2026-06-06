@@ -1,7 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
 
+const alerts = ref([])
 const userInfo = ref({
   username: '',
   email: '',
@@ -29,6 +31,20 @@ const showSave = computed(() => (
   userInfo.value.username !== savedUserInfo.value.username
   || userInfo.value.email !== savedUserInfo.value.email
 ))
+
+function pushAlert(type, title, description = '', timeout = 7000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
+}
+
+function closeAlert(id) {
+  alerts.value = alerts.value.filter((alert) => alert.id !== id)
+}
 
 function formatTime(value) {
   if (value === null || value === undefined || value === '') return '--'
@@ -60,6 +76,7 @@ async function fetchUserInfo() {
     savedUserInfo.value = { ...normalizedUserInfo }
   } catch (error) {
     console.error('fetch user info failed', error)
+    pushAlert('error', '个人信息加载失败', '请稍后刷新页面重试。', 7000)
   } finally {
     loadingUserInfo.value = false
   }
@@ -77,9 +94,13 @@ async function saveUserInfo() {
 
     if (response.status === 200) {
       savedUserInfo.value = { ...userInfo.value }
+      pushAlert('success', '个人信息已保存', '账号资料已更新。', 5000)
+    } else {
+      pushAlert('error', '个人信息保存失败', '服务器未接受本次更新。', 7000)
     }
   } catch (error) {
     console.error('update user info failed', error)
+    pushAlert('error', '个人信息保存失败', '请检查网络连接后重试。', 7000)
   } finally {
     savingUserInfo.value = false
   }
@@ -91,6 +112,19 @@ onMounted(() => {
 </script>
 
 <template>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlert(alert.id)"
+    />
+  </div>
+
   <div class="p-5">
     <div class="mb-5">
       <h2 class="text-lg font-semibold">个人信息</h2>

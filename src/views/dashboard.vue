@@ -1,4 +1,17 @@
 <template>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlert(alert.id)"
+    />
+  </div>
+
   <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 p-5">
     <div class="card bg-base-100 card-border border-base-300 p-4">
       <div class="mb-3">
@@ -130,21 +143,43 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
 
 const datalabel = ref(true)
+const alerts = ref([])
 
 const systemData = ref(null)
+const systemDataErrorVisible = ref(false)
 let refreshTimer = null
+
+function pushAlert(type, title, description = '', timeout = 7000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
+}
+
+function closeAlert(id) {
+  alerts.value = alerts.value.filter((alert) => alert.id !== id)
+}
 
 async function fetchSystemData() {
   try {
     const response = await http.get('/api/data/system-data')
     if (response.data) {
       systemData.value = response.data
+      systemDataErrorVisible.value = false
     }
-  } catch {
-    // 保留上次数据，不做处理
+  } catch (error) {
+    console.error('fetch system data failed', error)
+    if (!systemDataErrorVisible.value) {
+      systemDataErrorVisible.value = true
+      pushAlert('error', '系统数据获取失败', '已保留上一次可用数据。', 7000)
+    }
   }
 }
 

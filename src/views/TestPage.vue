@@ -8,18 +8,22 @@ const alertSamples = {
   info: {
     title: '12 unread messages',
     description: 'Tap to see the latest notifications.',
+    timeout: 7000,
   },
   success: {
     title: 'Your purchase has been confirmed!',
     description: 'The operation completed successfully.',
+    timeout: 5000,
   },
   warning: {
     title: 'Warning: Invalid email address!',
     description: 'Please check the address and try again.',
+    timeout: 7000,
   },
   error: {
     title: 'Error! Task failed successfully.',
     description: 'Please try again after checking the task input.',
+    timeout: 9000,
   },
 }
 
@@ -60,6 +64,7 @@ function closeAlert(id) {
         :type="alert.type"
         :title="alert.title"
         :description="alert.description"
+        :timeout="alert.timeout"
         @close="closeAlert(alert.id)"
       />
     </div>

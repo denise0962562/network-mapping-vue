@@ -1,5 +1,6 @@
 ﻿<script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import AppAlert from './components/AppAlert.vue'
 import http from './utils/http'
 import { getCookieValue, expireCookie } from './utils/csrf'
 
@@ -11,29 +12,17 @@ const isVerifyingTotp = ref(false)
 const isTotpRequired = ref(false)
 const showLoginError = ref(false)
 const loginErrorMessage = ref('登录失败')
-
-let loginErrorTimer = null
-
-function clearLoginErrorTimer() {
-  if (loginErrorTimer) {
-    clearTimeout(loginErrorTimer)
-    loginErrorTimer = null
-  }
-}
+const loginErrorId = ref(0)
+const loginErrorTimeout = ref(5000)
 
 function closeLoginError() {
   showLoginError.value = false
-  clearLoginErrorTimer()
 }
 
 function openLoginError(message = '登录失败') {
   loginErrorMessage.value = message
+  loginErrorId.value += 1
   showLoginError.value = true
-  clearLoginErrorTimer()
-  loginErrorTimer = setTimeout(() => {
-    showLoginError.value = false
-    loginErrorTimer = null
-  }, 5000)
 }
 
 function getCsrfHeaders() {
@@ -45,10 +34,6 @@ onMounted(() => {
   if (getCookieValue('csrf_token')) {
     expireCookie('csrf_token')
   }
-})
-
-onBeforeUnmount(() => {
-  clearLoginErrorTimer()
 })
 
 async function handleLogin() {
@@ -126,7 +111,7 @@ function backToLogin() {
 
 <template>
   <div class="flex min-h-screen flex-col bg-gray-200 font-sans">
-    <div class="fixed right-4 top-4 z-50 w-[min(92vw,22rem)]">
+    <div class="fixed top-4 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 justify-center sm:left-auto sm:right-4 sm:w-auto sm:translate-x-0 sm:justify-end">
       <transition
         enter-active-class="transition duration-200 ease-out"
         enter-from-class="opacity-0 translate-y-[-8px]"
@@ -135,12 +120,15 @@ function backToLogin() {
         leave-from-class="opacity-100 translate-y-0"
         leave-to-class="opacity-0 translate-y-[-8px]"
       >
-        <div v-if="showLoginError" role="alert" class="alert alert-error alert-soft flex items-center justify-between">
-          <span>{{ loginErrorMessage }}</span>
-          <button type="button" class="btn btn-ghost btn-xs" aria-label="关闭" @click="closeLoginError">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
-        </div>
+        <AppAlert
+          v-if="showLoginError"
+          :key="loginErrorId"
+          type="error"
+          :title="loginErrorMessage"
+          description="请检查账号信息后重试。"
+          :timeout="loginErrorTimeout"
+          @close="closeLoginError"
+        />
       </transition>
     </div>
 
