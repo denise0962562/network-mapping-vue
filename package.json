@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@lucide/vue": "^1.17.0",
     "apexcharts": "^5.6.0",
     "axios": "^1.15.1",
     "leaflet": "^1.9.4",
