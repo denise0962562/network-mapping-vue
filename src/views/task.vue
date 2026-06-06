@@ -1,12 +1,15 @@
 ﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
+import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
 import Loading from './loading.vue'
 
+const alerts = ref([])
 const expandedRow = ref(null)
 const currentPage = ref(1)
 const isLoadingData = ref(false)
-const errorMessage = ref('')
+const initialLoadFailed = ref(false)
+const hasLoadedTasks = ref(false)
 const selectedCount = ref('')
 function getDefaultFilters() {
   return {
@@ -94,6 +97,14 @@ const filteredTaskItems = computed(() => {
   })
 })
 
+const isServerEmpty = computed(() => {
+  return !initialLoadFailed.value && hasLoadedTasks.value && taskItems.value.length === 0
+})
+
+const isFilteredEmpty = computed(() => {
+  return !initialLoadFailed.value && !isServerEmpty.value && filteredTaskItems.value.length === 0
+})
+
 const nextStart = computed(() => {
   if (typeof startId.value !== 'number' || typeof itemCount.value !== 'number') return null
   const candidate = startId.value - itemCount.value
@@ -120,10 +131,23 @@ const hasNextPage = computed(() => {
   return true
 })
 
+function pushAlert(type, title, description = '', timeout = 7000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
+}
+
+function closeAlert(id) {
+  alerts.value = alerts.value.filter((alert) => alert.id !== id)
+}
+
 async function fetchTasks({ start, count } = {}) {
   try {
     isLoadingData.value = true
-    errorMessage.value = ''
 
     const params = {}
     if (typeof start === 'number') params.start = start
@@ -148,14 +172,20 @@ async function fetchTasks({ start, count } = {}) {
       inferredPageSize.value = itemCount.value
     }
     taskItems.value = Array.isArray(data.task_item) ? data.task_item.map(normalizeTask) : []
+    initialLoadFailed.value = false
+    hasLoadedTasks.value = true
     expandedRow.value = null
     return true
-  } catch {
-    taskItems.value = []
-    totalCount.value = 0
-    itemCount.value = 0
-    startId.value = null
-    errorMessage.value = '任务列表加载失败，请稍后重试'
+  } catch (error) {
+    console.error('fetch tasks failed', error)
+    if (!hasLoadedTasks.value) {
+      taskItems.value = []
+      totalCount.value = 0
+      itemCount.value = 0
+      startId.value = null
+      initialLoadFailed.value = true
+    }
+    pushAlert('error', '任务数据加载失败', '请检查网络连接或服务器运行状态。', 7000)
     return false
   } finally {
     isLoadingData.value = false
@@ -216,6 +246,19 @@ onMounted(async () => {
 </script>
 
 <template>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlert(alert.id)"
+    />
+  </div>
+
   <div class="flex justify-center">
     <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
       <div class="flex flex-col space-y-3">
@@ -300,9 +343,62 @@ onMounted(async () => {
           </div>
 
           <template v-else>
-            <div v-if="errorMessage" class="p-4 text-error text-sm">{{ errorMessage }}</div>
+            <div v-if="initialLoadFailed" class="grid min-h-80 place-items-center rounded-lg bg-base-200/60 p-6">
+              <div class="max-w-xl text-center">
+                <div class="inline-flex items-center justify-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="size-5 shrink-0 text-error"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="m15 9-6 6" />
+                    <path d="m9 9 6 6" />
+                  </svg>
+                  <div class="text-base font-semibold text-error">加载数据失败</div>
+                </div>
+                <p class="mt-1 text-xs text-error/75">
+                  这通常是由于客户端与服务器的网络不可达或服务器崩溃了<br>
+                  请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员
+                </p>
+              </div>
+            </div>
 
-            <div class="overflow-x-auto">
+            <div v-else-if="isServerEmpty" class="grid min-h-80 place-items-center rounded-lg bg-base-200/60 p-6">
+              <div class="max-w-xl text-center">
+                <div class="inline-flex items-center justify-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="size-5 shrink-0 text-base-content/45"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" x2="12" y1="8" y2="12" />
+                    <line x1="12" x2="12.01" y1="16" y2="16" />
+                  </svg>
+                  <div class="text-base font-semibold text-base-content/60">没有数据</div>
+                </div>
+                <p class="mt-1 text-xs text-base-content/45">
+                  这并非错误，而是没能从数据库或存储介质中找到符合要求的数据
+                </p>
+              </div>
+            </div>
+
+            <div v-else class="overflow-x-auto">
               <table class="table table-fixed w-full">
                 <thead>
                   <tr>
@@ -343,14 +439,14 @@ onMounted(async () => {
                       </tr>
                     </template>
                   </template>
-                  <tr v-else>
+                  <tr v-else-if="isFilteredEmpty">
                     <td colspan="7" class="text-center py-8 opacity-60">暂无符合条件的数据</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            <div class="flex items-center justify-between mt-2 p-3">
+            <div v-if="!initialLoadFailed && !isServerEmpty" class="flex items-center justify-between mt-2 p-3">
               <div class="text-sm opacity-70">
                 第 {{ currentPage }} 页，本页 {{ itemCount }} 条，筛选后 {{ filteredTaskItems.length }} 条，总数 {{ lockedTotalCount }}
               </div>

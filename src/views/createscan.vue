@@ -1,5 +1,6 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
 
 const DRAFT_KEY = 'createscan_draft'
@@ -8,13 +9,11 @@ const ip = ref('')
 const port = ref('')
 const level = ref(1)
 const remark = ref('')
-const alertType = ref('')
+const alerts = ref([])
 const submitting = ref(false)
 
 const ipInputRef = ref(null)
 const portInputRef = ref(null)
-
-let alertTimer = null
 
 function saveDraft() {
   localStorage.setItem(DRAFT_KEY, JSON.stringify({
@@ -47,21 +46,18 @@ watch([ip, port, level, remark], saveDraft)
 
 onMounted(loadDraft)
 
-function closeAlert() {
-  alertType.value = ''
-  if (alertTimer) {
-    clearTimeout(alertTimer)
-    alertTimer = null
-  }
+function closeAlertById(id) {
+  alerts.value = alerts.value.filter((alert) => alert.id !== id)
 }
 
-function showAlertFor5Seconds(type) {
-  closeAlert()
-  alertType.value = type
-  alertTimer = setTimeout(() => {
-    alertType.value = ''
-    alertTimer = null
-  }, 5000)
+function showAlert(type, title, description = '', timeout = 5000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
 }
 
 async function submitTask() {
@@ -86,33 +82,32 @@ async function submitTask() {
 
     if (response.status === 200) {
       clearDraft()
-      showAlertFor5Seconds('success')
-    } else showAlertFor5Seconds('error')
-  } catch {
-    showAlertFor5Seconds('error')
+      showAlert('success', '创建扫描任务成功', '任务已提交到扫描队列。', 5000)
+    } else {
+      showAlert('error', '创建扫描失败', '服务器未接受本次创建请求。', 7000)
+    }
+  } catch (error) {
+    console.error('create scan task failed', error)
+    showAlert('error', '创建扫描失败', '请检查网络连接或服务器运行状态。', 7000)
   } finally {
     submitting.value = false
   }
 }
-
-onBeforeUnmount(() => {
-  if (alertTimer) {
-    clearTimeout(alertTimer)
-  }
-})
 </script>
 
 <template>
-  <transition name="alert-slide">
-    <div v-if="alertType" class="fixed right-4 top-4 z-50">
-      <div role="alert" :class="['alert', 'alert-soft', alertType === 'success' ? 'alert-success' : 'alert-error']">
-        <span>{{ alertType === 'success' ? '创建扫描任务成功' : '创建扫描失败' }}</span>
-        <button class="btn btn-xs btn-ghost" @click="closeAlert" aria-label="关闭提示">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-    </div>
-  </transition>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlertById(alert.id)"
+    />
+  </div>
 
   <div class="flex justify-center">
     <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
@@ -194,20 +189,4 @@ onBeforeUnmount(() => {
   text-align: left;
 }
 
-.alert-slide-enter-active,
-.alert-slide-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.alert-slide-enter-from,
-.alert-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-12px);
-}
-
-.alert-slide-enter-to,
-.alert-slide-leave-from {
-  opacity: 1;
-  transform: translateY(0);
-}
 </style>
