@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import AppAlert from './components/AppAlert.vue'
 import http from './utils/http'
 import { getCookieValue, expireCookie } from './utils/csrf'
@@ -7,6 +7,7 @@ import { getCookieValue, expireCookie } from './utils/csrf'
 const username = ref('')
 const password = ref('')
 const totpToken = ref('')
+const totpInputRef = ref(null)
 const isLoggingIn = ref(false)
 const isVerifyingTotp = ref(false)
 const isTotpRequired = ref(false)
@@ -30,11 +31,24 @@ function getCsrfHeaders() {
   return token ? { 'X-CSRF-Token': token } : {}
 }
 
+const usernameInputRef = ref(null)
+
 onMounted(() => {
   if (getCookieValue('csrf_token')) {
     expireCookie('csrf_token')
   }
+  nextTick(() => {
+    usernameInputRef.value?.focus()
+  })
 })
+
+function onCardEnter() {
+  if (isTotpRequired.value) {
+    nextTick(() => {
+      totpInputRef.value?.focus()
+    })
+  }
+}
 
 async function handleLogin() {
   if (isLoggingIn.value) return
@@ -135,6 +149,7 @@ function backToLogin() {
     <div class="flex grow items-center justify-center py-10">
       <transition
         mode="out-in"
+        @after-enter="onCardEnter"
         enter-active-class="transition duration-300 ease-out"
         enter-from-class="opacity-0 translate-y-3 scale-[0.98]"
         enter-to-class="opacity-100 translate-y-0 scale-100"
@@ -156,17 +171,14 @@ function backToLogin() {
                   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12.735 14c.618 0 1.093-.561.872-1.139a6.002 6.002 0 0 0-11.215 0c-.22.578.254 1.139.872 1.139h9.47Z" />
                 </svg>
                 <input
+                  ref="usernameInputRef"
                   v-model="username"
                   type="text"
                   required
                   class="grow"
                   placeholder="用户名"
-                  minlength="8"
-                  maxlength="30"
-                  pattern="[A-Za-z][A-Za-z0-9-]*"
                 >
               </label>
-              <p class="validator-hint hidden">用户名需要 8-30 位，且必须以字母开头</p>
             </div>
 
             <div class="flex flex-col gap-1">
@@ -184,13 +196,9 @@ function backToLogin() {
                   required
                   class="grow"
                   placeholder="密码"
-                  minlength="8"
-                  maxlength="30"
-                  pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}"
                   @keyup.enter="handleLogin"
                 >
               </label>
-              <p class="validator-hint hidden">密码需要至少 8 位，且必须包含大小写字母和数字</p>
             </div>
 
             <div class="card-actions items-center gap-6">
@@ -225,6 +233,7 @@ function backToLogin() {
                   <path fill-rule="evenodd" d="M8 1a4 4 0 0 0-4 4v2a2 2 0 0 0-1 1.732V13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.732A2 2 0 0 0 12 7V5a4 4 0 0 0-4-4Zm2.5 6V5a2.5 2.5 0 0 0-5 0v2h5Z" clip-rule="evenodd" />
                 </svg>
                 <input
+                  ref="totpInputRef"
                   v-model="totpToken"
                   type="text"
                   inputmode="numeric"
