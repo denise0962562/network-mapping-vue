@@ -1,6 +1,14 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import VueQrcode from 'vue-qrcode'
+
+const isLoading = ref(true)
+
+onMounted(() => {
+  setTimeout(() => {
+    isLoading.value = false
+  }, 3000)
+})
 
 const twoFactorEnabled = ref(true)
 const twoFactorBound = ref(false)
@@ -49,7 +57,9 @@ async function copyTwoFactorContent() {
         <p class="mt-1 text-xs opacity-60">启用后，登录时需要额外的身份验证步骤。</p>
       </div>
 
-      <div class="divide-y divide-base-300">
+      <div v-if="isLoading" class="skeleton h-40 w-full rounded-box"></div>
+
+      <div v-else class="divide-y divide-base-300">
         <div class="flex items-center justify-between gap-4 py-3">
           <div>
             <div class="text-sm font-medium">启用 2FA</div>

@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import Loading from './loading.vue'
 
 const topOptions = [5, 7, 10]
 const topN = ref(5)
@@ -272,9 +271,7 @@ watch([topN, serviceDimension, ignoreVersionDiff], () => {
           </label>
         </div>
 
-        <div v-if="isPieLoading" class="py-8">
-          <Loading />
-        </div>
+        <div v-if="isPieLoading" class="skeleton h-80 w-full rounded-box"></div>
         <apexchart v-else type="pie" height="320" :options="pieOptions" :series="pieSeries" />
       </div>
 
@@ -284,9 +281,7 @@ watch([topN, serviceDimension, ignoreVersionDiff], () => {
           <p class="text-xs opacity-60">Y 轴为周几，X 轴为最近 12 周，无数据天留空</p>
         </div>
 
-        <div v-if="isHeatmapLoading" class="py-8">
-          <Loading />
-        </div>
+        <div v-if="isHeatmapLoading" class="skeleton h-96 w-full rounded-box"></div>
         <apexchart v-else type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
       </div>
     </div>

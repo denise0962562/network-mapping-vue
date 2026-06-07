@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
-import Loading from './loading.vue'
 
 const alerts = ref([])
 const expandedRow = ref(null)
@@ -339,8 +338,9 @@ onMounted(async () => {
         </details>
 
         <div class="card bg-base-100 border border-base-300">
-          <div v-if="isLoadingData" class="py-8">
-            <Loading />
+          <div v-if="isLoadingData" class="p-5 space-y-3">
+            <div class="skeleton h-72 w-full rounded-box"></div>
+            <div class="skeleton h-4 w-52"></div>
           </div>
 
           <template v-else>

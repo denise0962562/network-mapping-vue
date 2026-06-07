@@ -142,8 +142,18 @@ onMounted(() => {
         </button>
       </div>
 
-      <div v-if="loadingUserInfo" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60">
-        加载中...
+      <div v-if="loadingUserInfo" class="space-y-4">
+        <div class="skeleton h-8 w-32"></div>
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div class="skeleton h-12 w-full rounded-box"></div>
+          <div class="skeleton h-12 w-full rounded-box"></div>
+          <div class="skeleton h-14 w-full rounded-box"></div>
+          <div class="skeleton h-14 w-full rounded-box"></div>
+          <div class="skeleton h-14 w-full rounded-box"></div>
+          <div class="skeleton h-14 w-full rounded-box"></div>
+          <div class="skeleton h-14 w-full rounded-box"></div>
+          <div class="skeleton h-14 w-full rounded-box"></div>
+        </div>
       </div>
 
       <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">

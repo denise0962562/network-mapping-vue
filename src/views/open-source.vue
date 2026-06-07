@@ -1,5 +1,13 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+
+const isLoading = ref(true)
+
+onMounted(() => {
+  setTimeout(() => {
+    isLoading.value = false
+  }, 3000)
+})
 
 const projectList = ref([
   { name: 'Vue', version: '^3.5.29', license: 'MIT', usage: '前端框架' },
@@ -20,7 +28,9 @@ const projectList = ref([
         <p class="text-xs opacity-60">当前项目使用的主要开源依赖（UI 示例）</p>
       </div>
 
-      <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <div v-if="isLoading" class="skeleton h-64 w-full rounded-box"></div>
+
+      <div v-else class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
         <table class="table">
           <thead>
             <tr>

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
     <AppAlert
       v-for="alert in alerts"
@@ -18,7 +18,8 @@
         <h3 class="font-semibold">服务器资源利用状态</h3>
         <p class="text-xs opacity-60">使用率 / 空闲率（100% 堆叠）</p>
       </div>
-      <apexchart type="bar" height="320" :options="resourceChartOptions" :series="resourceChartSeries" />
+      <div v-if="isFirstLoad" class="skeleton h-64 w-full rounded-box"></div>
+      <apexchart v-else type="bar" height="320" :options="resourceChartOptions" :series="resourceChartSeries" />
     </div>
 
     <div class="card bg-base-100 card-border border-base-300 p-4">
@@ -26,7 +27,8 @@
         <h3 class="font-semibold">最近 7 天扫描情况</h3>
         <p class="text-xs opacity-60">按扫描器统计</p>
       </div>
-      <apexchart type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" />
+      <div v-if="isFirstLoad" class="skeleton h-64 w-full rounded-box"></div>
+      <apexchart v-else type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" />
     </div>
   </div>
 
@@ -40,12 +42,12 @@
     <div class="big_card">
       
       <!-- 系统信息列表 -->
-      <ul class="list">
+      <div class="p-4 pb-2 text-xs opacity-60 tracking-wide">系统详细信息</div>
 
-        <li class="p-4 pb-2 text-xs opacity-60 tracking-wide">系统详细信息</li>
+      <div v-if="isFirstLoad" class="skeleton h-36 w-full rounded-box"></div>
 
+      <ul v-else class="list">
         <li class="list-row">
-
           <div>系统运行状态</div>
 
           <div class="list-col-grow flex items-center justify-end gap-2">
@@ -78,8 +80,9 @@
 
     <!-- 当前任务卡片 -->
     <div class="big_card">
- 
-      <div class="overflow-x-auto">
+      <div v-if="isFirstLoad" class="skeleton h-56 w-full rounded-box"></div>
+
+      <div v-else class="overflow-x-auto">
         <table class="table table-fixed min-w-[600px]">
           <!-- head -->
           <thead>
@@ -127,7 +130,7 @@
     <!-- 当前任务卡片结束 -->
 
   </div>
-    
+
 
 </template>
 
@@ -151,6 +154,7 @@ const alerts = ref([])
 
 const systemData = ref(null)
 const systemDataErrorVisible = ref(false)
+const isFirstLoad = ref(true)
 let refreshTimer = null
 
 function pushAlert(type, title, description = '', timeout = 7000) {
@@ -173,6 +177,7 @@ async function fetchSystemData() {
     if (response.data) {
       systemData.value = response.data
       systemDataErrorVisible.value = false
+      isFirstLoad.value = false
     }
   } catch (error) {
     console.error('fetch system data failed', error)

@@ -1,5 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+
+const isLoading = ref(true)
+
+onMounted(() => {
+  setTimeout(() => {
+    isLoading.value = false
+  }, 3000)
+})
 
 const listenConfig = ref({
   host: '0.0.0.0',
@@ -98,12 +106,14 @@ function testMailServer() {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-3">
           <h3 class="font-semibold">当前监听主机和端口</h3>
-          <button class="btn rounded-lg btn-neutral btn-sm" :class="showListenSave ? 'visible' : 'invisible'" :disabled="!showListenSave" @click="saveListenConfig">
+          <button class="btn rounded-lg btn-neutral btn-sm" :class="showListenSave && !isLoading ? 'visible' : 'invisible'" :disabled="!showListenSave || isLoading" @click="saveListenConfig">
             保存
           </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-if="isLoading" class="skeleton h-24 w-full rounded-box"></div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label class="form-control w-full">
             <span class="label-text mb-1">监听主机</span>
             <input v-model="listenConfig.host" type="text" class="input input-bordered w-full" placeholder="例如: 0.0.0.0" />
@@ -119,12 +129,14 @@ function testMailServer() {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-3">
           <h3 class="font-semibold">系统安全</h3>
-          <button class="btn rounded-lg btn-neutral btn-sm" :class="showSecuritySave ? 'visible' : 'invisible'" :disabled="!showSecuritySave" @click="saveSecurityConfig">
+          <button class="btn rounded-lg btn-neutral btn-sm" :class="showSecuritySave && !isLoading ? 'visible' : 'invisible'" :disabled="!showSecuritySave || isLoading" @click="saveSecurityConfig">
             保存
           </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-if="isLoading" class="skeleton h-36 w-full rounded-box"></div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label class="form-control w-full">
             <span class="label-text mb-1">限制登录错误次数</span>
             <input
@@ -189,12 +201,14 @@ function testMailServer() {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between mb-4">
           <h3 class="font-semibold">通知</h3>
-          <button class="btn rounded-lg btn-neutral btn-sm" :class="showNotifySave ? 'visible' : 'invisible'" :disabled="!showNotifySave" @click="saveNotifyConfig">
+          <button class="btn rounded-lg btn-neutral btn-sm" :class="showNotifySave && !isLoading ? 'visible' : 'invisible'" :disabled="!showNotifySave || isLoading" @click="saveNotifyConfig">
             保存
           </button>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+        <div v-if="isLoading" class="skeleton h-52 w-full rounded-box"></div>
+
+        <div v-else class="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <div class="xl:col-span-2 flex flex-col gap-3">
             <div class="card bg-base-100 border border-base-300 p-4">
               <div class="flex items-center justify-between">
