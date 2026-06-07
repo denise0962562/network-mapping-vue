@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { expireCookie, getCookieValue } from './csrf'
 
-let isRedirectingToLogin = false
+let sessionExpiredDispatched = false
 
 function shouldAttachCsrf(config) {
   const baseURL = config.baseURL ? new URL(config.baseURL, window.location.origin) : null
@@ -34,13 +34,13 @@ function handleUnauthorized() {
     expireCookie('csrf_token')
   }
 
-  if (isRedirectingToLogin) return
+  if (sessionExpiredDispatched) return
 
-  isRedirectingToLogin = true
+  sessionExpiredDispatched = true
   if (window.location.pathname !== '/login') {
-    window.location.replace('/login')
+    window.dispatchEvent(new CustomEvent('session-expired'))
   } else {
-    isRedirectingToLogin = false
+    sessionExpiredDispatched = false
   }
 }
 

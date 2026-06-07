@@ -1,14 +1,28 @@
 ﻿<script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { expireCookie } from './utils/csrf'
 import http from './utils/http'
+import ReLoginModal from './components/ReLoginModal.vue'
 
 const route = useRoute()
 const navbarTitle = computed(() => route.meta?.title || '仪表盘')
 const logoutLoading = ref(false)
 const drawerOpen = ref(true)
 const activeSettingsTab = ref('system')
+const reLoginModalRef = ref(null)
+
+function onSessionExpired() {
+  reLoginModalRef.value?.open()
+}
+
+onMounted(() => {
+  window.addEventListener('session-expired', onSessionExpired)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('session-expired', onSessionExpired)
+})
 
 async function handleLogout() {
   if (logoutLoading.value) return
@@ -211,6 +225,8 @@ async function handleLogout() {
       </div>
     </div>
   </div>
+
+  <ReLoginModal ref="reLoginModalRef" />
 </template>
 
 <style scoped>
