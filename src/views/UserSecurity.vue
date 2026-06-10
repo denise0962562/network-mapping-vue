@@ -1,19 +1,15 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import VueQrcode from 'vue-qrcode'
+import AppAlert from '@/components/AppAlert.vue'
+import http from '@/utils/http'
 
 const isLoading = ref(true)
-
-onMounted(() => {
-  setTimeout(() => {
-    isLoading.value = false
-  }, 3000)
-})
-
-const twoFactorEnabled = ref(true)
+const twoFactorEnabled = ref(false)
 const twoFactorBound = ref(false)
+const twoFactorQrContent = ref('')
 const copied = ref(false)
-const twoFactorQrContent = 'otpauth://totp/NetworkMapping:test@example.com?secret=JBSWY3DPEHPK3PXP&issuer=NetworkMapping'
+const alerts = ref([])
 
 const twoFactorStatus = computed(() => {
   if (!twoFactorEnabled.value) return '关闭'
@@ -22,12 +18,93 @@ const twoFactorStatus = computed(() => {
 
 const showTwoFactorBinding = computed(() => twoFactorEnabled.value && !twoFactorBound.value)
 
-async function copyTwoFactorContent() {
+function pushAlert(type, title, description = '', timeout = 7000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
+}
+
+function closeAlert(id) {
+  alerts.value = alerts.value.filter((a) => a.id !== id)
+}
+
+async function fetchTotpStatus() {
   try {
-    await navigator.clipboard.writeText(twoFactorQrContent)
+    const response = await http.get('/api/totp/get')
+    if (response.data?.success === true) {
+      twoFactorBound.value = true
+      twoFactorEnabled.value = true
+    }
+  } catch (error) {
+    console.error('fetch TOTP status failed', error)
+    pushAlert('error', '2FA 状态获取失败', '请稍后刷新页面重试。')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function onToggleTwoFactor(event) {
+  const checked = event.target.checked
+
+  if (!checked) {
+    const username = localStorage.getItem('username') || ''
+    try {
+      const response = await http.post('/api/totp/unbind', { username }, {
+        validateStatus: () => true,
+      })
+
+      if (response.status === 200) {
+        twoFactorEnabled.value = false
+        twoFactorBound.value = false
+        twoFactorQrContent.value = ''
+        pushAlert('success', '2FA 已关闭', '双因素认证已成功解绑。')
+      } else if (response.status === 404) {
+        twoFactorEnabled.value = true
+        pushAlert('error', '解绑失败', '未找到对应用户，请稍后重试。')
+      } else if (response.status === 403) {
+        twoFactorEnabled.value = true
+        pushAlert('error', '解绑失败', '权限不足，无法执行此操作。')
+      } else {
+        twoFactorEnabled.value = true
+        pushAlert('error', '解绑失败', '服务器错误，请稍后重试。')
+      }
+    } catch (error) {
+      console.error('unbind TOTP failed', error)
+      twoFactorEnabled.value = true
+      pushAlert('error', '2FA 解绑请求失败', '请检查网络连接后重试。')
+    }
+    return
+  }
+
+  // 开启 2FA：请求绑定链接
+  try {
+    const response = await http.get('/api/totp/bind')
+    if (response.data?.success === true && response.data?.data) {
+      twoFactorEnabled.value = true
+      twoFactorQrContent.value = response.data.data
+    } else {
+      twoFactorEnabled.value = false
+      pushAlert('error', '2FA 绑定初始化失败', '服务器未能返回绑定信息，请稍后重试。')
+    }
+  } catch (error) {
+    console.error('bind TOTP failed', error)
+    twoFactorEnabled.value = false
+    pushAlert('error', '2FA 绑定请求失败', '请检查网络连接后重试。')
+  }
+}
+
+async function copyTwoFactorContent() {
+  const text = twoFactorQrContent.value
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
   } catch {
     const textarea = document.createElement('textarea')
-    textarea.value = twoFactorQrContent
+    textarea.value = text
     textarea.setAttribute('readonly', '')
     textarea.style.position = 'fixed'
     textarea.style.opacity = '0'
@@ -42,9 +119,26 @@ async function copyTwoFactorContent() {
     copied.value = false
   }, 1600)
 }
+
+onMounted(() => {
+  fetchTotpStatus()
+})
 </script>
 
 <template>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlert(alert.id)"
+    />
+  </div>
+
   <div class="p-5">
     <div class="mb-5">
       <h2 class="text-lg font-semibold">用户安全</h2>
@@ -65,7 +159,7 @@ async function copyTwoFactorContent() {
             <div class="text-sm font-medium">启用 2FA</div>
             <div class="text-xs opacity-60">控制用户双因素认证相关设置的总开关。</div>
           </div>
-          <input v-model="twoFactorEnabled" type="checkbox" checked="checked" class="toggle" />
+          <input type="checkbox" class="toggle" :checked="twoFactorEnabled" @change="onToggleTwoFactor" />
         </div>
 
         <div class="flex items-center justify-between gap-4 py-3">

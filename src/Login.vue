@@ -67,6 +67,7 @@ async function handleLogin() {
     )
 
     if (response.status === 200) {
+      localStorage.setItem('username', username.value)
       window.location.href = '/'
       return
     }
@@ -104,6 +105,7 @@ async function handleTotpVerify() {
     )
 
     if (response.status === 200 && response.data?.success !== false) {
+      localStorage.setItem('username', username.value)
       window.location.href = '/'
       return
     }
