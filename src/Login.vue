@@ -13,6 +13,7 @@ const isVerifyingTotp = ref(false)
 const isTotpRequired = ref(false)
 const showLoginError = ref(false)
 const loginErrorMessage = ref('登录失败')
+const loginErrorDescription = ref('请检查账号信息后重试。')
 const loginErrorId = ref(0)
 const loginErrorTimeout = ref(5000)
 
@@ -20,8 +21,9 @@ function closeLoginError() {
   showLoginError.value = false
 }
 
-function openLoginError(message = '登录失败') {
+function openLoginError(message = '登录失败', description = '') {
   loginErrorMessage.value = message
+  loginErrorDescription.value = description || '请检查账号信息后重试。'
   loginErrorId.value += 1
   showLoginError.value = true
 }
@@ -79,9 +81,9 @@ async function handleLogin() {
       return
     }
 
-    openLoginError()
+    openLoginError(response.data?.message || '登录失败', response.data?.description)
   } catch (error) {
-    openLoginError()
+    openLoginError('登录失败', '请检查网络连接后重试。')
   } finally {
     isLoggingIn.value = false
   }
@@ -110,9 +112,9 @@ async function handleTotpVerify() {
       return
     }
 
-    openLoginError('验证码验证失败')
+    openLoginError(response.data?.message || '验证码验证失败', response.data?.description)
   } catch (error) {
-    openLoginError('验证码验证失败')
+    openLoginError('验证码验证失败', '请检查网络连接后重试。')
   } finally {
     isVerifyingTotp.value = false
   }
@@ -141,7 +143,7 @@ function backToLogin() {
           :key="loginErrorId"
           type="error"
           :title="loginErrorMessage"
-          description="请检查账号信息后重试。"
+          :description="loginErrorDescription"
           :timeout="loginErrorTimeout"
           @close="closeLoginError"
         />
@@ -161,13 +163,15 @@ function backToLogin() {
       >
         <div v-if="!isTotpRequired" key="login-card" class="card card-lg w-96 overflow-hidden border-base-300 bg-base-100 card-border">
           <div class="border-b border-dashed border-base-300">
-            <div class="flex items-center gap-2 p-4">
-              <div class="grow">登录账号</div>
+            <div class="p-4 text-center">
+              <div class="text-xl font-bold tracking-wide">Network Mapping</div>
+              <div class="mt-1 text-sm opacity-60">登录账号</div>
             </div>
           </div>
 
           <div class="card-body gap-4">
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1.5">
+              <span class="text-sm font-semibold opacity-70">用户名</span>
               <label class="input validator input-border flex max-w-none items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-4 w-4 opacity-70">
                   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12.735 14c.618 0 1.093-.561.872-1.139a6.002 6.002 0 0 0-11.215 0c-.22.578.254 1.139.872 1.139h9.47Z" />
@@ -178,12 +182,13 @@ function backToLogin() {
                   type="text"
                   required
                   class="grow"
-                  placeholder="用户名"
+                  placeholder="请输入用户名"
                 >
               </label>
             </div>
 
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1.5">
+              <span class="text-sm font-semibold opacity-70">密码</span>
               <label class="input validator input-border flex max-w-none items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-4 w-4 opacity-70">
                   <path
@@ -197,7 +202,7 @@ function backToLogin() {
                   type="password"
                   required
                   class="grow"
-                  placeholder="密码"
+                  placeholder="请输入密码"
                   @keyup.enter="handleLogin"
                 >
               </label>
@@ -205,7 +210,7 @@ function backToLogin() {
 
             <div class="card-actions items-center gap-6">
               <button
-                class="btn btn-neutral mt-1 w-full"
+                class="btn btn-neutral mt-2 w-full"
                 :disabled="isLoggingIn"
                 @click="handleLogin"
               >
@@ -217,19 +222,21 @@ function backToLogin() {
 
         <div v-else key="totp-card" class="card card-lg w-96 overflow-hidden border-base-300 bg-base-100 card-border">
           <div class="border-b border-dashed border-base-300">
-            <div class="flex items-center gap-2 p-4">
-              <button type="button" class="btn btn-ghost btn-xs" aria-label="返回登录" @click="backToLogin">
+            <div class="relative p-4 text-center">
+              <button type="button" class="btn btn-ghost btn-xs absolute left-4 top-1/2 -translate-y-1/2 shrink-0" aria-label="返回登录" @click="backToLogin">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="m12 19-7-7 7-7" />
                   <path d="M19 12H5" />
                 </svg>
               </button>
-              <div class="grow">两步验证</div>
+              <div class="text-xl font-bold tracking-wide">Network Mapping</div>
+              <div class="mt-1 text-sm opacity-60">2FA 验证</div>
             </div>
           </div>
 
           <div class="card-body gap-4">
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1.5">
+              <span class="text-sm font-semibold opacity-70">2FA 验证码</span>
               <label class="input validator input-border flex max-w-none items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-4 w-4 opacity-70">
                   <path fill-rule="evenodd" d="M8 1a4 4 0 0 0-4 4v2a2 2 0 0 0-1 1.732V13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.732A2 2 0 0 0 12 7V5a4 4 0 0 0-4-4Zm2.5 6V5a2.5 2.5 0 0 0-5 0v2h5Z" clip-rule="evenodd" />
@@ -242,7 +249,7 @@ function backToLogin() {
                   autocomplete="one-time-code"
                   required
                   class="grow tracking-widest"
-                  placeholder="2FA 验证码"
+                  placeholder="请输入 6 位验证码"
                   minlength="6"
                   maxlength="6"
                   pattern="[0-9]{6}"
@@ -254,7 +261,7 @@ function backToLogin() {
 
             <div class="card-actions items-center gap-2">
               <button
-                class="btn btn-neutral mt-1 w-full"
+                class="btn btn-neutral mt-2 w-full"
                 :disabled="isVerifyingTotp"
                 @click="handleTotpVerify"
               >
