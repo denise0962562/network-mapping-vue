@@ -1,11 +1,33 @@
 <script setup>
 import { computed, ref } from 'vue'
+import AppAlert from '@/components/AppAlert.vue'
+import http from '@/utils/http'
 
 const scannerForm = ref({
   name: '',
-  region: '',
+  location: '',
+  remark: '',
+  tag: '',
   networkType: 'ipv4'
 })
+
+const submitting = ref(false)
+const scannerResult = ref(null)
+const alerts = ref([])
+
+function pushAlert(type, title, description = '', timeout = 7000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
+}
+
+function closeAlert(id) {
+  alerts.value = alerts.value.filter((a) => a.id !== id)
+}
 
 const scannerList = ref([
   {
@@ -47,6 +69,28 @@ const scannerList = ref([
 ])
 
 const pageSize = ref(7)
+const copiedField = ref(null)
+
+async function copyToClipboard(text, field) {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+  }
+  copiedField.value = field
+  window.setTimeout(() => {
+    copiedField.value = null
+  }, 1600)
+}
 const currentPage = ref(1)
 
 const totalPages = computed(() => {
@@ -62,36 +106,34 @@ const pagedScannerList = computed(() => {
 
 const pageNumbers = computed(() => Array.from({ length: totalPages.value }, (_, i) => i + 1))
 
-function createUuidV4() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID()
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const random = Math.floor(Math.random() * 16)
-    const value = char === 'x' ? random : (random & 0x3) | 0x8
-    return value.toString(16)
-  })
-}
-
-function createScanner() {
+async function createScanner() {
   if (!scannerForm.value.name.trim()) return
-  const nextIndex = scannerList.value.length + 1
-  scannerList.value.push({
-    id: createUuidV4(),
-    index: nextIndex,
-    name: scannerForm.value.name.trim(),
-    region: scannerForm.value.region.trim() || '-',
-    status: '在线',
-    creator: 'current-user',
-    createdAt: new Date().toISOString(),
-    ip: '0.0.0.0',
-    networkType: scannerForm.value.networkType,
-    totalTasks: 0
-  })
-  scannerForm.value.name = ''
-  scannerForm.value.region = ''
-  scannerForm.value.networkType = 'ipv4'
-  currentPage.value = totalPages.value
+  if (submitting.value) return
+
+  submitting.value = true
+  scannerResult.value = null
+
+  try {
+    const payload = {
+      name: scannerForm.value.name.trim(),
+    }
+    if (scannerForm.value.location.trim()) payload.location = scannerForm.value.location.trim()
+    if (scannerForm.value.remark.trim()) payload.remark = scannerForm.value.remark.trim()
+    if (scannerForm.value.tag.trim()) payload.tag = scannerForm.value.tag.trim()
+
+    const response = await http.post('/api/scanner/add', payload)
+    if (response.data?.success === true && response.data?.data) {
+      scannerResult.value = response.data.data
+      pushAlert('success', '扫描器创建成功', '请妥善保存下方展示的 token，关闭后无法再次查看。')
+    } else {
+      pushAlert('error', '创建扫描器失败', '服务器未返回有效数据，请稍后重试。')
+    }
+  } catch (error) {
+    console.error('create scanner failed', error)
+    pushAlert('error', '创建扫描器失败', '请检查网络连接后重试。')
+  } finally {
+    submitting.value = false
+  }
 }
 
 function changePage(page) {
@@ -101,6 +143,19 @@ function changePage(page) {
 </script>
 
 <template>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlert(alert.id)"
+    />
+  </div>
+
   <div class="p-5">
     <div class="mb-4">
       <h2 class="text-lg font-semibold">扫描器</h2>
@@ -191,25 +246,63 @@ function changePage(page) {
 
           <div class="grid grid-cols-1 gap-3">
             <label class="form-control w-full">
-              <span class="label-text mb-1">扫描器名称</span>
-              <input v-model="scannerForm.name" type="text" class="input input-bordered w-full" placeholder="例如：scanner-04" />
+              <span class="label-text mb-1">扫描器名称 <span class="text-error">*</span></span>
+              <input v-model="scannerForm.name" type="text" class="input input-bordered w-full" placeholder="例如：scanner-04" :disabled="submitting" />
             </label>
 
             <label class="form-control w-full">
-              <span class="label-text mb-1">区域</span>
-              <input v-model="scannerForm.region" type="text" class="input input-bordered w-full" placeholder="例如：华东-上海" />
+              <span class="label-text mb-1">位置</span>
+              <input v-model="scannerForm.location" type="text" class="input input-bordered w-full" placeholder="例如：华东-上海" :disabled="submitting" />
+            </label>
+
+            <label class="form-control w-full">
+              <span class="label-text mb-1">备注</span>
+              <input v-model="scannerForm.remark" type="text" class="input input-bordered w-full" placeholder="备注信息（可选）" :disabled="submitting" />
+            </label>
+
+            <label class="form-control w-full">
+              <span class="label-text mb-1">标签</span>
+              <input v-model="scannerForm.tag" type="text" class="input input-bordered w-full" placeholder="标签（可选）" :disabled="submitting" />
             </label>
 
             <label class="form-control w-full">
               <span class="label-text mb-1">扫描器网络类型</span>
-              <select v-model="scannerForm.networkType" class="select select-bordered w-full">
+              <select v-model="scannerForm.networkType" class="select select-bordered w-full" :disabled="submitting">
                 <option value="ipv4">IPV4</option>
                 <option value="ipv6">IPV6</option>
                 <option value="all">ALL</option>
               </select>
             </label>
 
-            <button class="btn btn-neutral w-full mt-1" @click="createScanner">提交</button>
+            <button class="btn btn-neutral w-full mt-1" :disabled="submitting || !scannerForm.name.trim()" @click="createScanner">
+              {{ submitting ? '提交中...' : '提交' }}
+            </button>
+          </div>
+
+          <!-- 创建结果展开 -->
+          <div v-if="scannerResult" class="mt-5 space-y-2 border-t border-base-300 pt-4">
+            <h4 class="text-sm font-semibold">创建成功</h4>
+            <p class="text-xs opacity-60">以下信息仅在本次展示，请立即保存。</p>
+
+            <label class="form-control w-full">
+              <span class="label-text text-xs mb-1">Scanner ID</span>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 truncate rounded-lg bg-base-200 px-3 py-2 text-xs">{{ scannerResult.scanner_id }}</code>
+                <button class="btn btn-ghost btn-xs shrink-0" @click="copyToClipboard(scannerResult.scanner_id, 'id')">
+                  {{ copiedField === 'id' ? '已复制' : '复制' }}
+                </button>
+              </div>
+            </label>
+
+            <label class="form-control w-full">
+              <span class="label-text text-xs mb-1">Token</span>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 truncate rounded-lg bg-base-200 px-3 py-2 text-xs">{{ scannerResult.token }}</code>
+                <button class="btn btn-ghost btn-xs shrink-0" @click="copyToClipboard(scannerResult.token, 'token')">
+                  {{ copiedField === 'token' ? '已复制' : '复制' }}
+                </button>
+              </div>
+            </label>
           </div>
         </div>
       </div>
