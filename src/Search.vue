@@ -1,20 +1,71 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import http from './utils/http'
 
 const STORAGE_KEY = 'network_mapping_search_history'
 const MAX_HISTORY = 12
+const PAGE_SIZE = 50
 
 const searchInput = ref('')
 const searchHistory = ref([])
 const showHistory = ref(false)
 const searchBoxRef = ref(null)
+const loading = ref(false)
+const errorMessage = ref('')
+const searchResult = ref(null)
+const activeSearch = ref(null)
+const offset = ref(0)
+
+const typeLabels = {
+  ip: 'IP 地址',
+  network: 'CIDR 网段',
+  port: '端口',
+  service: '服务',
+  banner: 'Banner',
+}
+
+const supportedSyntax = '支持：IP、CIDR，或 port:443、service:https、banner:nginx'
+const currentTypeLabel = computed(() => activeSearch.value ? typeLabels[activeSearch.value.type] : '')
+
+function isIpv4(value) {
+  const parts = value.split('.')
+  return parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255)
+}
+
+function isLikelyIpv6(value) {
+  return value.includes(':') && /^[0-9a-fA-F:]+$/.test(value)
+}
+
+function detectSearchType(value) {
+  const input = value.trim()
+  if (!input) return { error: '请输入搜索内容' }
+
+  const prefixed = input.match(/^(port|service|banner)\s*:\s*(.+)$/i)
+  if (prefixed) {
+    const type = prefixed[1].toLowerCase()
+    const query = prefixed[2].trim()
+    if (!query) return { error: '搜索值不能为空' }
+    if (type === 'port' && !/^\d+$/.test(query)) return { error: '端口必须是数字，例如 port:443' }
+    return { type, query }
+  }
+
+  const slashIndex = input.lastIndexOf('/')
+  if (slashIndex > 0) {
+    const ipPart = input.slice(0, slashIndex)
+    if (isIpv4(ipPart) || isLikelyIpv6(ipPart)) return { type: 'network', query: input }
+  }
+
+  if (isIpv4(input) || isLikelyIpv6(input)) return { type: 'ip', query: input }
+  return { error: `无法识别搜索类型。${supportedSyntax}` }
+}
 
 function loadHistory() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : []
-    searchHistory.value = Array.isArray(parsed) ? parsed : []
-  } catch (error) {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    searchHistory.value = Array.isArray(parsed)
+      ? parsed.map((item) => typeof item === 'string' ? { keyword: item } : item).filter((item) => item.keyword)
+      : []
+  } catch {
     searchHistory.value = []
   }
 }
@@ -23,24 +74,9 @@ function saveHistory() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(searchHistory.value))
 }
 
-function pushHistory(keyword) {
-  const q = keyword.trim()
-  if (!q) return
-  searchHistory.value = [q, ...searchHistory.value.filter((item) => item !== q)].slice(0, MAX_HISTORY)
+function pushHistory(keyword, type) {
+  searchHistory.value = [{ keyword, type }, ...searchHistory.value.filter((item) => item.keyword !== keyword)].slice(0, MAX_HISTORY)
   saveHistory()
-}
-
-function doSearch() {
-  const q = searchInput.value.trim()
-  if (!q) return
-  pushHistory(q)
-  showHistory.value = false
-  console.log(`搜索: ${q}`)
-}
-
-function pickHistory(item) {
-  searchInput.value = item
-  showHistory.value = false
 }
 
 function clearHistory() {
@@ -48,11 +84,60 @@ function clearHistory() {
   saveHistory()
 }
 
-function onDocumentClick(event) {
-  if (!searchBoxRef.value) return
-  if (!searchBoxRef.value.contains(event.target)) {
-    showHistory.value = false
+function pickHistory(item) {
+  searchInput.value = item.keyword
+  showHistory.value = false
+  doSearch()
+}
+
+async function runSearch(nextOffset = 0) {
+  if (!activeSearch.value) return
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const { type, query } = activeSearch.value
+    const params = { limit: PAGE_SIZE, offset: nextOffset }
+    if (type === 'port') params.port = query
+    else params.q = query
+    const response = await http.get(`/api/search/${type}`, { params })
+    searchResult.value = response.data
+    offset.value = nextOffset
+  } catch (error) {
+    searchResult.value = null
+    errorMessage.value = error.response?.data?.message || '搜索失败，请稍后重试。'
+  } finally {
+    loading.value = false
   }
+}
+
+function doSearch() {
+  const detected = detectSearchType(searchInput.value)
+  if (detected.error) {
+    searchResult.value = null
+    errorMessage.value = detected.error
+    return
+  }
+  activeSearch.value = detected
+  pushHistory(searchInput.value.trim(), detected.type)
+  showHistory.value = false
+  runSearch(0)
+}
+
+function previousPage() {
+  runSearch(Math.max(0, offset.value - PAGE_SIZE))
+}
+
+function nextPage() {
+  if (searchResult.value && offset.value + PAGE_SIZE < searchResult.value.total) runSearch(offset.value + PAGE_SIZE)
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return '-'
+  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
+}
+
+function onDocumentClick(event) {
+  if (searchBoxRef.value && !searchBoxRef.value.contains(event.target)) showHistory.value = false
 }
 
 onMounted(() => {
@@ -60,78 +145,52 @@ onMounted(() => {
   document.addEventListener('mousedown', onDocumentClick)
 })
 
-onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', onDocumentClick)
-})
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick))
 </script>
 
 <template>
   <nav class="absolute top-0 right-0 py-5 px-8 flex items-center gap-5">
     <a class="link" target="_blank" href="/">仪表盘</a>
     <a class="link" target="_blank" href="https://github.com/wshijiang/network-mapping/doc">文档</a>
-    <a class="link" target="_blank" href="">API</a>
-    <a class="link" href="https://github.com/wshijiang/" target="_blank">
-      <svg class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path d="M237.9 461.4C237.9 463.4 235.6 465 232.7 465C229.4 465.3 227.1 463.7 227.1 461.4C227.1 459.4 229.4 457.8 232.3 457.8C235.3 457.5 237.9 459.1 237.9 461.4zM206.8 456.9C206.1 458.9 208.1 461.2 211.1 461.8C213.7 462.8 216.7 461.8 217.3 459.8C217.9 457.8 216 455.5 213 454.6C210.4 453.9 207.5 454.9 206.8 456.9zM251 455.2C248.1 455.9 246.1 457.8 246.4 460.1C246.7 462.1 249.3 463.4 252.3 462.7C255.2 462 257.2 460.1 256.9 458.1C256.6 456.2 253.9 454.9 251 455.2zM316.8 72C178.1 72 72 177.3 72 316C72 426.9 141.8 521.8 241.5 555.2C254.3 557.5 258.8 549.6 258.8 543.1C258.8 536.9 258.5 502.7 258.5 481.7C258.5 481.7 188.5 496.7 173.8 451.9C173.8 451.9 162.4 422.8 146 415.3C146 415.3 123.1 399.6 147.6 399.9C147.6 399.9 172.5 401.9 186.2 425.7C208.1 464.3 244.8 453.2 259.1 446.6C261.4 430.6 267.9 419.5 275.1 412.9C219.2 406.7 162.8 398.6 162.8 302.4C162.8 274.9 170.4 261.1 186.4 243.5C183.8 237 175.3 210.2 189 175.6C209.9 169.1 258 202.6 258 202.6C278 197 299.5 194.1 320.8 194.1C342.1 194.1 363.6 197 383.6 202.6C383.6 202.6 431.7 169 452.6 175.6C466.3 210.3 457.8 237 455.2 243.5C471.2 261.2 481 275 481 302.4C481 398.9 422.1 406.6 366.2 412.9C375.4 420.8 383.2 435.8 383.2 459.3C383.2 493 382.9 534.7 382.9 542.9C382.9 549.4 387.5 557.3 400.2 555C500.2 521.8 568 426.9 568 316C568 177.3 455.5 72 316.8 72zM169.2 416.9C167.9 417.9 168.2 420.2 169.9 422.1C171.5 423.7 173.8 424.4 175.1 423.1C176.4 422.1 176.1 419.8 174.4 417.9C172.8 416.3 170.5 415.6 169.2 416.9zM158.4 408.8C157.7 410.1 158.7 411.7 160.7 412.7C162.3 413.7 164.3 413.4 165 412C165.7 410.7 164.7 409.1 162.7 408.1C160.7 407.5 159.1 407.8 158.4 408.8zM190.8 444.4C189.2 445.7 189.8 448.7 192.1 450.6C194.4 452.9 197.3 453.2 198.6 451.6C199.9 450.3 199.3 447.3 197.3 445.4C195.1 443.1 192.1 442.8 190.8 444.4zM179.4 429.7C177.8 430.7 177.8 433.3 179.4 435.6C181 437.9 183.7 438.9 185 437.9C186.6 436.6 186.6 434 185 431.7C183.6 429.4 181 428.4 179.4 429.7z"/></svg>
-    </a>
   </nav>
 
-  <div class="bg-base-200 min-h-screen flex items-center justify-center">
-    <div class="w-full max-w-2xl px-4">
-      <p class="mb-5 text-3xl md:text-4xl font-semibold text-center">Network-Mapping Search</p>
+  <main class="bg-base-200 min-h-screen px-4 py-24">
+    <div class="mx-auto w-full max-w-5xl">
+      <h1 class="mb-5 text-center text-3xl font-semibold md:text-4xl">Network-Mapping Search</h1>
 
-      <div ref="searchBoxRef" class="relative">
+      <div ref="searchBoxRef" class="relative mx-auto max-w-2xl">
         <div class="join w-full">
-          <label class="input validator join-item w-full">
-            <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <g stroke-linejoin="round" stroke-linecap="round" stroke-width="2.5" fill="none" stroke="currentColor">
-                <circle cx="11" cy="11" r="7"></circle>
-                <path d="m20 20-3.5-3.5"></path>
-              </g>
-            </svg>
-            <input
-              v-model="searchInput"
-              type="text"
-              class="grow"
-              placeholder="输入 IP、域名、端口或服务（例如: port:80）"
-              autofocus
-              @focus="showHistory = true"
-              @keyup.enter="doSearch"
-            />
+          <label class="input join-item w-full">
+            <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.5" /><path d="m20 20-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2.5" /></svg>
+            <input v-model="searchInput" type="text" class="grow" :placeholder="supportedSyntax" autofocus @focus="showHistory = true" @keyup.enter="doSearch" />
           </label>
-          <button class="btn btn-neutral join-item px-6" @click="doSearch">搜索</button>
+          <button class="btn btn-neutral join-item px-6" :disabled="loading" @click="doSearch">{{ loading ? '搜索中' : '搜索' }}</button>
         </div>
+        <p class="mt-2 text-center text-xs opacity-60">{{ supportedSyntax }}</p>
 
-        <transition
-          enter-active-class="transition duration-150 ease-out"
-          enter-from-class="opacity-0 -translate-y-1 scale-95"
-          enter-to-class="opacity-100 translate-y-0 scale-100"
-          leave-active-class="transition duration-100 ease-in"
-          leave-from-class="opacity-100 translate-y-0 scale-100"
-          leave-to-class="opacity-0 -translate-y-1 scale-95"
-        >
-          <div
-            v-if="showHistory"
-            class="absolute z-20 mt-2 w-full rounded-xl border border-base-300 bg-base-100 shadow-lg origin-top"
-          >
-            <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
-              <span class="text-sm font-medium">搜索历史</span>
-              <button class="btn btn-ghost btn-xs" @click="clearHistory">清空</button>
-            </div>
-
-            <div v-if="searchHistory.length === 0" class="px-4 py-6 text-sm opacity-60 text-center">
-              暂无搜索历史
-            </div>
-
-            <ul v-else class="max-h-64 overflow-y-auto p-2">
-              <li v-for="item in searchHistory" :key="item">
-                <button class="btn btn-ghost w-full justify-start rounded-lg" @click="pickHistory(item)">
-                  {{ item }}
-                </button>
-              </li>
-            </ul>
-          </div>
-        </transition>
+        <div v-if="showHistory" class="absolute z-20 mt-2 w-full rounded-xl border border-base-300 bg-base-100 shadow-lg">
+          <div class="flex items-center justify-between border-b border-base-300 px-4 py-3"><span class="text-sm font-medium">搜索历史</span><button class="btn btn-ghost btn-xs" @click="clearHistory">清空</button></div>
+          <div v-if="searchHistory.length === 0" class="px-4 py-6 text-center text-sm opacity-60">暂无搜索历史</div>
+          <ul v-else class="max-h-64 overflow-y-auto p-2"><li v-for="item in searchHistory" :key="item.keyword"><button class="btn btn-ghost w-full justify-start rounded-lg" @click="pickHistory(item)">{{ item.keyword }}</button></li></ul>
+        </div>
       </div>
+
+      <div v-if="errorMessage" role="alert" class="alert alert-error mx-auto mt-6 max-w-2xl"><span>{{ errorMessage }}</span></div>
+
+      <section v-if="searchResult" class="mt-10 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-lg font-semibold">{{ currentTypeLabel }}搜索结果</h2>
+          <span class="text-sm opacity-70">“{{ searchResult.query }}” · 共 {{ searchResult.total }} 条</span>
+        </div>
+        <div v-if="searchResult.items.length === 0" class="py-12 text-center opacity-60">没有匹配的资产。</div>
+        <div v-else class="overflow-x-auto">
+          <table class="table table-zebra table-sm">
+            <thead><tr><th>IP</th><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>ASN / ISP</th><th>扫描时间</th></tr></thead>
+            <tbody><tr v-for="(item, index) in searchResult.items" :key="`${item.ip_address}-${item.port}-${item.scan_time}-${index}`"><td class="font-mono">{{ item.ip_address }}</td><td>{{ item.port ?? '-' }}</td><td>{{ item.protocol ?? '-' }}</td><td>{{ item.service ?? '-' }}</td><td class="max-w-xs truncate" :title="item.banner">{{ item.banner ?? '-' }}</td><td>{{ [item.asn, item.isp].filter(Boolean).join(' / ') || '-' }}</td><td class="whitespace-nowrap">{{ formatTime(item.scan_time) }}</td></tr></tbody>
+          </table>
+        </div>
+        <div v-if="searchResult.total > PAGE_SIZE" class="mt-5 flex justify-end gap-2"><button class="btn btn-sm" :disabled="loading || offset === 0" @click="previousPage">上一页</button><button class="btn btn-sm" :disabled="loading || offset + PAGE_SIZE >= searchResult.total" @click="nextPage">下一页</button></div>
+      </section>
     </div>
-  </div>
+  </main>
 </template>

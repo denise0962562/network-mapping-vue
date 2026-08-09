@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { expireCookie } from './utils/csrf'
@@ -106,13 +106,13 @@ async function handleLogout() {
           </li>
 
           <li>
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Search" target="_blank" to="/search">
+            <a class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Search" target="_blank" href="/search.html">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4">
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="M21 21l-4.35-4.35"></path>
               </svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">搜索</span>
-            </router-link>
+            </a>
           </li>
 
           <li>

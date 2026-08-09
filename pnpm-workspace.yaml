@@ -1,2 +1,4 @@
 allowBuilds:
   esbuild: false
+minimumReleaseAgeExclude:
+  - pnpm@11.9.0
