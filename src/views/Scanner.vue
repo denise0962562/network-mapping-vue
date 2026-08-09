@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
 const scannerForm = ref({
@@ -28,44 +29,9 @@ function closeAlert(id) {
   alerts.value = alerts.value.filter((a) => a.id !== id)
 }
 
-const scannerList = ref([
-  {
-    id: '550e8400-e29b-41d4-a716-446655440001',
-    index: 1,
-    name: 'scanner-01',
-    region: '华东-上海',
-    ip: '10.12.4.21',
-    status: '在线',
-    creator: 'admin',
-    createdAt: '2026-04-15T08:20:10+08:00',
-    networkType: 'ipv4',
-    totalTasks: 143
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440002',
-    index: 2,
-    name: 'scanner-02',
-    region: '华南-深圳',
-    ip: '172.16.33.8',
-    status: '在线',
-    creator: 'secops',
-    createdAt: '2026-04-15T08:35:22+08:00',
-    networkType: 'all',
-    totalTasks: 98
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440003',
-    index: 3,
-    name: 'scanner-03',
-    region: '亚太-香港',
-    ip: 'fe80::2f3b:91ff:fe8a:101',
-    status: '离线',
-    creator: 'admin',
-    createdAt: '2026-04-15T09:01:43+08:00',
-    networkType: 'ipv6',
-    totalTasks: 26
-  }
-])
+const scannerList = ref([])
+const isLoadingData = ref(false)
+const initialLoadFailed = ref(false)
 
 const pageSize = ref(7)
 const copiedField = ref(null)
@@ -92,6 +58,52 @@ async function copyToClipboard(text, field) {
 }
 const currentPage = ref(1)
 
+function formatDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function resolveStatus(item) {
+  if (item.is_enable !== true) {
+    return { key: 'pending', text: '待注册', class: 'badge-warning' }
+  }
+  if (item.is_run === true) {
+    return { key: 'online', text: '在线', class: 'badge-success' }
+  }
+  if (item.is_run === false) {
+    return { key: 'offline', text: '离线', class: 'badge-error' }
+  }
+  return { key: 'registered', text: '已注册', class: 'badge-info' }
+}
+
+function normalizeScanner(item, index) {
+  const status = resolveStatus(item)
+  return {
+    id: item.scanner_id,
+    index: index + 1,
+    name: item.name || '未命名扫描器',
+    region: item.location || '-',
+    ip: item.ip_address || '-',
+    creator: item.creator || '-',
+    createdAt: formatDate(item.create_time),
+    tag: item.tag || '-',
+    statusKey: status.key,
+    statusText: status.text,
+    statusClass: status.class
+  }
+}
+
+const scannerStats = computed(() => {
+  const online = scannerList.value.filter((item) => item.statusKey === 'online').length
+  return {
+    total: scannerList.value.length,
+    online,
+    nonOnline: scannerList.value.length - online
+  }
+})
+
 const totalPages = computed(() => {
   const pages = Math.ceil(scannerList.value.length / pageSize.value)
   return pages > 0 ? pages : 1
@@ -104,6 +116,28 @@ const pagedScannerList = computed(() => {
 })
 
 const pageNumbers = computed(() => Array.from({ length: totalPages.value }, (_, i) => i + 1))
+
+async function loadScanners({ silent = false } = {}) {
+  if (isLoadingData.value) return
+  isLoadingData.value = true
+
+  try {
+    const response = await http.get('/api/scanner/list')
+    const data = response.data?.data
+    if (response.data?.success !== true || !Array.isArray(data)) {
+      throw new Error('服务器未返回有效扫描器列表')
+    }
+    scannerList.value = data.map(normalizeScanner)
+    initialLoadFailed.value = false
+    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
+  } catch (error) {
+    console.error('load scanners failed', error)
+    initialLoadFailed.value = scannerList.value.length === 0
+    if (!silent) pushAlert('error', '加载扫描器失败', '请稍后重试。')
+  } finally {
+    isLoadingData.value = false
+  }
+}
 
 async function createScanner() {
   if (!scannerForm.value.name.trim()) return
@@ -131,6 +165,7 @@ async function createScanner() {
         tag: ''
       }
       pushAlert('success', '扫描器创建成功', '请妥善保存下方展示的 token，关闭后无法再次查看。')
+      await loadScanners({ silent: true })
     } else {
       pushAlert('error', '创建扫描器失败', '服务器未返回有效数据，请稍后重试。')
     }
@@ -146,6 +181,8 @@ function changePage(page) {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
 }
+
+onMounted(() => loadScanners())
 </script>
 
 <template>
@@ -173,26 +210,49 @@ function changePage(page) {
         <div class="stats shadow border border-base-300 bg-base-100">
           <div class="stat place-items-center">
             <div class="stat-title">扫描器总数</div>
-            <div class="stat-value">3</div>
+            <div class="stat-value">{{ isLoadingData ? '—' : scannerStats.total }}</div>
             <div class="stat-desc">当前已注册扫描器</div>
           </div>
 
           <div class="stat place-items-center">
             <div class="stat-title">在线扫描器</div>
-            <div class="stat-value">2</div>
+            <div class="stat-value">{{ isLoadingData ? '—' : scannerStats.online }}</div>
             <div class="stat-desc">可立即执行任务</div>
           </div>
 
           <div class="stat place-items-center">
-            <div class="stat-title">离线扫描器</div>
-            <div class="stat-value text-error">1</div>
-            <div class="stat-desc text-error">请检查节点状态</div>
+            <div class="stat-title">非在线扫描器</div>
+            <div class="stat-value text-error">{{ isLoadingData ? '—' : scannerStats.nonOnline }}</div>
+            <div class="stat-desc text-error">包含待注册及离线节点</div>
           </div>
         </div>
 
         <div class="card bg-base-100 card-border border-base-300 p-4">
-          <h3 class="font-semibold mb-3">扫描器列表</h3>
-          <div class="overflow-x-auto rounded-box border border-base-300">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h3 class="font-semibold">扫描器列表</h3>
+            <button class="btn btn-ghost btn-xs" :disabled="isLoadingData" @click="loadScanners()">
+              {{ isLoadingData ? '加载中...' : '刷新' }}
+            </button>
+          </div>
+
+          <div v-if="isLoadingData && scannerList.length === 0" class="grid min-h-64 place-items-center rounded-lg bg-base-200/60">
+            <span class="loading loading-spinner loading-md"></span>
+          </div>
+
+          <EmptyState
+            v-else-if="initialLoadFailed"
+            type="error"
+            title="扫描器列表加载失败"
+            message="无法从服务器获取扫描器信息，请稍后重试。"
+          />
+
+          <EmptyState
+            v-else-if="scannerList.length === 0"
+            title="暂无扫描器"
+            message="请使用右侧表单创建第一个扫描器。"
+          />
+
+          <div v-else class="overflow-x-auto rounded-box border border-base-300">
             <table class="table table-sm">
               <thead>
                 <tr>
@@ -203,8 +263,7 @@ function changePage(page) {
                   <th>状态</th>
                   <th>添加者</th>
                   <th>添加时间</th>
-                  <th>网络环境</th>
-                  <th>总任务数</th>
+                  <th>标签</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,17 +276,16 @@ function changePage(page) {
                   </td>
                   <td>{{ item.region }}</td>
                   <td>{{ item.ip }}</td>
-                  <td>{{ item.status }}</td>
+                  <td><span class="badge badge-sm" :class="item.statusClass">{{ item.statusText }}</span></td>
                   <td>{{ item.creator }}</td>
                   <td>{{ item.createdAt }}</td>
-                  <td>{{ item.networkType }}</td>
-                  <td>{{ item.totalTasks }}</td>
+                  <td>{{ item.tag }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div class="flex items-center justify-between mt-3">
+          <div v-if="!initialLoadFailed && scannerList.length > 0" class="flex items-center justify-between mt-3">
             <div class="text-xs opacity-70">第 {{ currentPage }} / {{ totalPages }} 页</div>
             <div class="join">
               <button class="join-item btn btn-xs" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">上一页</button>
