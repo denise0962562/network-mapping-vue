@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import VueQrcode from 'vue-qrcode'
 import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
+import { expireCookie } from '@/utils/csrf'
 
 const isLoading = ref(true)
 const twoFactorEnabled = ref(false)
@@ -10,6 +11,11 @@ const twoFactorBound = ref(false)
 const twoFactorQrContent = ref('')
 const copied = ref(false)
 const alerts = ref([])
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const passwordSaving = ref(false)
+const passwordDialogRef = ref(null)
 
 const twoFactorStatus = computed(() => {
   if (!twoFactorEnabled.value) return '关闭'
@@ -30,6 +36,67 @@ function pushAlert(type, title, description = '', timeout = 7000) {
 
 function closeAlert(id) {
   alerts.value = alerts.value.filter((a) => a.id !== id)
+}
+
+function openPasswordDialog() {
+  passwordDialogRef.value?.showModal()
+}
+
+function resetPasswordForm() {
+  currentPassword.value = ''
+  newPassword.value = ''
+  confirmPassword.value = ''
+}
+
+function closePasswordDialog() {
+  if (!passwordSaving.value) passwordDialogRef.value?.close()
+}
+
+async function changePassword() {
+  if (passwordSaving.value) return
+  if (!currentPassword.value) {
+    pushAlert('error', '无法修改密码', '请输入当前密码。')
+    return
+  }
+  if (newPassword.value.length < 12 || newPassword.value.length > 128) {
+    pushAlert('error', '无法修改密码', '新密码长度必须在 12 到 128 个字符之间。')
+    return
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    pushAlert('error', '无法修改密码', '两次输入的新密码不一致。')
+    return
+  }
+  if (currentPassword.value === newPassword.value) {
+    pushAlert('error', '无法修改密码', '新密码不能与当前密码相同。')
+    return
+  }
+
+  passwordSaving.value = true
+  try {
+    const response = await http.post('/api/user/password/update', {
+      current_password: currentPassword.value,
+      new_password: newPassword.value,
+    }, {
+      validateStatus: () => true,
+    })
+    if (response.status === 200 && response.data?.success === true) {
+      currentPassword.value = ''
+      newPassword.value = ''
+      confirmPassword.value = ''
+      expireCookie('csrf_token')
+      pushAlert('success', '密码已修改', '登录会话已失效，即将跳转至登录页。', 3000)
+      window.setTimeout(() => {
+        window.location.href = '/login'
+      }, 1000)
+    } else {
+      pushAlert('error', '密码修改失败', response.data?.message || '请检查当前密码后重试。')
+    }
+  } catch (error) {
+    console.error('change password failed', error)
+    pushAlert('error', '密码修改请求失败', '请检查网络连接后重试。')
+  } finally {
+    passwordSaving.value = false
+  }
 }
 
 async function fetchTotpStatus() {
@@ -145,6 +212,15 @@ onMounted(() => {
       <p class="mt-1 text-xs opacity-60">管理当前用户的登录保护、双因素认证和安全验证状态。</p>
     </div>
 
+    <div class="card bg-base-100 card-border border-base-300 mb-5 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 class="font-semibold">修改密码</h3>
+          <p class="mt-1 text-xs opacity-60">修改成功后，当前账户的所有登录会话都会失效，需要重新登录。</p>
+        </div>
+        <button type="button" class="btn btn-neutral btn-sm" @click="openPasswordDialog">修改密码</button>
+      </div>
+    </div>
     <div class="card bg-base-100 card-border border-base-300 p-4">
       <div class="mb-4">
         <h3 class="font-semibold">2FA 设置</h3>
@@ -206,4 +282,35 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <dialog ref="passwordDialogRef" class="modal" @close="resetPasswordForm">
+    <form class="modal-box w-[calc(100vw-2rem)] max-w-md" @submit.prevent="changePassword">
+      <h3 class="text-lg font-bold">修改密码</h3>
+      <p class="py-3 text-sm opacity-70">修改成功后，当前账户的所有登录会话都会失效，需要重新登录。</p>
+
+      <div class="space-y-4">
+        <label class="form-control">
+          <span class="label-text mb-1 text-sm">当前密码</span>
+          <input v-model="currentPassword" type="password" autocomplete="current-password" class="input input-bordered w-full" required />
+        </label>
+        <label class="form-control">
+          <span class="label-text mb-1 text-sm">新密码</span>
+          <input v-model="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" class="input input-bordered w-full" required />
+        </label>
+        <label class="form-control">
+          <span class="label-text mb-1 text-sm">确认新密码</span>
+          <input v-model="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" class="input input-bordered w-full" required />
+        </label>
+      </div>
+
+      <p class="mt-3 text-xs opacity-60">新密码长度为 12 至 128 个字符。</p>
+      <div class="modal-action">
+        <button type="button" class="btn btn-ghost" :disabled="passwordSaving" @click="closePasswordDialog">取消</button>
+        <button type="submit" class="btn btn-neutral" :disabled="passwordSaving">{{ passwordSaving ? '修改中...' : '确认修改' }}</button>
+      </div>
+    </form>
+    <form method="dialog" class="modal-backdrop">
+      <button :disabled="passwordSaving">关闭</button>
+    </form>
+  </dialog>
 </template>
