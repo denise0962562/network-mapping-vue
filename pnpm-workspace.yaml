@@ -2,4 +2,15 @@ allowBuilds:
   esbuild: false
 minimumReleaseAgeExclude:
   - pnpm@11.9.0
+  - esbuild@0.28.1
+  - form-data@4.0.6
+  - vite@7.3.5
+  - axios@1.18.0
+  - postcss@8.5.18 || 8.5.23
+  - nanoid@3.3.16 || 3.3.17
 minimumReleaseAge: 10080
+overrides:
+  nanoid@<3.3.16: ^3.3.16
+  nanoid@<3.3.17: ^3.3.17
+  postcss@<=8.5.17: ^8.5.18
+  postcss@<=8.5.22: ^8.5.23
