@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
@@ -69,13 +69,13 @@ function resolveStatus(item) {
   if (item.is_enable !== true) {
     return { key: 'pending', text: '待注册', class: 'badge-warning' }
   }
-  if (item.is_run === true) {
-    return { key: 'online', text: '在线', class: 'badge-success' }
+  if (item.is_online === true) {
+    if (item.runtime_state === 'scanning') {
+      return { key: 'online', text: '扫描中', class: 'badge-info' }
+    }
+    return { key: 'online', text: '在线 · 空闲', class: 'badge-success' }
   }
-  if (item.is_run === false) {
-    return { key: 'offline', text: '离线', class: 'badge-error' }
-  }
-  return { key: 'registered', text: '已注册', class: 'badge-info' }
+  return { key: 'offline', text: '离线', class: 'badge-error' }
 }
 
 function normalizeScanner(item, index) {
@@ -87,8 +87,8 @@ function normalizeScanner(item, index) {
     region: item.location || '-',
     ip: item.ip_address || '-',
     creator: item.creator || '-',
-    createdAt: formatDate(item.create_time),
-    tag: item.tag || '-',
+    lastSeenAt: formatDate(item.last_seen_at),
+    currentTaskId: item.current_task_id,
     statusKey: status.key,
     statusText: status.text,
     statusClass: status.class
@@ -182,7 +182,14 @@ function changePage(page) {
   currentPage.value = page
 }
 
-onMounted(() => loadScanners())
+let refreshTimer
+
+onMounted(() => {
+  loadScanners()
+  refreshTimer = window.setInterval(() => loadScanners({ silent: true }), 30000)
+})
+
+onBeforeUnmount(() => window.clearInterval(refreshTimer))
 </script>
 
 <template>
@@ -262,8 +269,8 @@ onMounted(() => loadScanners())
                   <th>地址</th>
                   <th>状态</th>
                   <th>添加者</th>
-                  <th>添加时间</th>
-                  <th>标签</th>
+                  <th>最后心跳</th>
+                  <th>当前任务</th>
                 </tr>
               </thead>
               <tbody>
@@ -278,8 +285,13 @@ onMounted(() => loadScanners())
                   <td>{{ item.ip }}</td>
                   <td><span class="badge badge-sm" :class="item.statusClass">{{ item.statusText }}</span></td>
                   <td>{{ item.creator }}</td>
-                  <td>{{ item.createdAt }}</td>
-                  <td>{{ item.tag }}</td>
+                  <td class="whitespace-nowrap">{{ item.lastSeenAt }}</td>
+                  <td>
+                    <router-link v-if="item.currentTaskId" class="link link-primary text-xs" :to="`/task/${item.currentTaskId}`">
+                      查看任务
+                    </router-link>
+                    <span v-else>-</span>
+                  </td>
                 </tr>
               </tbody>
             </table>

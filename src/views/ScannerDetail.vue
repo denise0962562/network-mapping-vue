@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
@@ -28,20 +28,31 @@ function formatUptime(value) {
   return `${days} 天 ${hours} 小时 ${minutes} 分钟`
 }
 
+function formatRam(value) {
+  const megabytes = Number(value)
+  if (!Number.isFinite(megabytes) || megabytes < 0) return '-'
+  if (megabytes >= 1024) return `${(megabytes / 1024).toFixed(1)} GB`
+  return `${megabytes} MB`
+}
+
 const scannerStatus = computed(() => {
   const scanner = scannerDetail.value
   if (!scanner || scanner.is_enable !== true) return { text: '待注册', class: 'badge-warning' }
-  if (scanner.is_run === true) return { text: '在线', class: 'badge-success' }
-  if (scanner.is_run === false) return { text: '离线', class: 'badge-error' }
-  return { text: '已注册', class: 'badge-info' }
+  if (scanner.is_online === true && scanner.runtime_state === 'scanning') {
+    return { text: '扫描中', class: 'badge-info' }
+  }
+  if (scanner.is_online === true) return { text: '在线 · 空闲', class: 'badge-success' }
+  return { text: '离线', class: 'badge-error' }
 })
 
-async function loadScanner() {
+async function loadScanner({ silent = false } = {}) {
   if (!scannerId.value) return
-  isLoading.value = true
-  loadFailed.value = false
-  notFound.value = false
-  scannerDetail.value = null
+  if (!silent) isLoading.value = true
+  if (!silent) {
+    loadFailed.value = false
+    notFound.value = false
+    scannerDetail.value = null
+  }
 
   try {
     const response = await http.get(`/api/scanner/${scannerId.value}`)
@@ -51,14 +62,24 @@ async function loadScanner() {
     scannerDetail.value = response.data.data
   } catch (error) {
     console.error('load scanner detail failed', error)
-    notFound.value = error?.response?.status === 404
-    loadFailed.value = !notFound.value
+    if (!silent) {
+      notFound.value = error?.response?.status === 404
+      loadFailed.value = !notFound.value
+    }
   } finally {
     isLoading.value = false
   }
 }
 
-watch(scannerId, loadScanner, { immediate: true })
+let refreshTimer
+
+watch(scannerId, () => {
+  loadScanner()
+  window.clearInterval(refreshTimer)
+  refreshTimer = window.setInterval(() => loadScanner({ silent: true }), 30000)
+}, { immediate: true })
+
+onBeforeUnmount(() => window.clearInterval(refreshTimer))
 </script>
 
 <template>
@@ -107,6 +128,14 @@ watch(scannerId, loadScanner, { immediate: true })
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">创建时间：</span>{{ formatDate(scannerDetail.create_time) }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">注册时间：</span>{{ formatDate(scannerDetail.register_time) }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">更新时间：</span>{{ formatDate(scannerDetail.update_time) }}</div>
+            <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">最后心跳：</span>{{ formatDate(scannerDetail.last_seen_at) }}</div>
+            <div class="rounded-lg bg-base-200/60 p-3">
+              <span class="opacity-70">当前任务：</span>
+              <router-link v-if="scannerDetail.current_task_id" class="link link-primary" :to="`/task/${scannerDetail.current_task_id}`">
+                {{ scannerDetail.current_task_id }}
+              </router-link>
+              <span v-else>-</span>
+            </div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">扫描器版本：</span>{{ scannerDetail.scanner_version || '-' }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">标签：</span>{{ scannerDetail.tag || '-' }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">备注：</span>{{ scannerDetail.remark || '-' }}</div>
@@ -119,8 +148,9 @@ watch(scannerId, loadScanner, { immediate: true })
           <h3 class="font-semibold mb-3">运行环境</h3>
           <div class="grid grid-cols-1 gap-3 text-sm">
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">系统版本：</span>{{ scannerDetail.system_version || '-' }}</div>
+            <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">CPU 型号：</span>{{ scannerDetail.cpu_model || '-' }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">CPU 核心数：</span>{{ scannerDetail.cpus ?? '-' }}</div>
-            <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">RAM：</span>{{ scannerDetail.ram ?? '-' }}</div>
+            <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">RAM：</span>{{ formatRam(scannerDetail.ram) }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">运行时间：</span>{{ formatUptime(scannerDetail.uptime) }}</div>
           </div>
         </div>
