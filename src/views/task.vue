@@ -38,7 +38,9 @@ const inferredPageSize = ref(null)
 const stateConfig = {
   pending: { class: 'scan_wait', text: '待扫描' },
   running: { class: 'scan_open', text: '扫描中' },
-  finished: { class: 'scan_success', text: '扫描完成' }
+  succeeded: { class: 'scan_success', text: '扫描完成' },
+  failed: { class: 'scan_faild', text: '扫描失败' },
+  cancelled: { class: 'scan_faild', text: '已取消' }
 }
 
 function formatUnixMs(value) {
@@ -54,10 +56,8 @@ function formatUnixMs(value) {
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`
 }
 
-function resolveStatus(startAt, endAt) {
-  if (startAt === null || startAt === undefined) return 'pending'
-  if (endAt === null || endAt === undefined) return 'running'
-  return 'finished'
+function resolveStatus(status) {
+  return stateConfig[status] ? status : 'pending'
 }
 
 function normalizeTask(item) {
@@ -71,13 +71,15 @@ function normalizeTask(item) {
     operator: item.task_initiator || '-',
     createTimeMs: Number.isFinite(createTimeMs) ? createTimeMs : null,
     createTime: formatUnixMs(item.task_create_time),
-    statusKey: resolveStatus(item.start_at, item.end_at),
-    remark: item.remarks || '-'
+    statusKey: resolveStatus(item.task_status),
+    remark: item.remarks || '-',
+    attemptCount: Number(item.attempt_count) || 0,
+    failureReason: item.failure_reason || ''
   }
 }
 
 const scannerOptions = computed(() => {
-  return [...new Set(taskItems.value.map((item) => item.scannerId))]
+  return [...new Set(taskItems.value.map((item) => item.scannerId).filter((id) => id !== '-'))]
 })
 
 const filteredTaskItems = computed(() => {
@@ -279,7 +281,9 @@ onMounted(async () => {
               <option value="">全部</option>
               <option value="pending">待扫描</option>
               <option value="running">扫描中</option>
-              <option value="finished">扫描完成</option>
+              <option value="succeeded">扫描完成</option>
+              <option value="failed">扫描失败</option>
+              <option value="cancelled">已取消</option>
             </select>
           </label>
 
@@ -394,7 +398,8 @@ onMounted(async () => {
                       <tr v-if="expandedRow === taskItem.taskId">
                         <td class="w-10"></td>
                         <td colspan="6" class="w-full text-sm">
-                          备注：{{ taskItem.remark }} | 创建时间：{{ taskItem.createTime }}
+                          备注：{{ taskItem.remark }} | 创建时间：{{ taskItem.createTime }} | 领取次数：{{ taskItem.attemptCount }}
+                          <span v-if="taskItem.failureReason" class="text-error"> | 失败原因：{{ taskItem.failureReason }}</span>
                         </td>
                       </tr>
                     </template>
