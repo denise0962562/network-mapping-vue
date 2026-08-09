@@ -9,6 +9,8 @@ const isLoading = ref(true)
 const twoFactorEnabled = ref(false)
 const twoFactorBound = ref(false)
 const twoFactorQrContent = ref('')
+const twoFactorVerificationCode = ref('')
+const twoFactorConfirming = ref(false)
 const copied = ref(false)
 const alerts = ref([])
 const currentPassword = ref('')
@@ -99,6 +101,14 @@ async function changePassword() {
   }
 }
 
+function redirectToLoginAfterSessionInvalidation(message) {
+  expireCookie('csrf_token')
+  pushAlert('success', '登录已失效', message, 3000)
+  window.setTimeout(() => {
+    window.location.href = '/login'
+  }, 1000)
+}
+
 async function fetchTotpStatus() {
   try {
     const response = await http.get('/api/totp/get')
@@ -128,7 +138,7 @@ async function onToggleTwoFactor(event) {
         twoFactorEnabled.value = false
         twoFactorBound.value = false
         twoFactorQrContent.value = ''
-        pushAlert('success', '2FA 已关闭', '双因素认证已成功解绑。')
+        redirectToLoginAfterSessionInvalidation('2FA 已解绑，所有登录会话均已失效，即将跳转至登录页。')
       } else if (response.status === 404) {
         twoFactorEnabled.value = true
         pushAlert('error', '解绑失败', '未找到对应用户，请稍后重试。')
@@ -185,6 +195,33 @@ async function copyTwoFactorContent() {
   window.setTimeout(() => {
     copied.value = false
   }, 1600)
+}
+
+async function confirmTwoFactorBinding() {
+  const token = twoFactorVerificationCode.value.trim()
+  if (!/^\d{6}$/.test(token)) {
+    pushAlert('error', '无法确认绑定', '请输入认证器中显示的 6 位验证码。')
+    return
+  }
+
+  twoFactorConfirming.value = true
+  try {
+    const response = await http.post('/api/totp/verify', { token }, { validateStatus: () => true })
+    if (response.status === 200 && response.data?.success === true) {
+      twoFactorBound.value = true
+      twoFactorEnabled.value = true
+      twoFactorQrContent.value = ''
+      twoFactorVerificationCode.value = ''
+      redirectToLoginAfterSessionInvalidation('2FA 已绑定，所有登录会话均已失效，请重新登录。')
+    } else {
+      pushAlert('error', '2FA 绑定确认失败', response.data?.message || '验证码不正确或绑定已过期，请重新开始。')
+    }
+  } catch (error) {
+    console.error('confirm TOTP binding failed', error)
+    pushAlert('error', '2FA 绑定确认请求失败', '请检查网络连接后重试。')
+  } finally {
+    twoFactorConfirming.value = false
+  }
 }
 
 onMounted(() => {
@@ -274,6 +311,13 @@ onMounted(() => {
                 </code>
                 <button type="button" class="btn btn-neutral btn-sm rounded-lg" @click="copyTwoFactorContent">
                   {{ copied ? '已复制' : '复制' }}
+                </button>
+              </div>
+
+              <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input v-model="twoFactorVerificationCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="input input-bordered w-full" placeholder="输入 6 位验证码以确认绑定" :disabled="twoFactorConfirming" />
+                <button type="button" class="btn btn-neutral shrink-0" :disabled="twoFactorConfirming" @click="confirmTwoFactorBinding">
+                  {{ twoFactorConfirming ? '确认中...' : '确认绑定' }}
                 </button>
               </div>
             </div>
