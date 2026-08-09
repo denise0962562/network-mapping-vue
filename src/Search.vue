@@ -15,6 +15,7 @@ const errorMessage = ref('')
 const searchResult = ref(null)
 const activeSearch = ref(null)
 const offset = ref(0)
+const syntaxDialogRef = ref(null)
 
 const typeLabels = {
   ip: 'IP 地址',
@@ -26,6 +27,14 @@ const typeLabels = {
 
 const supportedSyntax = '支持：IP、CIDR，或 port:443、service:https、banner:nginx'
 const currentTypeLabel = computed(() => activeSearch.value ? typeLabels[activeSearch.value.type] : '')
+
+function openSyntaxDialog() {
+  syntaxDialogRef.value?.showModal()
+}
+
+function closeSyntaxDialog() {
+  syntaxDialogRef.value?.close()
+}
 
 function isIpv4(value) {
   const parts = value.split('.')
@@ -166,7 +175,10 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
           </label>
           <button class="btn btn-neutral join-item px-6" :disabled="loading" @click="doSearch">{{ loading ? '搜索中' : '搜索' }}</button>
         </div>
-        <p class="mt-2 text-center text-xs opacity-60">{{ supportedSyntax }}</p>
+        <div class="mt-2 flex items-center justify-between gap-3 text-xs opacity-60">
+          <span>{{ supportedSyntax }}</span>
+          <button type="button" class="link link-hover shrink-0" @click="openSyntaxDialog">搜索语法说明</button>
+        </div>
 
         <div v-if="showHistory" class="absolute z-20 mt-2 w-full rounded-xl border border-base-300 bg-base-100 shadow-lg">
           <div class="flex items-center justify-between border-b border-base-300 px-4 py-3"><span class="text-sm font-medium">搜索历史</span><button class="btn btn-ghost btn-xs" @click="clearHistory">清空</button></div>
@@ -193,4 +205,34 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
       </section>
     </div>
   </main>
+
+  <dialog ref="syntaxDialogRef" class="modal">
+    <div class="modal-box w-[calc(100vw-2rem)] max-w-lg">
+      <h3 class="text-lg font-bold">搜索语法说明</h3>
+      <p class="py-3 text-sm opacity-70">输入 IP 或 CIDR 会自动识别；其余类型请使用前缀指定搜索范围。</p>
+
+      <div class="space-y-3 text-sm">
+        <div class="rounded-lg bg-base-200 p-3">
+          <p class="font-medium">IP 地址</p>
+          <code class="mt-1 inline-block rounded bg-base-300 px-2 py-1">221.233.151.58</code>
+        </div>
+        <div class="rounded-lg bg-base-200 p-3">
+          <p class="font-medium">CIDR 网段</p>
+          <code class="mt-1 inline-block rounded bg-base-300 px-2 py-1">221.233.151.0/24</code>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-3">
+          <div class="rounded-lg bg-base-200 p-3"><p class="font-medium">端口</p><code class="mt-1 inline-block rounded bg-base-300 px-2 py-1">port:443</code></div>
+          <div class="rounded-lg bg-base-200 p-3"><p class="font-medium">服务</p><code class="mt-1 inline-block rounded bg-base-300 px-2 py-1">service:https</code></div>
+          <div class="rounded-lg bg-base-200 p-3"><p class="font-medium">Banner</p><code class="mt-1 inline-block rounded bg-base-300 px-2 py-1">banner:nginx</code></div>
+        </div>
+      </div>
+
+      <div class="modal-action">
+        <button type="button" class="btn btn-neutral" @click="closeSyntaxDialog">知道了</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button type="button" @click="closeSyntaxDialog">关闭</button>
+    </form>
+  </dialog>
 </template>
