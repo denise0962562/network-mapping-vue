@@ -7,8 +7,7 @@ const scannerForm = ref({
   name: '',
   location: '',
   remark: '',
-  tag: '',
-  networkType: 'ipv4'
+  tag: ''
 })
 
 const submitting = ref(false)
@@ -122,8 +121,15 @@ async function createScanner() {
     if (scannerForm.value.tag.trim()) payload.tag = scannerForm.value.tag.trim()
 
     const response = await http.post('/api/scanner/add', payload)
-    if (response.data?.success === true && response.data?.data) {
-      scannerResult.value = response.data.data
+    const result = response.data?.data
+    if (response.data?.success === true && result?.scanner_id && result?.registration_token) {
+      scannerResult.value = result
+      scannerForm.value = {
+        name: '',
+        location: '',
+        remark: '',
+        tag: ''
+      }
       pushAlert('success', '扫描器创建成功', '请妥善保存下方展示的 token，关闭后无法再次查看。')
     } else {
       pushAlert('error', '创建扫描器失败', '服务器未返回有效数据，请稍后重试。')
@@ -265,15 +271,6 @@ function changePage(page) {
               <input v-model="scannerForm.tag" type="text" class="input input-bordered w-full" placeholder="标签（可选）" :disabled="submitting" />
             </label>
 
-            <label class="form-control w-full">
-              <span class="label-text mb-1">扫描器网络类型</span>
-              <select v-model="scannerForm.networkType" class="select select-bordered w-full" :disabled="submitting">
-                <option value="ipv4">IPV4</option>
-                <option value="ipv6">IPV6</option>
-                <option value="all">ALL</option>
-              </select>
-            </label>
-
             <button class="btn btn-neutral w-full mt-1" :disabled="submitting || !scannerForm.name.trim()" @click="createScanner">
               {{ submitting ? '提交中...' : '提交' }}
             </button>
@@ -295,10 +292,10 @@ function changePage(page) {
             </label>
 
             <label class="form-control w-full">
-              <span class="label-text text-xs mb-1">Token</span>
+              <span class="label-text text-xs mb-1">Registration Token</span>
               <div class="flex items-center gap-2">
-                <code class="flex-1 truncate rounded-lg bg-base-200 px-3 py-2 text-xs">{{ scannerResult.token }}</code>
-                <button class="btn btn-ghost btn-xs shrink-0" @click="copyToClipboard(scannerResult.token, 'token')">
+                <code class="flex-1 truncate rounded-lg bg-base-200 px-3 py-2 text-xs">{{ scannerResult.registration_token }}</code>
+                <button class="btn btn-ghost btn-xs shrink-0" @click="copyToClipboard(scannerResult.registration_token, 'token')">
                   {{ copiedField === 'token' ? '已复制' : '复制' }}
                 </button>
               </div>
