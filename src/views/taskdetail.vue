@@ -1,13 +1,16 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import http from '@/utils/http'
 
 const route = useRoute()
+const router = useRouter()
 const taskId = computed(() => String(route.params.taskid || ''))
 const task = ref(null)
 const loading = ref(false)
 const errorMessage = ref('')
+const actionMessage = ref('')
+const actionLoading = ref(false)
 const page = ref(1)
 let refreshTimer
 
@@ -128,6 +131,55 @@ async function copyTaskId() {
   }
 }
 
+async function cancelTask() {
+  if (!window.confirm('确定取消该任务吗？运行中的扫描将在扫描器下一次心跳后终止。')) return
+  actionLoading.value = true
+  actionMessage.value = ''
+  try {
+    await http.post(`/api/task/${taskId.value}/cancel`)
+    actionMessage.value = '取消请求已提交'
+    await loadTask({ silent: true })
+  } catch (error) {
+    actionMessage.value = error?.response?.status === 409 ? '该任务已结束，无法取消' : '取消任务失败'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function retryTask() {
+  actionLoading.value = true
+  actionMessage.value = ''
+  try {
+    const response = await http.post(`/api/task/${taskId.value}/retry`)
+    const newTaskId = response.data?.data?.task_id
+    if (!newTaskId) throw new Error('服务器未返回新任务 ID')
+    await router.push(`/task/${newTaskId}`)
+  } catch (error) {
+    console.error('retry task failed', error)
+    actionMessage.value = '创建重试任务失败'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function exportTask(format) {
+  try {
+    const response = await http.get(`/api/task/${taskId.value}/export`, {
+      params: { format },
+      responseType: 'blob'
+    })
+    const url = URL.createObjectURL(response.data)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `task-${taskId.value}.${format}`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('export task failed', error)
+    actionMessage.value = '导出任务结果失败'
+  }
+}
+
 watch(taskId, () => {
   page.value = 1
   loadTask()
@@ -154,6 +206,17 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
       </div>
 
       <div class="flex flex-wrap items-center justify-start md:justify-end gap-2">
+        <button v-if="['pending', 'running'].includes(task?.task_status)" class="btn btn-error btn-outline btn-sm" :disabled="actionLoading || task?.cancel_requested" @click="cancelTask">
+          {{ task?.cancel_requested ? '正在取消' : '取消任务' }}
+        </button>
+        <button v-if="['succeeded', 'failed', 'cancelled'].includes(task?.task_status)" class="btn btn-outline btn-sm" :disabled="actionLoading" @click="retryTask">重新执行</button>
+        <div v-if="task?.task_status === 'succeeded'" class="dropdown dropdown-end">
+          <button tabindex="0" class="btn btn-outline btn-sm">导出结果</button>
+          <ul tabindex="0" class="dropdown-content menu z-10 mt-2 w-36 rounded-box border border-base-300 bg-base-100 p-2 shadow">
+            <li><button @click="exportTask('csv')">CSV</button></li>
+            <li><button @click="exportTask('json')">JSON</button></li>
+          </ul>
+        </div>
         <button class="btn btn-ghost btn-sm" :disabled="loading" @click="loadTask()">刷新</button>
         <router-link to="/task" class="btn btn-ghost btn-sm">返回列表</router-link>
       </div>
@@ -164,6 +227,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
     </div>
     <div v-else-if="errorMessage" role="alert" class="alert alert-error"><span>{{ errorMessage }}</span></div>
     <template v-else-if="task">
+    <div v-if="actionMessage" role="alert" class="alert alert-info mb-4"><span>{{ actionMessage }}</span></div>
     <p class="text-sm opacity-70 mb-4 break-words">备注：{{ taskRemark }}</p>
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">

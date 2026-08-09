@@ -33,7 +33,13 @@
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 p-5">
-    
+    <div v-for="item in overviewCards" :key="item.title" class="stats shadow border border-base-300 bg-base-100">
+      <div class="stat">
+        <div class="stat-title">{{ item.title }}</div>
+        <div class="stat-value text-2xl" :class="item.class">{{ item.value }}</div>
+        <div class="stat-desc">{{ item.description }}</div>
+      </div>
+    </div>
   </div>   
   <!-- 资源卡片结束 -->
 
@@ -149,13 +155,14 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
 
-const datalabel = ref(true)
 const alerts = ref([])
 
 const systemData = ref(null)
+const dashboardData = ref(null)
 const systemDataErrorVisible = ref(false)
 const isFirstLoad = ref(true)
 let refreshTimer = null
+let dashboardTimer = null
 
 function pushAlert(type, title, description = '', timeout = 7000) {
   alerts.value.unshift({
@@ -187,6 +194,28 @@ async function fetchSystemData() {
     }
   }
 }
+
+async function fetchDashboardData() {
+  try {
+    const response = await http.get('/api/dashboard/overview')
+    if (response.data?.success === true) dashboardData.value = response.data.data
+  } catch (error) {
+    console.error('fetch dashboard data failed', error)
+  }
+}
+
+const overviewCards = computed(() => {
+  const tasks = dashboardData.value?.tasks || {}
+  const finished = Number(tasks.succeeded || 0) + Number(tasks.failed || 0) + Number(tasks.cancelled || 0)
+  const successRate = finished > 0 ? `${Math.round((Number(tasks.succeeded || 0) / finished) * 100)}%` : '0%'
+  const averageSeconds = Math.round(Number(dashboardData.value?.avg_duration_ms || 0) / 1000)
+  return [
+    { title: '在线扫描器', value: dashboardData.value?.online_scanners ?? 0, description: '90 秒内存在心跳', class: 'text-success' },
+    { title: '执行中任务', value: tasks.running ?? 0, description: `等待 ${tasks.pending ?? 0} 个`, class: 'text-info' },
+    { title: '任务成功率', value: successRate, description: `已完成 ${finished} 个`, class: '' },
+    { title: '平均耗时', value: `${averageSeconds} 秒`, description: '成功任务平均值', class: '' }
+  ]
+})
 
 const resourceChartSeries = computed(() => {
   const status = systemData.value?.status_item?.[0]
@@ -255,26 +284,17 @@ const resourceChartOptions = ref({
   }
 })
 
-const scanChartSeries = ref([
-  {
-    name: 'scanner-01',
-    data: [32, 45, 36, 51, 49, 40, 43]
-  },
-  {
-    name: 'scanner-02',
-    data: [21, 26, 29, 24, 31, 28, 33]
-  },
-  {
-    name: 'scanner-03',
-    data: [12, 18, 15, 20, 17, 16, 19]
-  },
-  {
-    name: 'scanner-04',
-    data: [8, 11, 10, 14, 13, 12, 15]
-  }
-])
+const trendDays = computed(() => [...new Set((dashboardData.value?.trend || []).map((item) => item.day))])
+const scanChartSeries = computed(() => {
+  const trend = dashboardData.value?.trend || []
+  const scanners = [...new Set(trend.map((item) => item.scanner))]
+  return scanners.map((scanner) => ({
+    name: scanner,
+    data: trendDays.value.map((day) => trend.find((item) => item.day === day && item.scanner === scanner)?.count || 0)
+  }))
+})
 
-const scanChartOptions = ref({
+const scanChartOptions = computed(() => ({
   chart: {
     type: 'bar',
     height: 320,
@@ -317,15 +337,7 @@ const scanChartOptions = ref({
   },
   xaxis: {
     type: 'datetime',
-    categories: [
-      '2026-04-07T00:00:00.000Z',
-      '2026-04-08T00:00:00.000Z',
-      '2026-04-09T00:00:00.000Z',
-      '2026-04-10T00:00:00.000Z',
-      '2026-04-11T00:00:00.000Z',
-      '2026-04-12T00:00:00.000Z',
-      '2026-04-13T00:00:00.000Z'
-    ]
+    categories: trendDays.value
   },
   legend: {
     position: 'right',
@@ -334,55 +346,9 @@ const scanChartOptions = ref({
   fill: {
     opacity: 1
   }
-})
+}))
 
 // 仪表盘中任务表最大显示10行
-const taskTableMaxRows = ref(10)
-
-const series = ref([
-  {
-    name: "STOCK ABC",
-    data: [30, 40, 35, 50, 22, 50, 70]
-  },
-  {
-    name: "B",
-    data: [40, 40, 11, 50, 49, 60, 70]
-  }
-])
-
-const chartOptions = ref({
-  chart: {
-    type: 'area',
-    height: 350,
-  },
-  dataLabels: {
-    enabled: datalabel.value
-  },
-  stroke: {
-    curve: 'smooth'
-  },
-  title: {
-    text: 'Fundamental Analysis of Stocks',
-    align: 'left'
-  },
-  subtitle: {
-    text: 'Price Movements',
-    align: 'left'
-  },
-  xaxis: {
-    type: 'datetime',
-    categories: ["2018-09-19T00:00:00.000Z", "2018-09-19T01:30:00.000Z", "2018-09-19T02:30:00.000Z", "2018-09-19T03:30:00.000Z", "2018-09-19T04:30:00.000Z", "2018-09-19T05:30:00.000Z", "2018-09-19T06:30:00.000Z"]
-  },
-  yaxis: {
-    opposite: true
-  },
-  legend: {
-    horizontalAlign: 'left'
-  }
-})
-
-const chartref = ref(null)
-
 function formatUptime(seconds) {
   const d = Math.floor(seconds / 86400)
   const h = Math.floor((seconds % 86400) / 3600)
@@ -417,19 +383,11 @@ function formatBytes(bytes) {
   return `${val} ${units[i]}`
 }
 
-function showDataLabel() {
-  datalabel.value = !datalabel.value
-  chartref.value.updateOptions({
-    dataLabels: {
-      enabled: datalabel.value
-    }
-  })
-  console.log(`显示标签:${datalabel.value}`)
-}
-
 onMounted(() => {
   fetchSystemData()
+  fetchDashboardData()
   refreshTimer = setInterval(fetchSystemData, 5000)
+  dashboardTimer = setInterval(fetchDashboardData, 30000)
 })
 
 onBeforeUnmount(() => {
@@ -437,34 +395,24 @@ onBeforeUnmount(() => {
     clearInterval(refreshTimer)
     refreshTimer = null
   }
+  if (dashboardTimer) clearInterval(dashboardTimer)
 })
 
 // status: 0 => 扫描中 、1 => 扫描结束 、2 => 待扫描 、3 => 出现错误
-const taskList = ref([
-  {
-    taskid: "sdcdsa",
-    scannerId: "scanner-01",
-    target: "221.233.151.58/24",
-    operationPerson: 'System',
-    startin: "Today",
-    status: 0,
-    remark: ''
-  },
-  {
-    taskid: "sdcdsb",
-    scannerId: "scanner-01",
-    target: "47.122.119.248/24,212.59.218.33/24",
-    operationPerson: 'Admin',
-    startin: "Today",
-    status: 1,
-    remark: ''
-  }
-])
+const taskList = computed(() => (dashboardData.value?.current_tasks || []).map((task) => ({
+  taskid: task.task_id,
+  scannerId: task.scanner || '未分配',
+  target: task.target?.join(', ') || '-',
+  operationPerson: task.initiator,
+  status: task.status,
+  remark: task.remark || '-'
+})))
 
 const stateConfig = {
-  0: {class: 'scan_open', text: '扫描中'},
-  1: {class: 'scan_success', text: '成功'},
-  2: {class: 'scan_wait', text: '等待'},
-  3: {class: 'scan_faild', text: '错误'}
+  running: { class: 'scan_open', text: '扫描中' },
+  pending: { class: 'scan_wait', text: '等待' },
+  succeeded: { class: 'scan_success', text: '成功' },
+  failed: { class: 'scan_faild', text: '错误' },
+  cancelled: { class: 'scan_faild', text: '已取消' }
 }
 </script>

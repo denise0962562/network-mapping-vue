@@ -1,16 +1,21 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
 const route = useRoute()
+const router = useRouter()
 const scannerId = computed(() => String(route.params.id || ''))
 
 const scannerDetail = ref(null)
 const isLoading = ref(false)
 const loadFailed = ref(false)
 const notFound = ref(false)
+const actionLoading = ref(false)
+const actionMessage = ref('')
+const registrationSecret = ref(null)
+const editForm = ref({ name: '', location: '', tag: '', remark: '' })
 
 function formatDate(value) {
   if (!value) return '-'
@@ -60,6 +65,14 @@ async function loadScanner({ silent = false } = {}) {
       throw new Error('服务器未返回有效扫描器信息')
     }
     scannerDetail.value = response.data.data
+    if (!silent) {
+      editForm.value = {
+        name: scannerDetail.value.name || '',
+        location: scannerDetail.value.location || '',
+        tag: scannerDetail.value.tag || '',
+        remark: scannerDetail.value.remark || ''
+      }
+    }
   } catch (error) {
     console.error('load scanner detail failed', error)
     if (!silent) {
@@ -68,6 +81,62 @@ async function loadScanner({ silent = false } = {}) {
     }
   } finally {
     isLoading.value = false
+  }
+}
+
+async function runAction(action, successMessage) {
+  actionLoading.value = true
+  actionMessage.value = ''
+  try {
+    await action()
+    actionMessage.value = successMessage
+    await loadScanner({ silent: true })
+  } catch (error) {
+    console.error('scanner action failed', error)
+    actionMessage.value = error?.response?.status === 403 ? '仅管理员可以执行此操作' : '操作失败，请稍后重试'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function saveScanner() {
+  if (!editForm.value.name.trim()) return
+  return runAction(() => http.put(`/api/scanner/${scannerId.value}`, {
+    ...editForm.value,
+    name: editForm.value.name.trim()
+  }), '扫描器信息已更新')
+}
+
+function toggleScanner() {
+  const enabled = scannerDetail.value?.is_enable !== true
+  return runAction(() => http.post(`/api/scanner/${scannerId.value}/enabled`, { enabled }), enabled ? '扫描器已启用' : '扫描器已禁用，运行任务已释放')
+}
+
+async function reissueToken() {
+  if (!window.confirm('重签凭据会立即废止当前运行 Token，确定继续吗？')) return
+  actionLoading.value = true
+  actionMessage.value = ''
+  try {
+    const response = await http.post(`/api/scanner/${scannerId.value}/reissue-token`)
+    registrationSecret.value = response.data?.data || null
+    actionMessage.value = '新注册凭据已生成，请立即保存'
+    await loadScanner({ silent: true })
+  } catch (error) {
+    actionMessage.value = error?.response?.status === 403 ? '仅管理员可以执行此操作' : '凭据重签失败'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+async function deleteScanner() {
+  if (!window.confirm('确定删除该扫描器吗？历史任务和结果会保留。')) return
+  actionLoading.value = true
+  try {
+    await http.delete(`/api/scanner/${scannerId.value}`)
+    await router.push('/scanner')
+  } catch (error) {
+    actionMessage.value = error?.response?.status === 403 ? '仅管理员可以执行此操作' : '删除扫描器失败'
+    actionLoading.value = false
   }
 }
 
@@ -112,6 +181,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
     />
 
     <div v-else-if="scannerDetail" class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
+      <div v-if="actionMessage" role="alert" class="alert alert-info xl:col-span-3"><span>{{ actionMessage }}</span></div>
       <div class="xl:col-span-2">
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">基本信息</h3>
@@ -144,7 +214,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
       </div>
 
       <div class="xl:col-span-1">
-        <div class="card bg-base-100 card-border border-base-300 p-4">
+        <div class="card bg-base-100 card-border border-base-300 p-4 mb-5">
           <h3 class="font-semibold mb-3">运行环境</h3>
           <div class="grid grid-cols-1 gap-3 text-sm">
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">系统版本：</span>{{ scannerDetail.system_version || '-' }}</div>
@@ -152,6 +222,27 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">CPU 核心数：</span>{{ scannerDetail.cpus ?? '-' }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">RAM：</span>{{ formatRam(scannerDetail.ram) }}</div>
             <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">运行时间：</span>{{ formatUptime(scannerDetail.uptime) }}</div>
+          </div>
+        </div>
+
+        <div class="card bg-base-100 card-border border-base-300 p-4">
+          <h3 class="font-semibold mb-3">扫描器管理</h3>
+          <div class="grid gap-3">
+            <input v-model="editForm.name" class="input input-bordered w-full" placeholder="名称" :disabled="actionLoading" />
+            <input v-model="editForm.location" class="input input-bordered w-full" placeholder="位置" :disabled="actionLoading" />
+            <input v-model="editForm.tag" class="input input-bordered w-full" placeholder="标签" :disabled="actionLoading" />
+            <textarea v-model="editForm.remark" class="textarea textarea-bordered w-full" placeholder="备注" :disabled="actionLoading"></textarea>
+            <button class="btn btn-neutral" :disabled="actionLoading || !editForm.name.trim()" @click="saveScanner">保存信息</button>
+            <div class="grid grid-cols-2 gap-2">
+              <button class="btn btn-outline" :disabled="actionLoading" @click="toggleScanner">{{ scannerDetail.is_enable ? '禁用' : '启用' }}</button>
+              <button class="btn btn-outline" :disabled="actionLoading" @click="reissueToken">重签凭据</button>
+            </div>
+            <button class="btn btn-error btn-outline" :disabled="actionLoading" @click="deleteScanner">删除扫描器</button>
+          </div>
+          <div v-if="registrationSecret" class="mt-4 rounded-box border border-warning bg-warning/10 p-3 text-sm">
+            <p class="font-medium">一次性注册凭据</p>
+            <p class="mt-2 break-all text-xs">ID：{{ registrationSecret.scanner_id }}</p>
+            <p class="mt-1 break-all text-xs">Token：{{ registrationSecret.registration_token }}</p>
           </div>
         </div>
       </div>
