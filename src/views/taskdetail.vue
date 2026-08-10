@@ -12,6 +12,7 @@ const errorMessage = ref('')
 const actionMessage = ref('')
 const actionLoading = ref(false)
 const page = ref(1)
+const selectedExecutionId = ref('')
 let refreshTimer
 
 const displayTaskId = computed(() => taskId.value.length <= 34
@@ -19,7 +20,7 @@ const displayTaskId = computed(() => taskId.value.length <= 34
   : `${taskId.value.slice(0, 18)}...${taskId.value.slice(-8)}`)
 
 const statusText = {
-  pending: '待扫描', running: '扫描中', succeeded: '扫描完成', failed: '扫描失败', cancelled: '已取消'
+  pending: '待扫描', running: '扫描中', succeeded: '扫描完成', failed: '扫描失败', cancelled: '已取消', partial: '部分完成'
 }
 
 function formatTime(value) {
@@ -36,8 +37,11 @@ function formatDuration(start, end) {
 }
 
 const taskRemark = computed(() => task.value?.remarks || '-')
+const currentExecution = computed(() => task.value?.executions?.find(
+  (execution) => execution.execution_id === task.value?.selected_execution_id
+) || null)
 const taskMeta = computed(() => ({
-  status: statusText[task.value?.task_status] || '未知',
+  status: statusText[currentExecution.value?.status] || '未知',
   priority: task.value?.task_level ?? '-',
   attemptCount: task.value?.attempt_count ?? 0,
   failureReason: task.value?.failure_reason || ''
@@ -69,7 +73,7 @@ const timelineSteps = computed(() => {
   if (task.value.task_start_time) steps.push({ time: formatTime(task.value.task_start_time), label: '扫描器开始执行' })
   if (task.value.task_end_time) steps.push({
     time: formatTime(task.value.task_end_time),
-    label: task.value.task_status === 'failed' ? `扫描失败：${task.value.failure_reason || '未知原因'}` : '扫描结束'
+    label: currentExecution.value?.status === 'failed' ? `扫描失败：${task.value.failure_reason || '未知原因'}` : '扫描结束'
   })
   return steps
 })
@@ -85,9 +89,14 @@ const asnIspRows = computed(() => (task.value?.results || []).map((item, index) 
 async function loadTask({ silent = false } = {}) {
   if (!silent) loading.value = true
   try {
-    const response = await http.get(`/api/task/${taskId.value}`, { params: { page: page.value, page_size: 20 } })
+    const response = await http.get(`/api/task/${taskId.value}`, { params: {
+      page: page.value,
+      page_size: 20,
+      execution_id: selectedExecutionId.value || undefined
+    } })
     if (response.data?.success !== true || !response.data?.data) throw new Error('服务器未返回有效任务数据')
     task.value = response.data.data
+    selectedExecutionId.value = response.data.data.selected_execution_id || ''
     errorMessage.value = ''
   } catch (error) {
     console.error('load task detail failed', error)
@@ -95,6 +104,13 @@ async function loadTask({ silent = false } = {}) {
   } finally {
     loading.value = false
   }
+}
+
+async function changeExecution(executionId) {
+  if (!executionId || executionId === task.value?.selected_execution_id) return
+  selectedExecutionId.value = executionId
+  page.value = 1
+  await loadTask()
 }
 
 async function changePage(nextPage) {
@@ -209,8 +225,8 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
         <button v-if="['pending', 'running'].includes(task?.task_status)" class="btn btn-error btn-outline btn-sm" :disabled="actionLoading || task?.cancel_requested" @click="cancelTask">
           {{ task?.cancel_requested ? '正在取消' : '取消任务' }}
         </button>
-        <button v-if="['succeeded', 'failed', 'cancelled'].includes(task?.task_status)" class="btn btn-outline btn-sm" :disabled="actionLoading" @click="retryTask">重新执行</button>
-        <div v-if="task?.task_status === 'succeeded'" class="dropdown dropdown-end">
+        <button v-if="['succeeded', 'failed', 'cancelled', 'partial'].includes(task?.task_status)" class="btn btn-outline btn-sm" :disabled="actionLoading" @click="retryTask">重新执行</button>
+        <div v-if="['succeeded', 'partial'].includes(task?.task_status)" class="dropdown dropdown-end">
           <button tabindex="0" class="btn btn-outline btn-sm">导出结果</button>
           <ul tabindex="0" class="dropdown-content menu z-10 mt-2 w-36 rounded-box border border-base-300 bg-base-100 p-2 shadow">
             <li><button @click="exportTask('csv')">CSV</button></li>
@@ -229,6 +245,30 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
     <template v-else-if="task">
     <div v-if="actionMessage" role="alert" class="alert alert-info mb-4"><span>{{ actionMessage }}</span></div>
     <p class="text-sm opacity-70 mb-4 break-words">备注：{{ taskRemark }}</p>
+
+    <div class="card mb-5 border border-base-300 bg-base-100 p-4">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 class="font-semibold">扫描器执行结果</h3>
+        <span class="text-xs opacity-60">共 {{ task.executions?.length || 0 }} 个执行实例</span>
+      </div>
+      <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        <button
+          v-for="execution in task.executions"
+          :key="execution.execution_id"
+          class="rounded-lg border p-3 text-left transition-colors"
+          :class="execution.execution_id === task.selected_execution_id ? 'border-primary bg-primary/10' : 'border-base-300 bg-base-200/40 hover:border-base-content/30'"
+          @click="changeExecution(execution.execution_id)"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="truncate font-medium">{{ execution.scanner_name || execution.requested_scanner_id || '自动分配（待领取）' }}</span>
+            <span class="badge badge-sm" :class="execution.status === 'succeeded' ? 'badge-success' : execution.status === 'failed' ? 'badge-error' : execution.status === 'running' ? 'badge-info' : 'badge-ghost'">{{ statusText[execution.status] || execution.status }}</span>
+          </div>
+          <div class="mt-1 truncate text-xs opacity-60">{{ execution.scanner_location || '未设置位置' }} · {{ execution.scanner_id || execution.requested_scanner_id || '尚未领取' }}</div>
+          <div class="mt-2 flex gap-3 text-xs opacity-70"><span>IP {{ execution.summary.ip_count }}</span><span>端口 {{ execution.summary.port_count }}</span><span>结果 {{ execution.summary.result_count }}</span></div>
+          <div v-if="execution.failure_reason" class="mt-2 line-clamp-2 text-xs text-error" :title="execution.failure_reason">{{ execution.failure_reason }}</div>
+        </button>
+      </div>
+    </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
       <div class="xl:col-span-2 flex flex-col gap-5">
@@ -294,7 +334,8 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">执行状态</h3>
           <div class="flex w-full flex-col text-sm">
-            <div class="card bg-base-200 rounded-box px-3 py-2">扫描状态：{{ taskMeta.status }}</div>
+            <div class="card bg-base-200 rounded-box px-3 py-2">当前扫描器状态：{{ taskMeta.status }}</div>
+            <div class="card bg-base-200 rounded-box px-3 py-2 mt-2">任务总体状态：{{ statusText[task.task_status] || task.task_status }}</div>
             <div class="card bg-base-200 rounded-box px-3 py-2 mt-2">优先级：{{ taskMeta.priority }}</div>
             <div class="card bg-base-200 rounded-box px-3 py-2 mt-2">领取次数：{{ taskMeta.attemptCount }}</div>
             <div v-if="taskMeta.failureReason" class="card bg-error/10 rounded-box px-3 py-2 mt-2 text-error">失败原因：{{ taskMeta.failureReason }}</div>

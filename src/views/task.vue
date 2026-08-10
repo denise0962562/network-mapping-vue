@@ -40,7 +40,8 @@ const stateConfig = {
   running: { class: 'scan_open', text: '扫描中' },
   succeeded: { class: 'scan_success', text: '扫描完成' },
   failed: { class: 'scan_faild', text: '扫描失败' },
-  cancelled: { class: 'scan_faild', text: '已取消' }
+  cancelled: { class: 'scan_faild', text: '已取消' },
+  partial: { class: 'scan_wait', text: '部分完成' }
 }
 
 function formatUnixMs(value) {
@@ -284,6 +285,7 @@ onMounted(async () => {
               <option value="succeeded">扫描完成</option>
               <option value="failed">扫描失败</option>
               <option value="cancelled">已取消</option>
+              <option value="partial">部分完成</option>
             </select>
           </label>
 

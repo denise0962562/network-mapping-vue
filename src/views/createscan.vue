@@ -11,6 +11,10 @@ const level = ref(1)
 const remark = ref('')
 const alerts = ref([])
 const submitting = ref(false)
+const dispatchMode = ref('automatic')
+const scannerIds = ref([])
+const scanners = ref([])
+const scannersLoading = ref(false)
 
 const ipInputRef = ref(null)
 const portInputRef = ref(null)
@@ -21,6 +25,8 @@ function saveDraft() {
     port: port.value,
     level: level.value,
     remark: remark.value,
+    dispatchMode: dispatchMode.value,
+    scannerIds: scannerIds.value,
   }))
 }
 
@@ -33,6 +39,8 @@ function loadDraft() {
     if (draft.port !== undefined) port.value = draft.port
     if (draft.level !== undefined) level.value = Number(draft.level)
     if (draft.remark !== undefined) remark.value = draft.remark
+    if (['automatic', 'selected', 'all'].includes(draft.dispatchMode)) dispatchMode.value = draft.dispatchMode
+    if (Array.isArray(draft.scannerIds)) scannerIds.value = draft.scannerIds
   } catch {
     localStorage.removeItem(DRAFT_KEY)
   }
@@ -42,9 +50,29 @@ function clearDraft() {
   localStorage.removeItem(DRAFT_KEY)
 }
 
-watch([ip, port, level, remark], saveDraft)
+watch([ip, port, level, remark, dispatchMode, scannerIds], saveDraft, { deep: true })
 
-onMounted(loadDraft)
+async function loadScanners() {
+  scannersLoading.value = true
+  try {
+    const response = await http.get('/api/scanner/list')
+    const data = response.data?.data
+    if (!Array.isArray(data)) throw new Error('invalid scanner list')
+    scanners.value = data.filter((item) => item.is_enable === true)
+    const validIds = new Set(scanners.value.map((item) => item.scanner_id))
+    scannerIds.value = scannerIds.value.filter((id) => validIds.has(id))
+  } catch (error) {
+    console.error('load scanners failed', error)
+    showAlert('error', '扫描器列表加载失败', '指定扫描器暂不可用，请稍后刷新。', 7000)
+  } finally {
+    scannersLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadDraft()
+  loadScanners()
+})
 
 function closeAlertById(id) {
   alerts.value = alerts.value.filter((alert) => alert.id !== id)
@@ -63,6 +91,10 @@ function showAlert(type, title, description = '', timeout = 5000) {
 async function submitTask() {
   if (!ipInputRef.value?.reportValidity()) return
   if (port.value && !portInputRef.value?.reportValidity()) return
+  if (dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
+    showAlert('warning', '请选择扫描器', '指定扫描器模式至少需要选择一台扫描器。')
+    return
+  }
 
   try {
     submitting.value = true
@@ -72,6 +104,8 @@ async function submitTask() {
       port: port.value.trim(),
       level: Number(level.value),
       remark: remark.value.trim() ? remark.value.trim() : null,
+      dispatch_mode: dispatchMode.value,
+      scanner_ids: dispatchMode.value === 'selected' ? scannerIds.value : [],
     }
 
     const response = await http.post('/api/task/create', payload, {
@@ -128,6 +162,34 @@ async function submitTask() {
             请输入正确的目标地址
           </div>
         </label>
+
+        <fieldset class="rounded-lg border border-base-300 p-4">
+          <legend class="px-2 text-sm font-medium">执行扫描器</legend>
+          <div class="grid gap-2 md:grid-cols-3">
+            <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
+              <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="automatic" />
+              <span><span class="block font-medium">自动分配</span><span class="text-xs opacity-60">任意可用扫描器执行一次</span></span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
+              <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="selected" />
+              <span><span class="block font-medium">指定扫描器</span><span class="text-xs opacity-60">选择一台或多台分别执行</span></span>
+            </label>
+            <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
+              <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="all" />
+              <span><span class="block font-medium">全部扫描器</span><span class="text-xs opacity-60">所有已启用扫描器各执行一次，离线设备上线后执行</span></span>
+            </label>
+          </div>
+          <div v-if="dispatchMode === 'selected'" class="mt-3 rounded-lg border border-base-300 p-3">
+            <div v-if="scannersLoading" class="flex items-center gap-2 text-sm opacity-70"><span class="loading loading-spinner loading-xs"></span>加载扫描器...</div>
+            <div v-else-if="scanners.length === 0" class="text-sm opacity-70">暂无已启用扫描器</div>
+            <div v-else class="grid gap-2 md:grid-cols-2">
+              <label v-for="scanner in scanners" :key="scanner.scanner_id" class="flex cursor-pointer items-center gap-3 rounded-lg bg-base-200/50 px-3 py-2">
+                <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" />
+                <span class="min-w-0"><span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span><span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线（等待上线）' }}</span></span>
+              </label>
+            </div>
+          </div>
+        </fieldset>
 
         <label class="form-control w-full">
           <span class="label-text input_items_required">目标端口</span>
