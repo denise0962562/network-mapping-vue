@@ -1,9 +1,10 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
-const DRAFT_KEY = 'createscan_draft'
+const LEGACY_DRAFT_KEY = 'createscan_draft'
 
 const ip = ref('')
 const port = ref('')
@@ -18,39 +19,23 @@ const scannersLoading = ref(false)
 
 const ipInputRef = ref(null)
 const portInputRef = ref(null)
+const hasUnsavedChanges = computed(() => (
+  ip.value.trim() !== ''
+  || port.value.trim() !== ''
+  || level.value !== 1
+  || remark.value.trim() !== ''
+  || dispatchMode.value !== 'automatic'
+  || scannerIds.value.length > 0
+))
 
-function saveDraft() {
-  localStorage.setItem(DRAFT_KEY, JSON.stringify({
-    ip: ip.value,
-    port: port.value,
-    level: level.value,
-    remark: remark.value,
-    dispatchMode: dispatchMode.value,
-    scannerIds: scannerIds.value,
-  }))
+function resetForm() {
+  ip.value = ''
+  port.value = ''
+  level.value = 1
+  remark.value = ''
+  dispatchMode.value = 'automatic'
+  scannerIds.value = []
 }
-
-function loadDraft() {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY)
-    if (!raw) return
-    const draft = JSON.parse(raw)
-    if (draft.ip !== undefined) ip.value = draft.ip
-    if (draft.port !== undefined) port.value = draft.port
-    if (draft.level !== undefined) level.value = Number(draft.level)
-    if (draft.remark !== undefined) remark.value = draft.remark
-    if (['automatic', 'selected', 'all'].includes(draft.dispatchMode)) dispatchMode.value = draft.dispatchMode
-    if (Array.isArray(draft.scannerIds)) scannerIds.value = draft.scannerIds
-  } catch {
-    localStorage.removeItem(DRAFT_KEY)
-  }
-}
-
-function clearDraft() {
-  localStorage.removeItem(DRAFT_KEY)
-}
-
-watch([ip, port, level, remark, dispatchMode, scannerIds], saveDraft, { deep: true })
 
 async function loadScanners() {
   scannersLoading.value = true
@@ -70,7 +55,7 @@ async function loadScanners() {
 }
 
 onMounted(() => {
-  loadDraft()
+  localStorage.removeItem(LEGACY_DRAFT_KEY)
   loadScanners()
 })
 
@@ -89,11 +74,12 @@ function showAlert(type, title, description = '', timeout = 5000) {
 }
 
 async function submitTask() {
-  if (!ipInputRef.value?.reportValidity()) return
-  if (port.value && !portInputRef.value?.reportValidity()) return
+  if (submitting.value) return false
+  if (!ipInputRef.value?.reportValidity()) return false
+  if (port.value && !portInputRef.value?.reportValidity()) return false
   if (dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
     showAlert('warning', '请选择扫描器', '指定扫描器模式至少需要选择一台扫描器。')
-    return
+    return false
   }
 
   try {
@@ -115,18 +101,23 @@ async function submitTask() {
     })
 
     if (response.status === 200) {
-      clearDraft()
+      resetForm()
       showAlert('success', '创建扫描任务成功', '任务已提交到扫描队列。', 5000)
+      return true
     } else {
       showAlert('error', '创建扫描失败', '服务器未接受本次创建请求。', 7000)
+      return false
     }
   } catch (error) {
     console.error('create scan task failed', error)
     showAlert('error', '创建扫描失败', '请检查网络连接或服务器运行状态。', 7000)
+    return false
   } finally {
     submitting.value = false
   }
 }
+
+useUnsavedChanges(hasUnsavedChanges, submitTask)
 </script>
 
 <template>
