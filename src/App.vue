@@ -137,6 +137,13 @@ async function handleLogout() {
           </li>
 
           <li>
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="审计日志" to="/audit">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9 12l2 2 4-4"/><path d="M12 22c4.4-1 8-5 8-10V5l-8-3-8 3v7c0 5 3.6 9 8 10"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">审计日志</span>
+            </router-link>
+          </li>
+
+          <li>
             <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="开源项目" to="/open-source">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M16 18 22 12 16 6"/><path d="M8 6 2 12l6 6"/><path d="m14.5 4-5 16"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">开源项目</span>
