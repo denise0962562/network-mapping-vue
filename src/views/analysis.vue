@@ -1,31 +1,10 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 
 const topOptions = [5, 7, 10]
 const topN = ref(5)
 const serviceDimension = ref('protocol')
 const ignoreVersionDiff = ref(true)
-
-const isPieLoading = ref(true)
-const isHeatmapLoading = ref(true)
-let pieLoadingTimer = null
-let heatmapLoadingTimer = null
-
-function triggerPieLoading(duration = 450) {
-  if (pieLoadingTimer) clearTimeout(pieLoadingTimer)
-  isPieLoading.value = true
-  pieLoadingTimer = setTimeout(() => {
-    isPieLoading.value = false
-  }, duration)
-}
-
-function triggerHeatmapLoading(duration = 650) {
-  if (heatmapLoadingTimer) clearTimeout(heatmapLoadingTimer)
-  isHeatmapLoading.value = true
-  heatmapLoadingTimer = setTimeout(() => {
-    isHeatmapLoading.value = false
-  }, duration)
-}
 
 const protocolStats = [
   { name: 'HTTP', value: 31 },
@@ -224,15 +203,6 @@ const heatmapOptions = computed(() => {
     }
   }
 })
-
-onMounted(() => {
-  triggerPieLoading()
-  triggerHeatmapLoading()
-})
-
-watch([topN, serviceDimension, ignoreVersionDiff], () => {
-  triggerPieLoading(350)
-})
 </script>
 
 <template>
@@ -271,8 +241,7 @@ watch([topN, serviceDimension, ignoreVersionDiff], () => {
           </label>
         </div>
 
-        <div v-if="isPieLoading" class="skeleton h-80 w-full rounded-box"></div>
-        <apexchart v-else type="pie" height="320" :options="pieOptions" :series="pieSeries" />
+        <apexchart type="pie" height="320" :options="pieOptions" :series="pieSeries" />
       </div>
 
       <div class="card bg-base-100 card-border border-base-300 p-4">
@@ -281,8 +250,7 @@ watch([topN, serviceDimension, ignoreVersionDiff], () => {
           <p class="text-xs opacity-60">Y 轴为周几，X 轴为最近 12 周，无数据天留空</p>
         </div>
 
-        <div v-if="isHeatmapLoading" class="skeleton h-96 w-full rounded-box"></div>
-        <apexchart v-else type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
+        <apexchart type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
       </div>
     </div>
   </div>
