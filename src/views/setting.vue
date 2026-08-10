@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 
 const isLoading = ref(true)
 
@@ -51,6 +52,7 @@ const showNotifySave = computed(() => {
   const prefChanged = JSON.stringify(notificationPrefs.value) !== JSON.stringify(savedNotificationPrefs.value)
   return mailChanged || prefChanged
 })
+const hasUnsavedChanges = computed(() => showListenSave.value || showSecuritySave.value || showNotifySave.value)
 
 function clampLoginRetries() {
   let value = Number(securityConfig.value.maxLoginRetries)
@@ -89,6 +91,15 @@ function saveNotifyConfig() {
   savedMailConfig.value = { ...mailConfig.value }
   savedNotificationPrefs.value = { ...notificationPrefs.value }
 }
+
+function saveAllSettings() {
+  if (showListenSave.value) saveListenConfig()
+  if (showSecuritySave.value) saveSecurityConfig()
+  if (showNotifySave.value) saveNotifyConfig()
+  return true
+}
+
+useUnsavedChanges(hasUnsavedChanges, saveAllSettings)
 
 function testMailServer() {
   console.log('test mail server', mailConfig.value)

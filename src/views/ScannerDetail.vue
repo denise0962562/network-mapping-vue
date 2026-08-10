@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '@/components/EmptyState.vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
 const route = useRoute()
@@ -16,6 +17,13 @@ const actionLoading = ref(false)
 const actionMessage = ref('')
 const registrationSecret = ref(null)
 const editForm = ref({ name: '', location: '', tag: '', remark: '' })
+const hasUnsavedChanges = computed(() => {
+  if (!scannerDetail.value) return false
+  return editForm.value.name !== (scannerDetail.value.name || '')
+    || editForm.value.location !== (scannerDetail.value.location || '')
+    || editForm.value.tag !== (scannerDetail.value.tag || '')
+    || editForm.value.remark !== (scannerDetail.value.remark || '')
+})
 
 function formatDate(value) {
   if (!value) return '-'
@@ -91,21 +99,28 @@ async function runAction(action, successMessage) {
     await action()
     actionMessage.value = successMessage
     await loadScanner({ silent: true })
+    return true
   } catch (error) {
     console.error('scanner action failed', error)
     actionMessage.value = error?.response?.status === 403 ? '仅管理员可以执行此操作' : '操作失败，请稍后重试'
+    return false
   } finally {
     actionLoading.value = false
   }
 }
 
-function saveScanner() {
-  if (!editForm.value.name.trim()) return
-  return runAction(() => http.put(`/api/scanner/${scannerId.value}`, {
+async function saveScanner() {
+  if (!editForm.value.name.trim()) return false
+  const normalizedName = editForm.value.name.trim()
+  const saved = await runAction(() => http.put(`/api/scanner/${scannerId.value}`, {
     ...editForm.value,
-    name: editForm.value.name.trim()
+    name: normalizedName
   }), '扫描器信息已更新')
+  if (saved) editForm.value.name = normalizedName
+  return saved
 }
+
+const { allowNextRouteLeave } = useUnsavedChanges(hasUnsavedChanges, saveScanner)
 
 function toggleScanner() {
   const enabled = scannerDetail.value?.is_enable !== true
@@ -133,6 +148,7 @@ async function deleteScanner() {
   actionLoading.value = true
   try {
     await http.delete(`/api/scanner/${scannerId.value}`)
+    allowNextRouteLeave()
     await router.push('/scanner')
   } catch (error) {
     actionMessage.value = error?.response?.status === 403 ? '仅管理员可以执行此操作' : '删除扫描器失败'

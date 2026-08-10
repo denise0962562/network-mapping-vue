@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
 const alerts = ref([])
@@ -83,7 +84,8 @@ async function fetchUserInfo() {
 }
 
 async function saveUserInfo() {
-  if (!showSave.value || savingUserInfo.value) return
+  if (!showSave.value) return true
+  if (savingUserInfo.value) return false
 
   savingUserInfo.value = true
   try {
@@ -95,16 +97,21 @@ async function saveUserInfo() {
     if (response.status === 200) {
       savedUserInfo.value = { ...userInfo.value }
       pushAlert('success', '个人信息已保存', '账号资料已更新。', 5000)
+      return true
     } else {
       pushAlert('error', '个人信息保存失败', '服务器未接受本次更新。', 7000)
+      return false
     }
   } catch (error) {
     console.error('update user info failed', error)
     pushAlert('error', '个人信息保存失败', '请检查网络连接后重试。', 7000)
+    return false
   } finally {
     savingUserInfo.value = false
   }
 }
+
+useUnsavedChanges(showSave, saveUserInfo)
 
 onMounted(() => {
   fetchUserInfo()
