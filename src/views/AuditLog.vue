@@ -1,12 +1,15 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
+const alerts = ref([])
 const events = ref([])
 const loading = ref(false)
 const exporting = ref(false)
-const errorMessage = ref('')
+const initialLoadFailed = ref(false)
+const hasLoadedEvents = ref(false)
 const selectedEvent = ref(null)
 const page = ref(1)
 const pageSize = 25
@@ -55,6 +58,20 @@ const actionLabels = {
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
+function pushAlert(type, title, description = '', timeout = 7000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
+}
+
+function closeAlert(id) {
+  alerts.value = alerts.value.filter((alert) => alert.id !== id)
+}
+
 function formatTime(value) {
   if (!value) return '--'
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
@@ -97,16 +114,23 @@ function buildParams(includePagination = true) {
 
 async function loadEvents() {
   loading.value = true
-  errorMessage.value = ''
   try {
     const response = await http.get('/api/audit/events', { params: buildParams() })
     events.value = response.data?.items || []
     total.value = Number(response.data?.pagination?.total) || 0
+    initialLoadFailed.value = false
+    hasLoadedEvents.value = true
   } catch (error) {
+    console.error('load audit events failed', error)
+    if (!hasLoadedEvents.value) {
+      events.value = []
+      total.value = 0
+      initialLoadFailed.value = true
+    }
     if (error.response?.status === 403) {
-      errorMessage.value = '只有管理员可以查看审计日志。'
+      pushAlert('error', '审计日志加载失败', '只有管理员可以查看审计日志。')
     } else {
-      errorMessage.value = '审计日志加载失败，请稍后重试。'
+      pushAlert('error', '审计日志加载失败', '请检查网络连接或服务器运行状态。')
     }
   } finally {
     loading.value = false
@@ -132,7 +156,6 @@ function changePage(nextPage) {
 
 async function exportCsv() {
   exporting.value = true
-  errorMessage.value = ''
   try {
     const response = await http.get('/api/audit/export', {
       params: buildParams(false),
@@ -145,9 +168,14 @@ async function exportCsv() {
     link.click()
     URL.revokeObjectURL(url)
   } catch (error) {
-    errorMessage.value = error.response?.status === 403
-      ? '只有管理员可以导出审计日志。'
-      : '审计日志导出失败，请稍后重试。'
+    console.error('export audit events failed', error)
+    pushAlert(
+      'error',
+      '审计日志导出失败',
+      error.response?.status === 403
+        ? '只有管理员可以导出审计日志。'
+        : '请检查网络连接或服务器运行状态。'
+    )
   } finally {
     exporting.value = false
   }
@@ -162,6 +190,19 @@ onMounted(loadEvents)
 </script>
 
 <template>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlert(alert.id)"
+    />
+  </div>
+
   <main class="p-4 md:p-6">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -197,16 +238,18 @@ onMounted(loadEvents)
       </div>
     </div>
 
-    <div v-if="errorMessage" class="alert alert-error mt-4" role="alert">
-      <span>{{ errorMessage }}</span>
-      <button class="btn btn-ghost btn-xs" @click="loadEvents">重试</button>
-    </div>
-
     <div class="mt-4 overflow-hidden rounded-box border border-base-300 bg-base-100">
-      <div v-if="loading" class="flex min-h-64 items-center justify-center">
-        <span class="loading loading-spinner loading-lg"></span>
+      <div v-if="loading" class="space-y-3 p-5">
+        <div class="skeleton h-72 w-full rounded-box"></div>
+        <div class="skeleton h-4 w-52"></div>
       </div>
-      <EmptyState v-else-if="!errorMessage && events.length === 0" title="暂无审计事件" message="当前筛选条件下没有可显示的记录。" />
+      <EmptyState
+        v-else-if="initialLoadFailed"
+        type="error"
+        title="加载数据失败"
+        :message="'这通常是由于客户端与服务器的网络不可达或服务器崩溃了\n请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员'"
+      />
+      <EmptyState v-else-if="events.length === 0" title="暂无审计事件" message="当前筛选条件下没有可显示的记录。" />
       <div v-else-if="events.length" class="overflow-x-auto">
         <table class="table table-zebra">
           <thead>
