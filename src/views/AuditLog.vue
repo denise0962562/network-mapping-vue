@@ -254,6 +254,7 @@ onMounted(loadEvents)
           <div><span class="text-base-content/50">请求 ID</span><div class="break-all font-mono text-xs">{{ selectedEvent.request_id || '--' }}</div></div>
           <div><span class="text-base-content/50">时间</span><div>{{ formatTime(selectedEvent.occurred_at) }}</div></div>
           <div><span class="text-base-content/50">响应状态</span><div>{{ selectedEvent.response_status || '--' }}</div></div>
+          <div><span class="text-base-content/50">事件触发者 IP</span><div class="font-mono text-xs">{{ selectedEvent.source_ip || '--' }}</div></div>
           <div><span class="text-base-content/50">请求</span><div>{{ selectedEvent.http_method || '--' }} {{ selectedEvent.request_path || '--' }}</div></div>
           <div><span class="text-base-content/50">User-Agent</span><div class="break-all">{{ selectedEvent.user_agent || '--' }}</div></div>
         </div>
