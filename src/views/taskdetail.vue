@@ -36,6 +36,18 @@ function formatDuration(start, end) {
   return minutes > 0 ? `${minutes} 分 ${seconds % 60} 秒` : `${seconds} 秒`
 }
 
+function formatNetworkOwner(item) {
+  const asn = item.asn ? (/^AS/i.test(item.asn) ? item.asn : `AS${item.asn}`) : ''
+  return [asn, item.as_org || item.isp].filter(Boolean).join(' · ') || '-'
+}
+
+function formatLocation(item) {
+  const country = item.country_name
+    ? `${item.country_name}${item.country_code ? ` (${item.country_code})` : ''}`
+    : item.country_code || ''
+  return [country, item.city_name].filter(Boolean).join(' · ') || '-'
+}
+
 const taskRemark = computed(() => task.value?.remarks || '-')
 const currentExecution = computed(() => task.value?.executions?.find(
   (execution) => execution.execution_id === task.value?.selected_execution_id
@@ -65,7 +77,11 @@ const resultByIp = computed(() => (task.value?.results || []).map((item) => ({
   ip: item.ip,
   ports: item.ports,
   asn: item.asn,
-  isp: item.isp
+  isp: item.isp,
+  as_org: item.as_org,
+  country_code: item.country_code,
+  country_name: item.country_name,
+  city_name: item.city_name
 })))
 const timelineSteps = computed(() => {
   if (!task.value) return []
@@ -78,12 +94,12 @@ const timelineSteps = computed(() => {
   return steps
 })
 const activeStepIndex = computed(() => timelineSteps.value.length - 1)
-const asnIspRows = computed(() => (task.value?.results || []).map((item, index) => ({
+const ipIntelRows = computed(() => (task.value?.results || []).map((item, index) => ({
   index: index + 1,
   ipCidr: item.ip,
-  name: item.isp || '-',
-  asnumber: item.asn || '-',
-  adminC: '-'
+  asn: item.asn ? (/^AS/i.test(item.asn) ? item.asn : `AS${item.asn}`) : '-',
+  asOrg: item.as_org || item.isp || '-',
+  location: formatLocation(item)
 })))
 
 async function loadTask({ silent = false } = {}) {
@@ -302,7 +318,10 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
             <div v-for="row in resultByIp" :key="row.ip" class="overflow-hidden rounded-lg border border-base-300 bg-base-100 text-sm">
               <div class="flex flex-wrap items-center justify-between gap-2 bg-base-200/60 px-3 py-2">
                 <span class="font-medium">{{ row.ip }}</span>
-                <span class="text-xs opacity-70">ASN / ISP：{{ row.asn || '-' }} / {{ row.isp || '-' }}</span>
+                <div class="text-right text-xs opacity-70">
+                  <div>{{ formatNetworkOwner(row) }}</div>
+                  <div>{{ formatLocation(row) }}</div>
+                </div>
               </div>
               <div class="overflow-x-auto">
                 <table class="table table-sm">
@@ -371,25 +390,25 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
         </div>
 
         <div class="card bg-base-100 card-border border-base-300 p-4">
-          <h3 class="font-semibold mb-3">ASN&ISP</h3>
+          <h3 class="font-semibold mb-3">IP 情报</h3>
           <div class="overflow-x-auto rounded-box border border-base-300">
             <table class="table table-sm">
               <thead>
                 <tr>
                   <th></th>
                   <th>IP/CIDR</th>
-                  <th>Name</th>
-                  <th>ASNumber</th>
-                  <th>Admin-c</th>
+                  <th>ASN</th>
+                  <th>AS 组织</th>
+                  <th>位置</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="row in asnIspRows" :key="`${row.index}-${row.ipCidr}`">
+                <tr v-for="row in ipIntelRows" :key="`${row.index}-${row.ipCidr}`">
                   <td>{{ row.index }}</td>
                   <td>{{ row.ipCidr }}</td>
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.asnumber }}</td>
-                  <td>{{ row.adminC }}</td>
+                  <td>{{ row.asn }}</td>
+                  <td>{{ row.asOrg }}</td>
+                  <td>{{ row.location }}</td>
                 </tr>
               </tbody>
             </table>
