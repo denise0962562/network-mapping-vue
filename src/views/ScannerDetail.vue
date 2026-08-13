@@ -241,6 +241,33 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           </div>
         </div>
 
+        <div class="card bg-base-100 card-border border-base-300 p-4 mb-5">
+          <h3 class="font-semibold mb-3">网络协议探测</h3>
+          <div class="space-y-3 text-sm">
+            <div class="rounded-lg bg-base-200/60 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-medium">IPv4</span>
+                <span class="badge badge-sm" :class="scannerDetail.supports_ipv4 && scannerDetail.ipv4_ready ? 'badge-success' : 'badge-ghost'">
+                  {{ scannerDetail.supports_ipv4 && scannerDetail.ipv4_ready ? '可用' : '不可用' }}
+                </span>
+              </div>
+              <div class="mt-2 break-all text-xs opacity-70">公网地址：{{ scannerDetail.public_ipv4 || '-' }}</div>
+              <div v-if="scannerDetail.network_status_reason?.ipv4" class="mt-1 break-all text-xs text-warning">{{ scannerDetail.network_status_reason.ipv4 }}</div>
+            </div>
+            <div class="rounded-lg bg-base-200/60 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-medium">IPv6</span>
+                <span class="badge badge-sm" :class="scannerDetail.supports_ipv6 && scannerDetail.ipv6_ready ? 'badge-success' : 'badge-ghost'">
+                  {{ scannerDetail.supports_ipv6 && scannerDetail.ipv6_ready ? '可用' : '不可用' }}
+                </span>
+              </div>
+              <div class="mt-2 break-all text-xs opacity-70">公网地址：{{ scannerDetail.public_ipv6 || '-' }}</div>
+              <div v-if="scannerDetail.network_status_reason?.ipv6" class="mt-1 break-all text-xs text-warning">{{ scannerDetail.network_status_reason.ipv6 }}</div>
+            </div>
+            <div class="text-xs opacity-60">检测时间：{{ formatDate(scannerDetail.network_capabilities_updated_at) }}</div>
+          </div>
+        </div>
+
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">扫描器管理</h3>
           <div class="grid gap-3">

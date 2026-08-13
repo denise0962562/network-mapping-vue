@@ -68,6 +68,7 @@ function normalizeTask(item) {
     taskId: item.task_id || '-',
     scannerId: item.scanner_id || '-',
     target: targets,
+    addressFamily: item.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
     port: item.task_port || '-',
     operator: item.task_initiator || '-',
     createTimeMs: Number.isFinite(createTimeMs) ? createTimeMs : null,
@@ -372,6 +373,7 @@ onMounted(async () => {
                     <th class="w-40">任务ID</th>
                     <th class="w-28">扫描器</th>
                     <th class="w-56">目标</th>
+                    <th class="w-16">协议</th>
                     <th class="w-24">端口</th>
                     <th class="w-24">操作者</th>
                     <th class="w-24">状态</th>
@@ -389,6 +391,7 @@ onMounted(async () => {
                         </td>
                         <td class="w-28 truncate">{{ taskItem.scannerId }}</td>
                         <td class="w-56 truncate">{{ taskItem.target }}</td>
+                        <td class="w-16"><span class="badge badge-ghost badge-xs">{{ taskItem.addressFamily }}</span></td>
                         <td class="w-24 truncate">{{ taskItem.port }}</td>
                         <td class="w-24 truncate">{{ taskItem.operator }}</td>
                         <td class="w-24">
@@ -399,7 +402,7 @@ onMounted(async () => {
                       </tr>
                       <tr v-if="expandedRow === taskItem.taskId">
                         <td class="w-10"></td>
-                        <td colspan="6" class="w-full text-sm">
+                        <td colspan="7" class="w-full text-sm">
                           备注：{{ taskItem.remark }} | 创建时间：{{ taskItem.createTime }} | 领取次数：{{ taskItem.attemptCount }}
                           <span v-if="taskItem.failureReason" class="text-error"> | 失败原因：{{ taskItem.failureReason }}</span>
                         </td>
@@ -407,7 +410,7 @@ onMounted(async () => {
                     </template>
                   </template>
                   <tr v-else-if="isFilteredEmpty">
-                    <td colspan="7" class="text-center py-8 opacity-60">暂无符合条件的数据</td>
+                    <td colspan="8" class="text-center py-8 opacity-60">暂无符合条件的数据</td>
                   </tr>
                 </tbody>
               </table>

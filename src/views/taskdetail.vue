@@ -66,6 +66,7 @@ const summaryStats = computed(() => [
 ])
 const taskDetail = computed(() => ({
   targetIp: task.value?.task_target?.join(', ') || '-',
+  addressFamily: task.value?.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
   port: task.value?.task_port || '-',
   scanType: '端口扫描',
   startTime: formatTime(task.value?.task_start_time),
@@ -303,6 +304,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">目标 IP：</span>{{ taskDetail.targetIp }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">Port：</span>{{ taskDetail.port }}</div>
+            <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">地址协议：</span>{{ taskDetail.addressFamily }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">扫描类型：</span>{{ taskDetail.scanType }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">扫描发起人：</span>{{ taskDetail.starter }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">开始时间：</span>{{ taskDetail.startTime }}</div>

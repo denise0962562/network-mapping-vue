@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
@@ -16,6 +16,30 @@ const dispatchMode = ref('automatic')
 const scannerIds = ref([])
 const scanners = ref([])
 const scannersLoading = ref(false)
+
+const targetAddressFamily = computed(() => {
+  const targets = ip.value.split(',').map((item) => item.trim()).filter(Boolean)
+  if (targets.length === 0) return null
+  const hasIpv4 = targets.some((target) => !target.includes(':'))
+  const hasIpv6 = targets.some((target) => target.includes(':'))
+  if (hasIpv4 && hasIpv6) return 'mixed'
+  return hasIpv6 ? 'ipv6' : 'ipv4'
+})
+
+function scannerSupportsTarget(scanner) {
+  if (targetAddressFamily.value === 'ipv6') {
+    return scanner.supports_ipv6 === true && scanner.ipv6_ready === true
+  }
+  if (targetAddressFamily.value === 'ipv4') {
+    return scanner.supports_ipv4 === true && scanner.ipv4_ready === true
+  }
+  return targetAddressFamily.value !== 'mixed'
+}
+
+watch(targetAddressFamily, () => {
+  const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
+  scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
+})
 
 const ipInputRef = ref(null)
 const portInputRef = ref(null)
@@ -77,6 +101,10 @@ async function submitTask() {
   if (submitting.value) return false
   if (!ipInputRef.value?.reportValidity()) return false
   if (port.value && !portInputRef.value?.reportValidity()) return false
+  if (targetAddressFamily.value === 'mixed') {
+    showAlert('warning', '不能混合地址协议', '请将 IPv4 和 IPv6 目标拆分为两个扫描任务。')
+    return false
+  }
   if (dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
     showAlert('warning', '请选择扫描器', '指定扫描器模式至少需要选择一台扫描器。')
     return false
@@ -147,7 +175,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
             type="text"
             required
             placeholder="请输入目标 IP 或 CIDR，多个目标请使用 , 隔开"
-            pattern="^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\/([0-9]|[1-2]\d|3[0-2]))?(,((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\/([0-9]|[1-2]\d|3[0-2]))?)*$"
+            pattern="^[0-9A-Fa-f:.,/]+$"
           />
           <div class="max-h-0 overflow-hidden opacity-0 transition-all duration-200 ease-in-out peer-[&:not(:placeholder-shown):invalid]:mt-1 peer-[&:not(:placeholder-shown):invalid]:max-h-10 peer-[&:not(:placeholder-shown):invalid]:opacity-100 text-error text-xs">
             请输入正确的目标地址
@@ -174,9 +202,12 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
             <div v-if="scannersLoading" class="flex items-center gap-2 text-sm opacity-70"><span class="loading loading-spinner loading-xs"></span>加载扫描器...</div>
             <div v-else-if="scanners.length === 0" class="text-sm opacity-70">暂无已启用扫描器</div>
             <div v-else class="grid gap-2 md:grid-cols-2">
-              <label v-for="scanner in scanners" :key="scanner.scanner_id" class="flex cursor-pointer items-center gap-3 rounded-lg bg-base-200/50 px-3 py-2">
-                <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" />
-                <span class="min-w-0"><span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span><span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线（等待上线）' }}</span></span>
+              <label v-for="scanner in scanners" :key="scanner.scanner_id" class="flex items-center gap-3 rounded-lg bg-base-200/50 px-3 py-2" :class="scannerSupportsTarget(scanner) ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'">
+                <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" :disabled="!scannerSupportsTarget(scanner)" />
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span>
+                  <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }}</span>
+                </span>
               </label>
             </div>
           </div>

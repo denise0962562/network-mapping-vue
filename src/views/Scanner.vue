@@ -91,7 +91,9 @@ function normalizeScanner(item, index) {
     currentTaskId: item.current_task_id,
     statusKey: status.key,
     statusText: status.text,
-    statusClass: status.class
+    statusClass: status.class,
+    ipv4Ready: item.supports_ipv4 === true && item.ipv4_ready === true,
+    ipv6Ready: item.supports_ipv6 === true && item.ipv6_ready === true
   }
 }
 
@@ -268,6 +270,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   <th>区域</th>
                   <th>地址</th>
                   <th>状态</th>
+                  <th>协议</th>
                   <th>添加者</th>
                   <th>最后心跳</th>
                   <th>当前任务</th>
@@ -284,6 +287,12 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   <td>{{ item.region }}</td>
                   <td>{{ item.ip }}</td>
                   <td><span class="badge badge-sm" :class="item.statusClass">{{ item.statusText }}</span></td>
+                  <td>
+                    <div class="flex gap-1 whitespace-nowrap">
+                      <span class="badge badge-xs" :class="item.ipv4Ready ? 'badge-success' : 'badge-ghost'">IPv4</span>
+                      <span class="badge badge-xs" :class="item.ipv6Ready ? 'badge-success' : 'badge-ghost'">IPv6</span>
+                    </div>
+                  </td>
                   <td>{{ item.creator }}</td>
                   <td class="whitespace-nowrap">{{ item.lastSeenAt }}</td>
                   <td>
