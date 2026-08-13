@@ -1,6 +1,18 @@
-# network-mapping-vue
+# Network Mapping Vue
 
-This template should help get you started developing with Vue 3 in Vite.
+Network Mapping 的 Vue 3/Vite 单页前端，提供扫描任务、扫描器、审计日志和结果分析界面。
+
+## 双栈扫描界面
+
+- 扫描器列表用 IPv4/IPv6 badge 显示当前协议是否就绪。
+- 扫描器详情显示探测到的公网地址、失败原因及最后检测时间。
+- 创建任务时根据目标中的 `:` 自动识别 IPv6，否则识别为 IPv4。
+- 同一任务混合 IPv4/IPv6 时阻止提交，用户需要拆成两个任务。
+- 指定扫描器模式下，不兼容当前地址族的扫描器会被禁用。
+- 任务列表和任务详情展示服务端返回的 `address_family`。
+
+协议能力来自 `GET /api/scanner/list` 和 `GET /api/scanner/{id}`。前端只用于提前提示，
+服务端仍会重新解析目标并执行最终兼容性校验。
 
 ## Recommended IDE Setup
 
@@ -36,3 +48,8 @@ pnpm run dev
 ```sh
 pnpm run build
 ```
+
+生产构建输出到 `dist/`，由 Network Mapping 服务端按已声明的 SPA 路由提供。未知路径和
+缺失资源不会回退到 SPA 页面。
+
+维护说明参见 [维护与扩展指南](docs/maintenance-guide.md)。

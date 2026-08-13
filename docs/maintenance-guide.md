@@ -1,6 +1,6 @@
 # network-mapping-vue 维护与扩展指南
 
-> 更新日期：2026-06-07
+> 更新日期：2026-08-13
 
 ## 目录
 
@@ -84,7 +84,7 @@
 | `/testpage` | `src/views/TestPage.vue` | Alert 测试 | 组件测试页 |
 | `/:pathMatch(.*)*` | `src/views/NotFound-404.vue` | 404 | 未匹配路由 |
 
-> **注意**：`/task/:taskid` 和 `/scanner/:id` 的 UUID 格式为 `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}`（taskid 为版本 7 UUID，scanner id 为版本 4 UUID）。
+> **注意**：任务与新建扫描器均使用 UUIDv7。任务路由显式限制版本位为 7；扫描器路由为兼容已有数据接受任意标准 UUID 版本格式。
 
 ---
 
@@ -241,7 +241,7 @@ async function fetchData() {
 **功能：**
 - 搜索栏：任务ID、目标、状态、操作者（点击"搜索"提交）
 - 高级筛选（折叠面板）：开始/结束时间、扫描器、每页条目
-- 任务表格：点击行展开备注和创建时间
+- 任务表格：显示 IPv4/IPv6 地址族，点击行展开备注和创建时间
 - 任务ID 为链接，可跳转到 `/task/:taskid`
 - 底部分页：上一页/下一页
 
@@ -267,12 +267,12 @@ async function fetchData() {
 
 ### 7.3 任务详情 (`taskdetail.vue`)
 
-展示单个任务的完整信息，当前为纯 UI 示例页（数据硬编码）。
+通过 `GET /api/task/:taskid` 展示单个任务及各扫描器执行实例的完整信息。
 
 **区域：**
 - 任务 UUID（可复制）+ 操作按钮（重新打开 / 导出 / 删除）
 - 摘要统计卡片（存活IP、端口、漏洞数、扫描耗时）
-- 任务细节（目标IP、端口、扫描类型、时间、发起人、扫描器）
+- 任务细节（目标IP、IPv4/IPv6 地址族、端口、扫描类型、时间、发起人、扫描器）
 - 结果展示（按 IP 展示端口和漏洞）
 - 执行状态 Timeline（竖向时间线）
 - ASN & ISP 表格
@@ -280,26 +280,41 @@ async function fetchData() {
 ### 7.4 创建扫描 (`createscan.vue`)
 
 **功能：**
-- 表单字段：目标 IP（必填，支持 CIDR）、端口（可选，逗号分隔）、扫描等级（1-5）、备注
-- 表单自动保存草稿到 `localStorage`（key: `createscan_draft`），`watch` 实时同步
-- `onMounted` 恢复上次草稿
-- 提交：`POST /api/task/create`，成功后清空表单和草稿并跳转到 `/task`
+- 表单字段：目标 IP（必填，支持 IPv4/IPv6 和 CIDR）、端口（可选，逗号分隔）、扫描等级（1-5）、备注
+- 支持自动分配、指定扫描器和全部扫描器三种调度模式
+- 根据目标自动识别地址族；混合 IPv4/IPv6 时要求拆分任务
+- 指定扫描器模式会根据 `supports_ipv4/6` 和 `ipv4/6_ready` 禁用不兼容设备
+- 提交：`POST /api/task/create`，成功后清空表单
 - 提交期间按钮显示 loading 状态（`submitting`）
 - 通知使用 `AppAlert`
+
+前端通过目标是否包含 `:` 提供即时地址族提示，这不是安全校验。服务端会使用 IP/CIDR
+解析器重新验证每个目标、拒绝混合地址族，并再次检查所选扫描器能力。
 
 ### 7.5 扫描器列表 (`Scanner.vue`)
 
 **功能：**
-- 搜索栏：名称、地区、网络类型（IPv4 / IPv6 / 全部）
-- 扫描器卡片列表：显示名称、地区、IP、状态（在线/离线）、创建者、任务数
+- 表格显示名称、地区、连接 IP、在线状态、IPv4/IPv6 就绪 badge、创建者和当前任务
 - 分页：每页 7 条，支持翻页
 - 点击卡片可跳转到 `/scanner/:id`
-- 新建扫描器按钮（当前为 UI 占位）
-- 当前数据为硬编码示例
+- 右侧表单创建扫描器并一次性展示注册 ID 和 token
+- 数据来源：`GET /api/scanner/list`
 
 ### 7.6 扫描器详情 (`ScannerDetail.vue`)
 
-单个扫描器的详情页面，展示扫描器完整信息和关联任务。
+单个扫描器的详情页面，展示基本信息、运行环境、管理操作和网络协议探测状态。
+
+网络协议区域使用以下字段：
+
+| 字段 | 用途 |
+|---|---|
+| `supports_ipv4` / `supports_ipv6` | 扫描端是否启用协议 |
+| `ipv4_ready` / `ipv6_ready` | 最近一次公网探测是否成功 |
+| `public_ipv4` / `public_ipv6` | 检测到的出口地址 |
+| `network_status_reason` | 两种协议的不可用原因 |
+| `network_capabilities_updated_at` | 最近一次心跳更新时间 |
+
+公网地址属于部署信息。新增截图、诊断导出或前端日志时，不要无意公开这些字段。
 
 ### 7.7 数据分析 (`analysis.vue`)
 
