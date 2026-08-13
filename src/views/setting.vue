@@ -1,6 +1,10 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import http from '@/utils/http'
+
+const alerts = ref([])
 
 const listenConfig = ref({
   host: '0.0.0.0',
@@ -15,10 +19,10 @@ const securityConfig = ref({
 })
 
 const mailConfig = ref({
-  recipient: 'security-team@example.com',
-  smtpHost: 'smtp.example.com',
-  smtpPort: '465',
-  sender: 'scanner@example.com',
+  recipient: '',
+  smtpHost: '',
+  smtpPort: 465,
+  sender: '',
   senderKey: ''
 })
 
@@ -36,6 +40,24 @@ const savedSecurityConfig = ref({ ...securityConfig.value })
 const savedMailConfig = ref({ ...mailConfig.value })
 const savedNotificationPrefs = ref({ ...notificationPrefs.value })
 const showSenderKey = ref(false)
+const senderKeyConfigured = ref(false)
+const loadingMailConfig = ref(false)
+const savingNotifyConfig = ref(false)
+const testingMailServer = ref(false)
+
+function pushAlert(type, title, description = '', timeout = 7000) {
+  alerts.value.unshift({
+    id: crypto.randomUUID(),
+    type,
+    title,
+    description,
+    timeout
+  })
+}
+
+function closeAlert(id) {
+  alerts.value = alerts.value.filter((alert) => alert.id !== id)
+}
 
 const showListenSave = computed(
   () => JSON.stringify(listenConfig.value) !== JSON.stringify(savedListenConfig.value)
@@ -83,26 +105,158 @@ function saveSecurityConfig() {
   savedSecurityConfig.value = { ...securityConfig.value }
 }
 
-function saveNotifyConfig() {
-  savedMailConfig.value = { ...mailConfig.value }
-  savedNotificationPrefs.value = { ...notificationPrefs.value }
+function normalizeMailSettings(data) {
+  return {
+    mail: {
+      recipient: data?.recipient || '',
+      smtpHost: data?.smtpHost || '',
+      smtpPort: Number(data?.smtpPort) || 465,
+      sender: data?.sender || '',
+      senderKey: ''
+    },
+    preferences: {
+      loginNotifyEnabled: data?.notificationPrefs?.loginNotifyEnabled ?? true,
+      notifyOnStuck: data?.notificationPrefs?.notifyOnStuck ?? true,
+      notifyOnComplete: data?.notificationPrefs?.notifyOnComplete ?? true,
+      reportDaily: data?.notificationPrefs?.reportDaily ?? false,
+      reportWeekly: data?.notificationPrefs?.reportWeekly ?? true,
+      reportMonthly: data?.notificationPrefs?.reportMonthly ?? false
+    },
+    senderKeyConfigured: Boolean(data?.senderKeyConfigured)
+  }
 }
 
-function saveAllSettings() {
+function applyMailSettings(data) {
+  const normalized = normalizeMailSettings(data)
+  mailConfig.value = normalized.mail
+  notificationPrefs.value = normalized.preferences
+  savedMailConfig.value = { ...normalized.mail }
+  savedNotificationPrefs.value = { ...normalized.preferences }
+  senderKeyConfigured.value = normalized.senderKeyConfigured
+}
+
+async function fetchMailSettings() {
+  loadingMailConfig.value = true
+  try {
+    const response = await http.get('/api/config/mail')
+    if (response.data?.success !== true || !response.data?.data) {
+      throw new Error('服务器未返回有效邮件配置')
+    }
+    applyMailSettings(response.data.data)
+  } catch (error) {
+    console.error('fetch mail settings failed', error)
+    const description = error?.response?.status === 403
+      ? '仅管理员可以查看系统邮件配置。'
+      : '请稍后刷新页面重试。'
+    pushAlert('error', '邮件配置加载失败', description)
+  } finally {
+    loadingMailConfig.value = false
+  }
+}
+
+function validateMailConfig() {
+  if (!mailConfig.value.recipient.trim()) return '请输入收件人邮箱'
+  if (!mailConfig.value.smtpHost.trim()) return '请输入邮件服务器地址'
+  const port = Number(mailConfig.value.smtpPort)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return '邮件服务器端口必须在 1 到 65535 之间'
+  if (!mailConfig.value.sender.trim()) return '请输入发件人邮箱'
+  if (!mailConfig.value.senderKey && !senderKeyConfigured.value) return '首次保存时必须填写发件邮箱密钥'
+  return ''
+}
+
+async function saveNotifyConfig() {
+  if (savingNotifyConfig.value) return false
+  const validationMessage = validateMailConfig()
+  if (validationMessage) {
+    pushAlert('warning', '邮件配置不完整', validationMessage)
+    return false
+  }
+
+  savingNotifyConfig.value = true
+  try {
+    const response = await http.post('/api/config/mail', {
+      recipient: mailConfig.value.recipient.trim(),
+      smtpHost: mailConfig.value.smtpHost.trim(),
+      smtpPort: Number(mailConfig.value.smtpPort),
+      sender: mailConfig.value.sender.trim(),
+      senderKey: mailConfig.value.senderKey,
+      notificationPrefs: { ...notificationPrefs.value }
+    })
+    if (response.data?.success !== true || !response.data?.data) {
+      throw new Error('服务器未确认邮件配置写入成功')
+    }
+    applyMailSettings(response.data.data)
+    pushAlert('success', '邮件配置已保存', 'SMTP 配置和通知偏好已写入数据库。', 5000)
+    return true
+  } catch (error) {
+    console.error('save mail settings failed', error)
+    pushAlert(
+      'error',
+      '邮件配置保存失败',
+      error?.response?.data?.message || '请检查网络连接后重试。'
+    )
+    return false
+  } finally {
+    savingNotifyConfig.value = false
+  }
+}
+
+async function saveAllSettings() {
   if (showListenSave.value) saveListenConfig()
   if (showSecuritySave.value) saveSecurityConfig()
-  if (showNotifySave.value) saveNotifyConfig()
+  if (showNotifySave.value) return saveNotifyConfig()
   return true
 }
 
 useUnsavedChanges(hasUnsavedChanges, saveAllSettings)
 
-function testMailServer() {
-  console.log('test mail server', mailConfig.value)
+async function testMailServer() {
+  if (testingMailServer.value) return
+  const validationMessage = validateMailConfig()
+  if (validationMessage) {
+    pushAlert('warning', '无法测试邮件服务器', validationMessage)
+    return
+  }
+
+  testingMailServer.value = true
+  try {
+    const response = await http.post('/api/mail/smtp/test', {
+      recipient: mailConfig.value.recipient.trim(),
+      smtpHost: mailConfig.value.smtpHost.trim(),
+      smtpPort: Number(mailConfig.value.smtpPort),
+      sender: mailConfig.value.sender.trim(),
+      senderKey: mailConfig.value.senderKey
+    })
+    pushAlert('success', '测试邮件已发送', response.data?.message || '请检查收件箱。', 5000)
+  } catch (error) {
+    console.error('test mail server failed', error)
+    pushAlert(
+      'error',
+      '邮件服务器测试失败',
+      error?.response?.data?.message || '请核对服务器地址、端口和邮箱密钥。'
+    )
+  } finally {
+    testingMailServer.value = false
+  }
 }
+
+onMounted(fetchMailSettings)
 </script>
 
 <template>
+  <div class="pointer-events-none fixed top-20 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 sm:left-auto sm:right-5 sm:w-auto sm:translate-x-0 sm:items-end">
+    <AppAlert
+      v-for="alert in alerts"
+      :key="alert.id"
+      class="pointer-events-auto"
+      :type="alert.type"
+      :title="alert.title"
+      :description="alert.description"
+      :timeout="alert.timeout"
+      @close="closeAlert(alert.id)"
+    />
+  </div>
+
   <div class="p-5">
     <div class="mb-4">
       <h2 class="text-lg font-semibold">系统设置</h2>
@@ -217,14 +371,23 @@ function testMailServer() {
           <button
             class="btn rounded-lg btn-neutral btn-sm"
             :class="showNotifySave ? 'visible' : 'invisible'"
-            :disabled="!showNotifySave"
+            :disabled="!showNotifySave || loadingMailConfig || savingNotifyConfig || testingMailServer"
             @click="saveNotifyConfig"
           >
-            保存
+            <span v-if="savingNotifyConfig" class="loading loading-spinner loading-xs"></span>
+            {{ savingNotifyConfig ? '保存中' : '保存' }}
           </button>
         </div>
 
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+        <div v-if="loadingMailConfig" class="mb-4 flex items-center gap-2 text-sm opacity-60">
+          <span class="loading loading-spinner loading-sm"></span>
+          正在读取邮件配置...
+        </div>
+
+        <fieldset
+          :disabled="loadingMailConfig || savingNotifyConfig || testingMailServer"
+          class="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start"
+        >
           <div class="xl:col-span-2 flex flex-col gap-3">
             <div class="card bg-base-100 border border-base-300 p-4">
               <div class="flex items-center justify-between">
@@ -290,7 +453,15 @@ function testMailServer() {
 
                 <label class="form-control w-full">
                   <span class="label-text mb-1">服务器端口</span>
-                  <input v-model="mailConfig.smtpPort" type="number" class="input input-bordered w-full" placeholder="465" />
+                  <input
+                    v-model.number="mailConfig.smtpPort"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    step="1"
+                    class="input input-bordered w-full"
+                    placeholder="465"
+                  />
                 </label>
 
                 <label class="form-control w-full">
@@ -305,7 +476,7 @@ function testMailServer() {
                       v-model="mailConfig.senderKey"
                       :type="showSenderKey ? 'text' : 'password'"
                       class="input input-bordered w-full pr-10"
-                      placeholder="请输入发件邮箱密钥"
+                      :placeholder="senderKeyConfigured ? '已保存，留空表示不修改' : '请输入发件邮箱密钥'"
                     />
                     <button type="button" class="btn btn-ghost btn-sm absolute right-1 top-1/2 -translate-y-1/2" @click="showSenderKey = !showSenderKey">
                       <svg
@@ -344,13 +515,23 @@ function testMailServer() {
                       </svg>
                     </button>
                   </div>
+                  <span v-if="senderKeyConfigured && !mailConfig.senderKey" class="label-text-alt opacity-60 mt-1">
+                    已配置邮箱密钥；服务器不会将密钥回传到浏览器。
+                  </span>
                 </label>
 
-                <button class="btn btn-neutral w-full mt-2" @click="testMailServer">测试邮件服务器</button>
+                <button
+                  class="btn btn-neutral w-full mt-2"
+                  :disabled="testingMailServer"
+                  @click="testMailServer"
+                >
+                  <span v-if="testingMailServer" class="loading loading-spinner loading-sm"></span>
+                  {{ testingMailServer ? '正在发送测试邮件' : '测试邮件服务器' }}
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        </fieldset>
       </div>
     </div>
   </div>
