@@ -18,6 +18,12 @@ const securityConfig = ref({
   pageRateLimit: 50
 })
 
+const sessionSettings = ref({
+  sessionTtlMinutes: 45,
+  invalidateOtherSessions: false
+})
+const sessionLimits = ref({ minimumMinutes: 5, maximumMinutes: 1440 })
+
 const mailConfig = ref({
   recipient: '',
   smtpHost: '',
@@ -37,6 +43,7 @@ const notificationPrefs = ref({
 
 const savedListenConfig = ref({ ...listenConfig.value })
 const savedSecurityConfig = ref({ ...securityConfig.value })
+const savedSessionSettings = ref({ sessionTtlMinutes: sessionSettings.value.sessionTtlMinutes })
 const savedMailConfig = ref({ ...mailConfig.value })
 const savedNotificationPrefs = ref({ ...notificationPrefs.value })
 const showSenderKey = ref(false)
@@ -44,6 +51,8 @@ const senderKeyConfigured = ref(false)
 const loadingMailConfig = ref(false)
 const savingNotifyConfig = ref(false)
 const testingMailServer = ref(false)
+const loadingSessionSettings = ref(false)
+const savingSessionSettings = ref(false)
 
 function pushAlert(type, title, description = '', timeout = 7000) {
   alerts.value.unshift({
@@ -65,12 +74,21 @@ const showListenSave = computed(
 const showSecuritySave = computed(
   () => JSON.stringify(securityConfig.value) !== JSON.stringify(savedSecurityConfig.value)
 )
+const showSessionSave = computed(() => (
+  sessionSettings.value.sessionTtlMinutes !== savedSessionSettings.value.sessionTtlMinutes
+  || sessionSettings.value.invalidateOtherSessions
+))
 const showNotifySave = computed(() => {
   const mailChanged = JSON.stringify(mailConfig.value) !== JSON.stringify(savedMailConfig.value)
   const prefChanged = JSON.stringify(notificationPrefs.value) !== JSON.stringify(savedNotificationPrefs.value)
   return mailChanged || prefChanged
 })
-const hasUnsavedChanges = computed(() => showListenSave.value || showSecuritySave.value || showNotifySave.value)
+const hasUnsavedChanges = computed(() => (
+  showListenSave.value
+  || showSecuritySave.value
+  || showSessionSave.value
+  || showNotifySave.value
+))
 
 function clampLoginRetries() {
   let value = Number(securityConfig.value.maxLoginRetries)
@@ -103,6 +121,80 @@ function saveSecurityConfig() {
   clampLoginRetries()
   normalizeLockMinutes()
   savedSecurityConfig.value = { ...securityConfig.value }
+}
+
+function normalizeSessionTtl() {
+  let value = Number(sessionSettings.value.sessionTtlMinutes)
+  if (!Number.isFinite(value)) value = 45
+  value = Math.floor(value)
+  value = Math.max(sessionLimits.value.minimumMinutes, value)
+  value = Math.min(sessionLimits.value.maximumMinutes, value)
+  sessionSettings.value.sessionTtlMinutes = value
+}
+
+function applySessionSettings(data) {
+  const sessionTtlMinutes = Number(data?.sessionTtlMinutes) || 45
+  sessionLimits.value = {
+    minimumMinutes: Number(data?.minimumMinutes) || 5,
+    maximumMinutes: Number(data?.maximumMinutes) || 1440
+  }
+  sessionSettings.value = {
+    sessionTtlMinutes,
+    invalidateOtherSessions: false
+  }
+  savedSessionSettings.value = { sessionTtlMinutes }
+}
+
+async function fetchSessionSettings() {
+  loadingSessionSettings.value = true
+  try {
+    const response = await http.get('/api/config/security/session')
+    if (response.data?.success !== true || !response.data?.data) {
+      throw new Error('服务器未返回有效会话策略')
+    }
+    applySessionSettings(response.data.data)
+  } catch (error) {
+    console.error('fetch session settings failed', error)
+    pushAlert(
+      'error',
+      '会话策略加载失败',
+      error?.response?.status === 403 ? '仅管理员可以查看会话策略。' : '请稍后刷新页面重试。'
+    )
+  } finally {
+    loadingSessionSettings.value = false
+  }
+}
+
+async function saveSessionSettings() {
+  if (savingSessionSettings.value) return false
+  normalizeSessionTtl()
+  savingSessionSettings.value = true
+  try {
+    const response = await http.post('/api/config/security/session', {
+      sessionTtlMinutes: sessionSettings.value.sessionTtlMinutes,
+      invalidateOtherSessions: sessionSettings.value.invalidateOtherSessions
+    })
+    if (response.data?.success !== true || !response.data?.data) {
+      throw new Error('服务器未确认会话策略写入成功')
+    }
+    const invalidatedCount = Number(response.data.data.invalidatedSessionCount) || 0
+    applySessionSettings(response.data.data)
+    const description = invalidatedCount > 0
+      ? `新登录会话将使用新的有效期，另有 ${invalidatedCount} 个会话已注销。`
+      : '新的有效期将在下次登录时生效，当前会话保持不变。'
+    pushAlert('success', '会话策略已保存', description, 6000)
+    return true
+  } catch (error) {
+    console.error('save session settings failed', error)
+    pushAlert(
+      'error',
+      '会话策略保存失败',
+      error?.response?.data?.message || '请检查输入后重试。'
+    )
+    return false
+  } finally {
+    savingSessionSettings.value = false
+  }
 }
 
 function normalizeMailSettings(data) {
@@ -204,7 +296,8 @@ async function saveNotifyConfig() {
 async function saveAllSettings() {
   if (showListenSave.value) saveListenConfig()
   if (showSecuritySave.value) saveSecurityConfig()
-  if (showNotifySave.value) return saveNotifyConfig()
+  if (showSessionSave.value && !await saveSessionSettings()) return false
+  if (showNotifySave.value && !await saveNotifyConfig()) return false
   return true
 }
 
@@ -240,7 +333,10 @@ async function testMailServer() {
   }
 }
 
-onMounted(fetchMailSettings)
+onMounted(() => {
+  fetchMailSettings()
+  fetchSessionSettings()
+})
 </script>
 
 <template>
@@ -260,7 +356,7 @@ onMounted(fetchMailSettings)
   <div class="p-5">
     <div class="mb-4">
       <h2 class="text-lg font-semibold">系统设置</h2>
-      <p class="text-xs opacity-60">监听配置与通知方式</p>
+      <p class="text-xs opacity-60">系统运行、安全策略与通知方式</p>
     </div>
 
     <div class="grid grid-cols-1 gap-5">
@@ -288,6 +384,56 @@ onMounted(fetchMailSettings)
             <input v-model="listenConfig.port" type="number" class="input input-bordered w-full" placeholder="例如: 8080" />
           </label>
         </div>
+      </div>
+
+      <div class="card bg-base-100 card-border border-base-300 p-4">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <h3 class="font-semibold">会话策略</h3>
+            <p class="text-xs opacity-60 mt-1">控制用户登录后的绝对有效期，不会因持续操作自动续期。</p>
+          </div>
+          <button
+            class="btn rounded-lg btn-neutral btn-sm"
+            :class="showSessionSave ? 'visible' : 'invisible'"
+            :disabled="!showSessionSave || loadingSessionSettings || savingSessionSettings"
+            @click="saveSessionSettings"
+          >
+            <span v-if="savingSessionSettings" class="loading loading-spinner loading-xs"></span>
+            {{ savingSessionSettings ? '保存中' : '保存' }}
+          </button>
+        </div>
+
+        <div v-if="loadingSessionSettings" class="flex items-center gap-2 text-sm opacity-60">
+          <span class="loading loading-spinner loading-sm"></span>
+          正在读取会话策略...
+        </div>
+
+        <fieldset v-else :disabled="savingSessionSettings" class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          <label class="form-control w-full">
+            <span class="label-text mb-1">登录会话最长有效期 <span class="text-xs opacity-60">（分钟）</span></span>
+            <input
+              v-model.number="sessionSettings.sessionTtlMinutes"
+              type="number"
+              :min="sessionLimits.minimumMinutes"
+              :max="sessionLimits.maximumMinutes"
+              step="1"
+              class="input input-bordered w-full"
+              placeholder="45"
+              @blur="normalizeSessionTtl"
+            />
+            <span class="label-text-alt opacity-60 mt-1">
+              允许 {{ sessionLimits.minimumMinutes }}-{{ sessionLimits.maximumMinutes }} 分钟，仅影响新登录会话。
+            </span>
+          </label>
+
+          <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer">
+            <input v-model="sessionSettings.invalidateOtherSessions" type="checkbox" class="checkbox rounded-md mt-0.5" />
+            <span class="text-sm">
+              <span class="font-medium block">保存后注销其他现有会话</span>
+              <span class="text-xs opacity-60">保留当前管理员会话，其余用户需要重新登录。</span>
+            </span>
+          </label>
+        </fieldset>
       </div>
 
       <div class="card bg-base-100 card-border border-base-300 p-4">
