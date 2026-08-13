@@ -47,6 +47,7 @@ const actionLabels = {
   'user.disable': '禁用用户',
   'user.kick': '踢出用户',
   'user.delete': '删除用户',
+  'user.login_records.query': '查询登录记录',
   'task.create': '创建任务',
   'task.cancel': '取消任务',
   'task.retry': '重试任务',

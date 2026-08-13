@@ -15,10 +15,17 @@ const actionUserId = ref(null)
 const creating = ref(false)
 const createDialog = ref(null)
 const deleteDialog = ref(null)
+const loginDialog = ref(null)
 const deleteTarget = ref(null)
 const deleteConfirmation = ref('')
 const showPassword = ref(false)
 const createForm = ref(emptyCreateForm())
+const loginTarget = ref(null)
+const loginRecords = ref([])
+const loginRecordsLoading = ref(false)
+const loginRecordsFailed = ref(false)
+const loginOutcome = ref('')
+const loginPagination = ref({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
 
 function emptyCreateForm() {
   return { username: '', email: '', password: '', role: 2 }
@@ -52,6 +59,18 @@ function statusInfo(status) {
     deleted: { label: '已删除', class: 'badge-ghost' }
   }
   return values[status] || { label: status || '未知', class: 'badge-ghost' }
+}
+
+function loginMethodLabel(value) {
+  return value === 'password_totp' ? '密码 + 2FA' : '密码'
+}
+
+function loginReasonLabel(value) {
+  return {
+    invalid_credentials: '用户名或密码错误',
+    invalid_totp: '2FA 验证码错误',
+    legacy_login_failure: '旧版登录失败'
+  }[value] || '--'
 }
 
 const hasUsers = computed(() => users.value.length > 0)
@@ -204,6 +223,41 @@ async function deleteUser() {
   if (deleted) closeDeleteDialog()
 }
 
+async function loadLoginRecords(page = loginPagination.value.page) {
+  if (!loginTarget.value || loginRecordsLoading.value) return
+  loginRecordsLoading.value = true
+  try {
+    const params = { page, pageSize: loginPagination.value.pageSize }
+    if (loginOutcome.value) params.outcome = loginOutcome.value
+    const response = await http.get(`/api/admin/users/${loginTarget.value.id}/login-records`, { params })
+    loginRecords.value = response.data?.data || []
+    loginPagination.value = response.data?.pagination || loginPagination.value
+    loginRecordsFailed.value = false
+  } catch (error) {
+    console.error('load managed user login records failed', error)
+    loginRecordsFailed.value = true
+    pushAlert('error', '登录记录加载失败', apiMessage(error, '请稍后重试。'))
+  } finally {
+    loginRecordsLoading.value = false
+  }
+}
+
+function openLoginDialog(user) {
+  loginTarget.value = user
+  loginRecords.value = []
+  loginOutcome.value = ''
+  loginPagination.value = { page: 1, pageSize: 10, total: 0, totalPages: 1 }
+  loginRecordsFailed.value = false
+  loginDialog.value?.showModal()
+  loadLoginRecords(1)
+}
+
+function closeLoginDialog() {
+  loginDialog.value?.close()
+  loginTarget.value = null
+  loginRecords.value = []
+}
+
 onMounted(() => loadUsers({ page: 1 }))
 </script>
 
@@ -282,12 +336,14 @@ onMounted(() => loadUsers({ page: 1 }))
               <td><div>{{ formatTime(managedUser.lastLoginAt) }}</div><div class="mt-1 text-xs opacity-60">{{ managedUser.lastLoginIp || '--' }}</div></td>
               <td>{{ formatTime(managedUser.createTime) }}</td>
               <td class="text-right">
-                <div v-if="managedUser.status !== 'deleted'" class="flex flex-wrap justify-end gap-1">
-                  <button class="btn btn-ghost btn-xs" :disabled="managedUser.isSelf || actionUserId !== null || managedUser.activeSessionCount === 0" @click="kickUser(managedUser)">踢出</button>
-                  <button class="btn btn-outline btn-xs" :class="managedUser.status === 'disabled' ? 'btn-success' : 'btn-warning'" :disabled="managedUser.isSelf || actionUserId !== null" @click="toggleUser(managedUser)">{{ managedUser.status === 'disabled' ? '启用' : '禁用' }}</button>
-                  <button class="btn btn-error btn-outline btn-xs" :disabled="managedUser.isSelf || actionUserId !== null" @click="openDeleteDialog(managedUser)">删除</button>
+                <div class="flex flex-wrap justify-end gap-1">
+                  <button class="btn btn-ghost btn-xs" @click="openLoginDialog(managedUser)">登录记录</button>
+                  <template v-if="managedUser.status !== 'deleted'">
+                    <button class="btn btn-ghost btn-xs" :disabled="managedUser.isSelf || actionUserId !== null || managedUser.activeSessionCount === 0" @click="kickUser(managedUser)">踢出</button>
+                    <button class="btn btn-outline btn-xs" :class="managedUser.status === 'disabled' ? 'btn-success' : 'btn-warning'" :disabled="managedUser.isSelf || actionUserId !== null" @click="toggleUser(managedUser)">{{ managedUser.status === 'disabled' ? '启用' : '禁用' }}</button>
+                    <button class="btn btn-error btn-outline btn-xs" :disabled="managedUser.isSelf || actionUserId !== null" @click="openDeleteDialog(managedUser)">删除</button>
+                  </template>
                 </div>
-                <span v-else class="text-xs opacity-50">无可用操作</span>
               </td>
             </tr>
           </tbody>
@@ -317,6 +373,47 @@ onMounted(() => loadUsers({ page: 1 }))
       <div class="modal-action"><button type="button" class="btn" :disabled="creating" @click="closeCreateDialog">取消</button><button type="submit" class="btn btn-neutral" :disabled="creating"><span v-if="creating" class="loading loading-spinner loading-xs"></span>创建</button></div>
     </form>
     <form method="dialog" class="modal-backdrop"><button :disabled="creating">关闭</button></form>
+  </dialog>
+
+  <dialog ref="loginDialog" class="modal" @close="loginTarget = null; loginRecords = []">
+    <div v-if="loginTarget" class="modal-box w-[calc(100vw-2rem)] max-w-5xl">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-semibold">{{ loginTarget.username }} 的登录记录</h3>
+          <p class="mt-1 text-xs opacity-60">包含成功登录和密码、2FA 验证失败的尝试。</p>
+        </div>
+        <select v-model="loginOutcome" class="select select-bordered select-sm" :disabled="loginRecordsLoading" @change="loadLoginRecords(1)">
+          <option value="">全部结果</option><option value="success">成功</option><option value="failure">失败</option>
+        </select>
+      </div>
+      <div v-if="loginRecordsLoading" class="grid min-h-52 place-items-center"><span class="loading loading-spinner loading-md"></span></div>
+      <EmptyState v-else-if="loginRecordsFailed" type="error" title="登录记录加载失败" message="请稍后重试。" />
+      <EmptyState v-else-if="loginRecords.length === 0" title="暂无登录记录" message="该用户还没有可显示的登录事件。" />
+      <div v-else class="mt-4 overflow-x-auto">
+        <table class="table table-zebra">
+          <thead><tr><th>时间</th><th>结果</th><th>认证方式</th><th>来源 IP</th><th>说明</th><th>客户端</th></tr></thead>
+          <tbody>
+            <tr v-for="record in loginRecords" :key="record.eventId">
+              <td class="whitespace-nowrap">{{ formatTime(record.occurredAt) }}</td>
+              <td><span class="badge badge-sm" :class="record.outcome === 'success' ? 'badge-success' : 'badge-error'">{{ record.outcome === 'success' ? '成功' : '失败' }}</span></td>
+              <td>{{ loginMethodLabel(record.authMethod) }}</td>
+              <td class="font-mono text-xs">{{ record.sourceIp || '--' }}</td>
+              <td>{{ loginReasonLabel(record.reasonCode) }}</td>
+              <td class="max-w-72 truncate text-xs" :title="record.userAgent || ''">{{ record.userAgent || '--' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="loginRecords.length" class="mt-4 flex items-center justify-between border-t border-base-300 pt-4 text-xs">
+        <span class="opacity-60">共 {{ loginPagination.total }} 条，第 {{ loginPagination.page }} / {{ loginPagination.totalPages }} 页</span>
+        <div class="join">
+          <button class="btn btn-sm join-item" :disabled="loginPagination.page <= 1 || loginRecordsLoading" @click="loadLoginRecords(loginPagination.page - 1)">上一页</button>
+          <button class="btn btn-sm join-item" :disabled="loginPagination.page >= loginPagination.totalPages || loginRecordsLoading" @click="loadLoginRecords(loginPagination.page + 1)">下一页</button>
+        </div>
+      </div>
+      <div class="modal-action"><button class="btn" :disabled="loginRecordsLoading" @click="closeLoginDialog">关闭</button></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button :disabled="loginRecordsLoading">关闭</button></form>
   </dialog>
 
   <dialog ref="deleteDialog" class="modal" @close="deleteTarget = null; deleteConfirmation = ''">

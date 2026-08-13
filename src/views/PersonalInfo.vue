@@ -19,14 +19,11 @@ const userInfo = ref({
 const savedUserInfo = ref({ ...userInfo.value })
 const loadingUserInfo = ref(false)
 const savingUserInfo = ref(false)
-const showOperationLogs = ref(true)
-const operationLogs = ref([
-  { id: 1, action: '更新邮箱', ip: '192.168.1.10', time: '2026-05-20 13:50:18', status: '成功', remark: '' },
-  { id: 2, action: '登录系统', ip: '192.168.1.10', time: '2026-05-20 13:48:12', status: '成功', remark: '' },
-  { id: 3, action: '查看安全设置', ip: '192.168.1.10', time: '2026-05-19 18:22:40', status: '成功', remark: '' }
-])
-
-const visibleOperationLogs = computed(() => (showOperationLogs.value ? operationLogs.value : []))
+const loginRecords = ref([])
+const loginRecordsLoading = ref(false)
+const loginRecordsFailed = ref(false)
+const loginOutcome = ref('')
+const loginPagination = ref({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
 
 const showSave = computed(() => (
   userInfo.value.username !== savedUserInfo.value.username
@@ -64,6 +61,45 @@ function normalizeUserInfo(rawUserInfo) {
     lastLoginAt: formatTime(rawUserInfo?.last_login_at),
     lastLoginIp: rawUserInfo?.last_login_ip || '--',
     loginRestricted: Boolean(rawUserInfo?.limit_login)
+  }
+}
+
+function loginMethodLabel(value) {
+  return value === 'password_totp' ? '密码 + 2FA' : '密码'
+}
+
+function loginResultLabel(value) {
+  return value === 'success' ? '成功' : '失败'
+}
+
+function loginResultClass(value) {
+  return value === 'success' ? 'badge-success' : 'badge-error'
+}
+
+function loginReasonLabel(value) {
+  return {
+    invalid_credentials: '用户名或密码错误',
+    invalid_totp: '2FA 验证码错误',
+    legacy_login_failure: '旧版登录失败'
+  }[value] || '--'
+}
+
+async function fetchLoginRecords(page = 1) {
+  if (loginRecordsLoading.value) return
+  loginRecordsLoading.value = true
+  try {
+    const params = { page, pageSize: loginPagination.value.pageSize }
+    if (loginOutcome.value) params.outcome = loginOutcome.value
+    const response = await http.get('/api/user/login-records', { params })
+    loginRecords.value = response.data?.data || []
+    loginPagination.value = response.data?.pagination || loginPagination.value
+    loginRecordsFailed.value = false
+  } catch (error) {
+    console.error('fetch login records failed', error)
+    loginRecordsFailed.value = true
+    pushAlert('error', '登录记录加载失败', '请稍后重试。', 7000)
+  } finally {
+    loginRecordsLoading.value = false
   }
 }
 
@@ -115,6 +151,7 @@ useUnsavedChanges(showSave, saveUserInfo)
 
 onMounted(() => {
   fetchUserInfo()
+  fetchLoginRecords()
 })
 </script>
 
@@ -209,39 +246,55 @@ onMounted(() => {
     <div class="card bg-base-100 card-border border-base-300 mt-5 p-4">
       <div class="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h3 class="font-semibold">最近操作</h3>
-          <p class="mt-1 text-xs opacity-60">显示当前用户最近的关键操作日志。</p>
+          <h3 class="font-semibold">登录记录</h3>
+          <p class="mt-1 text-xs opacity-60">查看账号近期的成功登录和失败尝试。</p>
         </div>
-        <button type="button" class="btn btn-neutral btn-sm rounded-lg" @click="showOperationLogs = !showOperationLogs">
-          {{ showOperationLogs ? '显示无数据' : '显示日志' }}
-        </button>
+        <select v-model="loginOutcome" class="select select-bordered select-sm" :disabled="loginRecordsLoading" @change="fetchLoginRecords(1)">
+          <option value="">全部结果</option>
+          <option value="success">成功</option>
+          <option value="failure">失败</option>
+        </select>
       </div>
 
-      <div v-if="visibleOperationLogs.length === 0" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60">
-        无数据
+      <div v-if="loginRecordsLoading" class="grid min-h-36 place-items-center">
+        <span class="loading loading-spinner loading-md"></span>
       </div>
-
+      <div v-else-if="loginRecordsFailed" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60">
+        登录记录加载失败
+      </div>
+      <div v-else-if="loginRecords.length === 0" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60">
+        暂无登录记录
+      </div>
       <div v-else class="overflow-x-auto">
         <table class="table">
           <thead>
             <tr>
-              <th>操作</th>
-              <th>IP</th>
               <th>时间</th>
-              <th>状态</th>
-              <th>备注</th>
+              <th>结果</th>
+              <th>认证方式</th>
+              <th>来源 IP</th>
+              <th>说明</th>
+              <th>客户端</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="log in visibleOperationLogs" :key="log.id">
-              <td>{{ log.action }}</td>
-              <td>{{ log.ip }}</td>
-              <td>{{ log.time }}</td>
-              <td>{{ log.status }}</td>
-              <td>{{ log.remark }}</td>
+            <tr v-for="record in loginRecords" :key="record.eventId">
+              <td class="whitespace-nowrap">{{ formatTime(record.occurredAt) }}</td>
+              <td><span class="badge badge-sm" :class="loginResultClass(record.outcome)">{{ loginResultLabel(record.outcome) }}</span></td>
+              <td>{{ loginMethodLabel(record.authMethod) }}</td>
+              <td class="font-mono text-xs">{{ record.sourceIp || '--' }}</td>
+              <td>{{ loginReasonLabel(record.reasonCode) }}</td>
+              <td class="max-w-72 truncate text-xs" :title="record.userAgent || ''">{{ record.userAgent || '--' }}</td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <div v-if="loginRecords.length" class="mt-4 flex items-center justify-between border-t border-base-300 pt-4 text-xs">
+        <span class="opacity-60">共 {{ loginPagination.total }} 条，第 {{ loginPagination.page }} / {{ loginPagination.totalPages }} 页</span>
+        <div class="join">
+          <button class="btn btn-sm join-item" :disabled="loginPagination.page <= 1 || loginRecordsLoading" @click="fetchLoginRecords(loginPagination.page - 1)">上一页</button>
+          <button class="btn btn-sm join-item" :disabled="loginPagination.page >= loginPagination.totalPages || loginRecordsLoading" @click="fetchLoginRecords(loginPagination.page + 1)">下一页</button>
+        </div>
       </div>
     </div>
   </div>
