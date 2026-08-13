@@ -163,6 +163,13 @@ async function handleLogout() {
               <span class="is-drawer-close:hidden whitespace-nowrap">设置</span>
             </router-link>
           </li>
+
+          <li>
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="邮件模板" to="/setting/mail-templates">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="M16 16h.01"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">邮件模板</span>
+            </router-link>
+          </li>
         </ul>
 
         <ul v-else class="menu w-full grow">
