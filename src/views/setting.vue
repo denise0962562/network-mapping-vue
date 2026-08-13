@@ -25,7 +25,7 @@ const sessionSettings = ref({
 const sessionLimits = ref({ minimumMinutes: 5, maximumMinutes: 1440 })
 
 const mailConfig = ref({
-  recipient: '',
+  testRecipient: '',
   smtpHost: '',
   smtpPort: 465,
   sender: '',
@@ -200,7 +200,7 @@ async function saveSessionSettings() {
 function normalizeMailSettings(data) {
   return {
     mail: {
-      recipient: data?.recipient || '',
+      testRecipient: data?.recipient || '',
       smtpHost: data?.smtpHost || '',
       smtpPort: Number(data?.smtpPort) || 465,
       sender: data?.sender || '',
@@ -247,7 +247,7 @@ async function fetchMailSettings() {
 }
 
 function validateMailConfig() {
-  if (!mailConfig.value.recipient.trim()) return '请输入收件人邮箱'
+  if (!mailConfig.value.testRecipient.trim()) return '请输入测试收件人邮箱'
   if (!mailConfig.value.smtpHost.trim()) return '请输入邮件服务器地址'
   const port = Number(mailConfig.value.smtpPort)
   if (!Number.isInteger(port) || port < 1 || port > 65535) return '邮件服务器端口必须在 1 到 65535 之间'
@@ -267,7 +267,7 @@ async function saveNotifyConfig() {
   savingNotifyConfig.value = true
   try {
     const response = await http.post('/api/config/mail', {
-      recipient: mailConfig.value.recipient.trim(),
+      recipient: mailConfig.value.testRecipient.trim(),
       smtpHost: mailConfig.value.smtpHost.trim(),
       smtpPort: Number(mailConfig.value.smtpPort),
       sender: mailConfig.value.sender.trim(),
@@ -314,7 +314,7 @@ async function testMailServer() {
   testingMailServer.value = true
   try {
     const response = await http.post('/api/mail/smtp/test', {
-      recipient: mailConfig.value.recipient.trim(),
+      recipient: mailConfig.value.testRecipient.trim(),
       smtpHost: mailConfig.value.smtpHost.trim(),
       smtpPort: Number(mailConfig.value.smtpPort),
       sender: mailConfig.value.sender.trim(),
@@ -540,7 +540,7 @@ onMounted(() => {
                 <h4 class="font-medium">登录通知</h4>
                 <input v-model="notificationPrefs.loginNotifyEnabled" type="checkbox" class="toggle" />
               </div>
-              <p class="text-xs opacity-60 mt-2">当用户登录系统时发送通知提醒。</p>
+              <p class="text-xs opacity-60 mt-2">当用户登录系统时，通知会发送到该用户个人资料中的邮箱。</p>
             </div>
 
             <div class="card bg-base-100 border border-base-300 p-4">
@@ -588,8 +588,9 @@ onMounted(() => {
               <h4 class="font-medium mb-3">邮件通知配置</h4>
               <div class="grid grid-cols-1 gap-3">
                 <label class="form-control w-full">
-                  <span class="label-text mb-1">收件人</span>
-                  <input v-model="mailConfig.recipient" type="email" class="input input-bordered w-full" placeholder="name@example.com" />
+                  <span class="label-text mb-1">测试收件人</span>
+                  <input v-model="mailConfig.testRecipient" type="email" class="input input-bordered w-full" placeholder="name@example.com" />
+                  <span class="label-text-alt mt-1 opacity-60">仅用于测试 SMTP 和邮件模板，不会接收用户的真实通知。</span>
                 </label>
 
                 <label class="form-control w-full">
