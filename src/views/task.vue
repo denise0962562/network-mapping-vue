@@ -11,6 +11,7 @@ const isLoadingData = ref(false)
 const initialLoadFailed = ref(false)
 const hasLoadedTasks = ref(false)
 const selectedCount = ref('')
+const includeSystemTasks = ref(false)
 function getDefaultFilters() {
   return {
     taskId: '',
@@ -156,6 +157,7 @@ async function fetchTasks({ start, count } = {}) {
     const params = {}
     if (typeof start === 'number') params.start = start
     if (typeof count === 'number') params.count = count
+    if (includeSystemTasks.value) params.include_system = true
 
     const response = await http.get('/api/task/all', {
       params: Object.keys(params).length > 0 ? params : undefined
@@ -215,14 +217,27 @@ async function toPrevPage() {
   currentPage.value = prevPage
 }
 
-async function refreshWithCount() {
-  if (isLoadingData.value) return
-  countParam.value = selectedCount.value === '' ? null : Number(selectedCount.value)
+function resetPagination() {
   inferredPageSize.value = null
   lockedTotalCount.value = 0
   currentPage.value = 1
   pageStartHistory.value = [null]
+}
+
+async function reloadFromFirstPage() {
+  resetPagination()
   await fetchTasks({ count: countParam.value })
+}
+
+async function refreshWithCount() {
+  if (isLoadingData.value) return
+  countParam.value = selectedCount.value === '' ? null : Number(selectedCount.value)
+  await reloadFromFirstPage()
+}
+
+async function refreshSystemTaskVisibility() {
+  if (isLoadingData.value) return
+  await reloadFromFirstPage()
 }
 
 function applySearch() {
@@ -303,6 +318,17 @@ onMounted(async () => {
             <button class="btn rounded-lg btn-ghost w-full border border-base-300" :disabled="isLoadingData" @click="resetFilters">重置条件</button>
           </div>
         </div>
+
+        <label class="label w-fit cursor-pointer gap-2 py-0">
+          <input
+            v-model="includeSystemTasks"
+            type="checkbox"
+            class="checkbox checkbox-sm"
+            :disabled="isLoadingData"
+            @change="refreshSystemTaskVisibility"
+          />
+          <span class="label-text">显示系统任务</span>
+        </label>
 
         <details class="collapse bg-base-100 border border-base-300">
           <summary class="collapse-title font-semibold">高级筛选</summary>
