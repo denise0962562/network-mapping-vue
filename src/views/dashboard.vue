@@ -49,42 +49,51 @@
 
   <!-- 系统信息及扫描日志卡片 -->
   <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 p-5">
-    <div class="big_card">
-      
-      <!-- 系统信息列表 -->
-      <div class="p-4 pb-2 text-xs opacity-60 tracking-wide">系统详细信息</div>
+    <div class="card bg-base-100 card-border border-base-300 p-4">
+      <div class="mb-3">
+        <h3 class="font-semibold">系统详细信息</h3>
+        <p class="text-xs opacity-60">主机、操作系统与网络接口</p>
+      </div>
 
-      <div v-if="isFirstLoad" class="skeleton h-36 w-full rounded-box"></div>
+      <div v-if="isFirstLoad" class="skeleton h-64 w-full rounded-box"></div>
 
-      <ul v-else class="list">
-        <li class="list-row">
-          <div>系统运行状态</div>
+      <div v-else class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
+          <span class="text-sm font-medium">系统运行状态</span>
+          <span class="flex items-center gap-2 text-sm">
+            <span aria-label="运行中" class="status status-success"></span>
+            <span>运行中</span>
+            <span class="text-xs opacity-60">{{ uptime }}</span>
+          </span>
+        </div>
 
-          <div class="list-col-grow flex items-center justify-end gap-2">
-            <div aria-label="success" class="status status-success"></div>
-            <span class="text-xs opacity-60">运行中 (Uptime: {{ uptime }})</span>
+        <dl class="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          <div v-for="item in systemDetailItems" :key="item.label" class="flex min-w-0 justify-between gap-4 border-b border-base-300 py-2.5">
+            <dt class="shrink-0 text-xs opacity-60">{{ item.label }}</dt>
+            <dd class="min-w-0 truncate text-right text-sm" :title="item.value">{{ item.value }}</dd>
           </div>
+        </dl>
 
-        </li>
-
-        <li class="list-row">
-          <div>
-            <div>网络接口信息</div>
+        <div class="rounded-box border border-base-300">
+          <div class="flex items-center justify-between border-b border-base-300 px-4 py-2.5">
+            <span class="text-sm font-medium">网络接口</span>
+            <span class="text-xs opacity-60">系统启动以来累计流量</span>
           </div>
-          <div class="list-col-grow flex flex-col gap-1 text-xs opacity-60">
-            <div v-for="iface in networkInterfaces" :key="iface.name" class="flex justify-end gap-2">
-              <span>{{ iface.name }}</span>
-              <span>发送/接收: {{ iface.send }} / {{ iface.receive }}</span>
+          <div class="divide-y divide-base-300">
+            <div v-for="iface in networkInterfaces" :key="iface.name" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5 text-sm">
+              <span class="truncate font-mono text-xs" :title="iface.name">{{ iface.name }}</span>
+              <span class="text-right text-xs opacity-70">
+                ↑ {{ iface.send }}
+                <span class="mx-1 opacity-40">/</span>
+                ↓ {{ iface.receive }}
+              </span>
             </div>
-            <div v-if="networkInterfaces.length === 0" class="flex justify-end gap-2">
-              <span>暂无数据</span>
+            <div v-if="networkInterfaces.length === 0" class="px-4 py-6 text-center text-sm opacity-50">
+              暂无网络接口数据
             </div>
           </div>
-
-        </li>
-
-      </ul>
-
+        </div>
+      </div>
     </div>
     <!-- 系统信息卡片结束 -->
 
@@ -376,6 +385,34 @@ const uptime = computed(() => {
   return s !== undefined ? formatUptime(s) : '--'
 })
 
+const systemDetailItems = computed(() => {
+  const status = systemData.value?.status_item?.[0]
+  const info = systemData.value?.system_info || {}
+  const cpuFrequency = Number(info.cpu_frequency_mhz)
+  const cpuParts = [info.cpu_model || info.cpu_vendor]
+  if (Number.isFinite(cpuFrequency) && cpuFrequency > 0) cpuParts.push(`${cpuFrequency.toLocaleString('zh-CN')} MHz`)
+
+  return [
+    { label: '主机名', value: info.host_name || '--' },
+    { label: '操作系统', value: info.os_version || info.os_name || '--' },
+    { label: '内核版本', value: info.kernel_version || '--' },
+    { label: '系统架构', value: info.architecture || '--' },
+    { label: 'CPU', value: cpuParts.filter(Boolean).join(' · ') || '--' },
+    {
+      label: 'CPU 核心',
+      value: `${info.physical_core_count ?? '--'} 物理 / ${info.logical_cpu_count ?? '--'} 逻辑`
+    },
+    {
+      label: '内存 / Swap',
+      value: `${formatBytes(status?.ram?.total_ram)} / ${formatBytes(status?.ram?.total_swap)}`
+    },
+    {
+      label: '磁盘容量',
+      value: `${formatBytes(status?.disk?.disk_total_space)} · ${Object.keys(status?.disk?.disk || {}).length} 个挂载点`
+    }
+  ]
+})
+
 const networkInterfaces = computed(() => {
   const net = systemData.value?.status_item?.[0]?.network?.net
   if (!net) return []
@@ -389,11 +426,13 @@ const networkInterfaces = computed(() => {
 })
 
 function formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  const val = (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)
-  return `${val} ${units[i]}`
+  const value = Number(bytes)
+  if (!Number.isFinite(value) || value < 0) return '--'
+  if (value === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  const unitIndex = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
+  const formatted = (value / (1024 ** unitIndex)).toFixed(unitIndex === 0 ? 0 : 1)
+  return `${formatted} ${units[unitIndex]}`
 }
 
 onMounted(() => {

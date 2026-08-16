@@ -234,11 +234,11 @@ async function fetchData() {
 - 历史趋势卡片：可在“服务器资源”和“数据库容量”标签间切换；只挂载当前标签对应的大型折线图
   - 服务器资源：CPU / RAM / Disk，默认最近 30 分钟，支持时间范围、粒度和自定义区间
   - 数据库容量：默认展示最新快照中最大的 6 张用户表，可切换表、时间范围和粒度；表名按名称稳定排序
-- 系统信息（运行状态、Uptime、网络接口收发）
+- 系统详细信息（运行状态、Uptime、主机名、操作系统、内核、架构、CPU、内存、磁盘，以及按网口名排序的累计收发量）
 - 当前任务列表（最多 10 行，带状态标签）
 
 **数据来源：**
-- `GET /api/data/system-data`：当前资源快照，每 5 秒轮询
+- `GET /api/data/system-data`：当前资源快照及实时 `system_info` 主机信息，每 5 秒轮询
 - `GET /api/data/system-resource-history`：历史资源趋势，预设范围每 60 秒刷新
 - `GET /api/data/database-size-history`：数据库、连接数及全部用户表容量历史，预设范围每 60 秒刷新
 
