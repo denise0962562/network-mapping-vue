@@ -318,18 +318,18 @@ async function fetchData() {
 
 ### 7.7 数据分析 (`analysis.vue`)
 
-**Pie 图（常见服务 Top X 分布）：**
-- 控件：Top N（5/7/10）、统计维度（协议/应用）、忽略版本差异开关
-- 协议数据：HTTP、HTTPS、SSH、DNS 等（当前为硬编码示例）
-- 应用数据：nginx、apache、django、redis 等（含版本号，可按开关聚合）
-- Loading：`triggerPieLoading(450ms)`，修改控件时重新触发（350ms）
+页面使用真实扫描结果，支持时间范围、扫描器、任务来源、分布维度和 Top N 筛选。
 
-**Heatmap（扫描数热力图）：**
-- Y 轴：周一 ~ 周日；X 轴：最近 12 周
-- 颜色分三段：0-40%（蓝）、40-80%（绿）、80-100%（红）
-- 无数据格子留空（`y: null`）
-- 自定义 tooltip 显示日期和扫描数
-- Loading：`triggerHeatmapLoading(650ms)`
+**Pie 图（常见服务或开放端口分布）：**
+- 数据来源：`GET /api/analysis/distribution`
+- 按唯一执行、IP 和端口去重，Top N 之外合并为“其他”
+- 当前扫描协议没有独立产品与版本字段，因此不展示不可靠的版本聚合
+
+**Heatmap（发现 IP 热力图）：**
+- 数据来源：`GET /api/analysis/discovery-heatmap`
+- Y 轴为周一至周日，X 轴为最近 4、8 或 12 周
+- 按自然日统计去重 IP，无发现显示 0，未来日期留空
+- 两张图拥有独立的 Loading、首次失败和保留旧数据状态
 
 ### 7.8 开源项目 (`open-source.vue`)
 
