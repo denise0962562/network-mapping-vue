@@ -169,6 +169,11 @@ function peakValue(field) {
   return values.length ? Math.max(...values) : null
 }
 
+function minimumValue(field) {
+  const values = points.value.map((point) => point[field]).filter(Number.isFinite)
+  return values.length ? Math.min(...values) : null
+}
+
 function formatPercent(value) {
   return Number.isFinite(value) ? `${Number(value).toFixed(1)}%` : '--'
 }
@@ -177,19 +182,22 @@ const resourceStats = computed(() => [
   {
     name: 'CPU',
     current: formatPercent(latestPoint.value?.cpu_avg),
-    peak: formatPercent(peakValue('cpu_max')),
+    maximum: formatPercent(peakValue('cpu_max')),
+    minimum: formatPercent(minimumValue('cpu_min')),
     class: 'text-info'
   },
   {
     name: '内存',
     current: formatPercent(latestPoint.value?.ram_avg),
-    peak: formatPercent(peakValue('ram_max')),
+    maximum: formatPercent(peakValue('ram_max')),
+    minimum: formatPercent(minimumValue('ram_min')),
     class: 'text-success'
   },
   {
     name: '磁盘',
     current: formatPercent(latestPoint.value?.disk_avg),
-    peak: formatPercent(peakValue('disk_max')),
+    maximum: formatPercent(peakValue('disk_max')),
+    minimum: formatPercent(minimumValue('disk_min')),
     class: 'text-warning'
   }
 ])
@@ -225,7 +233,7 @@ const chartOptions = computed(() => ({
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
   markers: { size: 0, hover: { size: 4 } },
-  legend: { position: 'top', horizontalAlign: 'right' },
+  legend: { position: 'top', horizontalAlign: 'left' },
   xaxis: {
     type: 'datetime',
     labels: { datetimeUTC: false }
@@ -257,8 +265,7 @@ const chartOptions = computed(() => ({
     {
       breakpoint: 640,
       options: {
-        chart: { height: 360 },
-        legend: { position: 'bottom', horizontalAlign: 'center' }
+        chart: { height: 360 }
       }
     }
   ]
@@ -342,7 +349,10 @@ onBeforeUnmount(() => {
           <div class="text-xs text-base-content/60">{{ item.name }} 最新平均值</div>
           <div class="mt-1 flex items-baseline justify-between gap-3">
             <span class="text-xl font-semibold" :class="item.class">{{ item.current }}</span>
-            <span class="text-xs text-base-content/50">区间峰值 {{ item.peak }}</span>
+            <span class="flex gap-3 text-xs text-base-content/50">
+              <span>最大 {{ item.maximum }}</span>
+              <span>最小 {{ item.minimum }}</span>
+            </span>
           </div>
         </div>
       </div>
