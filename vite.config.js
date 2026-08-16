@@ -1,12 +1,11 @@
 import { fileURLToPath, URL } from 'node:url'
+import fs from 'node:fs'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from "@tailwindcss/vite";
-import { config } from 'node:process';
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
@@ -26,6 +25,19 @@ export default defineConfig({
         main: 'index.html',
         search: 'search.html',
         login: 'login.html'
+      }
+    }
+  },
+  server: {
+    https: {
+      key: fs.readFileSync('../ssl/key.pem'),
+      cert: fs.readFileSync('../ssl/cert.pem'),
+    },
+    proxy: {
+      '/api': {
+        target: 'https://127.0.0.1:9999',
+        changeOrigin: true,
+        secure: false,
       }
     }
   }
