@@ -19,7 +19,7 @@
         <p class="text-xs opacity-60">使用率 / 空闲率（100% 堆叠）</p>
       </div>
       <div v-if="isFirstLoad" class="skeleton h-64 w-full rounded-box"></div>
-      <apexchart v-else type="bar" height="320" :options="resourceChartOptions" :series="resourceChartSeries" />
+      <ApexChart v-else type="bar" height="320" :options="resourceChartOptions" :series="resourceChartSeries" />
     </div>
 
     <div class="card bg-base-100 card-border border-base-300 p-4">
@@ -28,7 +28,7 @@
         <p class="text-xs opacity-60">按扫描器统计</p>
       </div>
       <div v-if="isFirstLoad" class="skeleton h-64 w-full rounded-box"></div>
-      <apexchart v-else type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" />
+      <ApexChart v-else type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" />
     </div>
   </div>
 
@@ -155,10 +155,12 @@
 </style>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import ResourceHistoryChart from '@/components/ResourceHistoryChart.vue'
 import http from '@/utils/http'
+
+const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
 
 const alerts = ref([])
 

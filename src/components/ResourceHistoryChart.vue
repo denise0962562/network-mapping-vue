@@ -1,8 +1,10 @@
 <script setup>
 import axios from 'axios'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
+
+const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
 
 const emit = defineEmits(['error'])
 
@@ -365,7 +367,7 @@ onBeforeUnmount(() => {
         message="当前时间范围内没有可用于绘图的系统资源记录。"
       />
       <div v-else class="relative">
-        <apexchart type="line" height="420" :options="chartOptions" :series="chartSeries" />
+        <ApexChart type="line" height="420" :options="chartOptions" :series="chartSeries" />
         <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
       </div>
 

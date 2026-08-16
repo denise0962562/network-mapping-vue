@@ -1,9 +1,11 @@
 <script setup>
 import axios from 'axios'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
+
+const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
 
 const weekOptions = [4, 8, 12]
 const topOptions = [5, 7, 10]
@@ -447,7 +449,7 @@ onBeforeUnmount(() => {
             message="当前筛选范围内没有可用于统计的扫描结果。"
           />
           <div v-else class="relative mt-2">
-            <apexchart type="pie" height="340" :options="pieOptions" :series="pieSeries" />
+            <ApexChart type="pie" height="340" :options="pieOptions" :series="pieSeries" />
             <span v-if="distributionLoading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
           </div>
         </div>
@@ -472,7 +474,7 @@ onBeforeUnmount(() => {
             message="无法从服务器获取统计数据，请稍后重试。"
           />
           <div v-else class="relative mt-2">
-            <apexchart type="heatmap" height="400" :options="heatmapOptions" :series="heatmapSeries" />
+            <ApexChart type="heatmap" height="400" :options="heatmapOptions" :series="heatmapSeries" />
             <span v-if="heatmapLoading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
           </div>
         </div>

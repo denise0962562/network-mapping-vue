@@ -48,7 +48,7 @@
 创建 Vue 应用 → 检查 CSRF token → 无则跳转 /login → 有则挂载 app
 ```
 
-- 全局注册 `apexchart` 组件（来自 vue3-apexcharts）
+- 仪表盘和分析页通过 `defineAsyncComponent` 懒加载 `vue3-apexcharts`，入口不注册全局图表组件
 - 引入 `src/utils/http.js` 以激活 Axios 拦截器
 
 ### 2.2 CSRF 保护 (`src/utils/csrf.js`)
