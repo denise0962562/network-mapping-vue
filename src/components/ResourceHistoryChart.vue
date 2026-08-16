@@ -6,7 +6,11 @@ import http from '@/utils/http'
 
 const emit = defineEmits(['error'])
 
+const DEFAULT_RANGE_MILLISECONDS = 30 * 60 * 1000
+
 const rangeOptions = [
+  { value: '30m', label: '最近 30 分钟', milliseconds: DEFAULT_RANGE_MILLISECONDS },
+  { value: '1h', label: '最近 1 小时', milliseconds: 60 * 60 * 1000 },
   { value: '6h', label: '最近 6 小时', milliseconds: 6 * 60 * 60 * 1000 },
   { value: '24h', label: '最近 24 小时', milliseconds: 24 * 60 * 60 * 1000 },
   { value: '7d', label: '最近 7 天', milliseconds: 7 * 24 * 60 * 60 * 1000 },
@@ -15,6 +19,8 @@ const rangeOptions = [
 ]
 const granularityOptions = [
   { value: 'auto', label: '自动', seconds: null },
+  { value: '10s', label: '10 秒', seconds: 10 },
+  { value: '30s', label: '30 秒', seconds: 30 },
   { value: '1m', label: '1 分钟', seconds: 60 },
   { value: '5m', label: '5 分钟', seconds: 300 },
   { value: '15m', label: '15 分钟', seconds: 900 },
@@ -31,13 +37,13 @@ function toLocalInputValue(date) {
 function defaultCustomRange() {
   const end = new Date()
   return {
-    start: toLocalInputValue(new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000)),
+    start: toLocalInputValue(new Date(end.getTime() - DEFAULT_RANGE_MILLISECONDS)),
     end: toLocalInputValue(end)
   }
 }
 
 const initialCustomRange = defaultCustomRange()
-const range = ref('7d')
+const range = ref('30m')
 const granularity = ref('auto')
 const customStart = ref(initialCustomRange.start)
 const customEnd = ref(initialCustomRange.end)
