@@ -30,6 +30,33 @@ const granularityOptions = [
   { value: '2h', label: '2 小时', seconds: 7200 },
   { value: '6h', label: '6 小时', seconds: 21600 }
 ]
+const tableCategoryDefinitions = [
+  {
+    id: 'mapping',
+    label: '测绘数据',
+    tables: ['ips', 'ports', 'scaninfo', 'scan_result_batch', 'scan_observation']
+  },
+  {
+    id: 'tasks',
+    label: '任务与扫描器',
+    tables: ['scan_task', 'scan_task_execution', 'automatic_target_state', 'scanner_info']
+  },
+  {
+    id: 'logs',
+    label: '日志数据',
+    tables: ['system_status', 'login_logs', 'operation_audit', 'audit_event']
+  },
+  {
+    id: 'network',
+    label: '网络情报',
+    tables: ['ip_list', 'country', 'org', 'asn', 'isp']
+  },
+  {
+    id: 'system',
+    label: '系统与配置',
+    tables: ['users', 'session', 'setting', 'mail_template', 'mail_template_version']
+  }
+]
 
 function compareNames(left, right) {
   return left.localeCompare(right, 'zh-CN', { numeric: true, sensitivity: 'base' })
@@ -61,6 +88,31 @@ const loading = ref(false)
 const failed = ref(false)
 const hasLoaded = ref(false)
 const lastUpdatedAt = ref(null)
+
+function unqualifiedTableName(name) {
+  return name.split('.').at(-1)
+}
+
+const categorizedTableNames = new Set(tableCategoryDefinitions.flatMap((category) => category.tables))
+
+const availableTableCategories = computed(() => {
+  const categories = tableCategoryDefinitions
+    .map((category) => ({
+      ...category,
+      tableNames: tableNames.value
+        .filter((name) => category.tables.includes(unqualifiedTableName(name)))
+        .sort(compareNames)
+    }))
+    .filter((category) => category.tableNames.length > 0)
+  const uncategorizedTables = tableNames.value
+    .filter((name) => !categorizedTableNames.has(unqualifiedTableName(name)))
+    .sort(compareNames)
+
+  if (uncategorizedTables.length > 0) {
+    categories.push({ id: 'other', label: '其他数据', tables: [], tableNames: uncategorizedTables })
+  }
+  return categories
+})
 
 let requestController = null
 let refreshTimer = null
@@ -207,6 +259,28 @@ function toggleTable(name) {
   selectedTables.value = [...selectedTables.value, name].sort(compareNames)
 }
 
+function categorySelection(category) {
+  const latest = latestPointWithTables(points.value)
+  return [...category.tableNames]
+    .sort((left, right) => {
+      const sizeDifference = Number(latest?.tables?.[right]?.total || 0) - Number(latest?.tables?.[left]?.total || 0)
+      return sizeDifference || compareNames(left, right)
+    })
+    .slice(0, MAX_SELECTED_TABLES)
+    .sort(compareNames)
+}
+
+function selectTableCategory(category) {
+  selectedTables.value = categorySelection(category)
+  selectionInitialized = true
+}
+
+function tableCategoryActive(category) {
+  const categoryTables = categorySelection(category)
+  return categoryTables.length === selectedTables.value.length
+    && categoryTables.every((name, index) => name === [...selectedTables.value].sort(compareNames)[index])
+}
+
 function formatBytes(value) {
   const bytes = Number(value)
   if (!Number.isFinite(bytes) || bytes < 0) return '--'
@@ -331,20 +405,41 @@ onBeforeUnmount(() => {
       <div class="flex flex-wrap items-end justify-end gap-2">
         <details class="dropdown dropdown-end">
           <summary class="btn btn-outline btn-sm min-w-36">数据表 {{ selectedTables.length }}/{{ tableNames.length }}</summary>
-          <div class="dropdown-content z-20 mt-2 w-72 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
-            <div class="mb-2 px-2 text-xs text-base-content/60">最多同时展示 {{ MAX_SELECTED_TABLES }} 张表</div>
+          <div class="dropdown-content z-20 mt-2 w-80 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
             <div v-if="tableNames.length === 0" class="px-2 py-3 text-sm text-base-content/50">暂无表信息</div>
-            <div v-else class="max-h-72 overflow-y-auto">
-              <label v-for="name in tableNames" :key="name" class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-base-200">
-                <input
-                  type="checkbox"
-                  class="checkbox checkbox-sm"
-                  :checked="selectedTables.includes(name)"
-                  :disabled="!selectedTables.includes(name) && selectedTables.length >= MAX_SELECTED_TABLES"
-                  @change="toggleTable(name)"
-                />
-                <span class="truncate text-sm" :title="name">{{ name }}</span>
-              </label>
+            <div v-else>
+              <div class="px-2 pb-1">
+                <div class="mb-1 text-xs font-medium">快捷选择</div>
+                <div class="mb-2 text-[11px] text-base-content/50">点击分类会替换当前选择，最多展示 {{ MAX_SELECTED_TABLES }} 张表</div>
+                <div class="grid grid-cols-2 gap-1">
+                  <button
+                    v-for="category in availableTableCategories"
+                    :key="category.id"
+                    type="button"
+                    class="btn btn-ghost btn-sm h-auto min-h-8 justify-between px-2 font-normal"
+                    :class="{ 'btn-active': tableCategoryActive(category) }"
+                    @click="selectTableCategory(category)"
+                  >
+                    <span class="truncate">{{ category.label }}</span>
+                    <span class="badge badge-ghost badge-sm">{{ category.tableNames.length }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="divider my-1 px-2 text-[11px] text-base-content/50">具体数据表</div>
+
+              <div class="max-h-64 overflow-y-auto">
+                <label v-for="name in tableNames" :key="name" class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-base-200">
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-sm"
+                    :checked="selectedTables.includes(name)"
+                    :disabled="!selectedTables.includes(name) && selectedTables.length >= MAX_SELECTED_TABLES"
+                    @change="toggleTable(name)"
+                  />
+                  <span class="truncate text-sm" :title="name">{{ name }}</span>
+                </label>
+              </div>
             </div>
           </div>
         </details>
