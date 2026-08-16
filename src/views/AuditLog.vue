@@ -29,6 +29,7 @@ const categoryLabels = {
   user_security: '用户安全',
   task: '扫描任务',
   scanner: '扫描器',
+  automatic_target: '系统生成目标',
   configuration: '系统配置',
   data_access: '数据访问',
   audit: '审计系统'
@@ -49,6 +50,7 @@ const actionLabels = {
   'user.delete': '删除用户',
   'user.login_records.query': '查询登录记录',
   'task.create': '创建任务',
+  'task.auto_generate': '生成系统目标',
   'task.cancel': '取消任务',
   'task.retry': '重试任务',
   'scanner.create': '创建扫描器',
