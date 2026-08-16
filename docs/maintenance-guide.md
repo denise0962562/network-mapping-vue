@@ -231,10 +231,13 @@ async function fetchData() {
 **区域：**
 - 服务器资源利用状态（CPU / RAM / Disk 堆叠柱状图）
 - 最近 7 天扫描情况（按扫描器堆叠柱状图）
+- 服务器资源趋势（CPU / RAM / Disk 大型折线图，支持时间范围、粒度和自定义区间）
 - 系统信息（运行状态、Uptime、网络接口收发）
 - 当前任务列表（最多 10 行，带状态标签）
 
-**数据来源：** `GET /api/data/system-data`（每 5 秒轮询）
+**数据来源：**
+- `GET /api/data/system-data`：当前资源快照，每 5 秒轮询
+- `GET /api/data/system-resource-history`：历史资源趋势，预设范围每 60 秒刷新
 
 ### 7.2 任务页 (`task.vue`)
 

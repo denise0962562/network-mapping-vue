@@ -32,6 +32,10 @@
     </div>
   </div>
 
+  <div class="px-5">
+    <ResourceHistoryChart @error="handleResourceHistoryError" />
+  </div>
+
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 p-5">
     <div v-for="item in overviewCards" :key="item.title" class="stats shadow border border-base-300 bg-base-100">
       <div class="stat">
@@ -153,6 +157,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import ResourceHistoryChart from '@/components/ResourceHistoryChart.vue'
 import http from '@/utils/http'
 
 const alerts = ref([])
@@ -176,6 +181,10 @@ function pushAlert(type, title, description = '', timeout = 7000) {
 
 function closeAlert(id) {
   alerts.value = alerts.value.filter((alert) => alert.id !== id)
+}
+
+function handleResourceHistoryError(error) {
+  pushAlert('error', error.title, error.description)
 }
 
 async function fetchSystemData() {
