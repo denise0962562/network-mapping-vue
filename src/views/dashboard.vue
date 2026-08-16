@@ -33,7 +33,7 @@
   </div>
 
   <div class="px-5">
-    <ResourceHistoryChart @error="handleResourceHistoryError" />
+    <SystemHistoryPanel @error="handleResourceHistoryError" />
   </div>
 
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 p-5">
@@ -157,7 +157,7 @@
 <script setup>
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
-import ResourceHistoryChart from '@/components/ResourceHistoryChart.vue'
+import SystemHistoryPanel from '@/components/SystemHistoryPanel.vue'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
@@ -379,11 +379,13 @@ const uptime = computed(() => {
 const networkInterfaces = computed(() => {
   const net = systemData.value?.status_item?.[0]?.network?.net
   if (!net) return []
-  return Object.entries(net).map(([name, info]) => ({
-    name,
-    send: formatBytes(Number(info.send)),
-    receive: formatBytes(Number(info.receive)),
-  }))
+  return Object.entries(net)
+    .sort(([left], [right]) => left.localeCompare(right, 'zh-CN', { numeric: true, sensitivity: 'base' }))
+    .map(([name, info]) => ({
+      name,
+      send: formatBytes(Number(info.send)),
+      receive: formatBytes(Number(info.receive)),
+    }))
 })
 
 function formatBytes(bytes) {

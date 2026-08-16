@@ -296,82 +296,80 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="card border border-base-300 bg-base-100 shadow-sm">
-    <div class="card-body gap-4 p-4 md:p-5">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-semibold">服务器资源趋势</h2>
-          <p class="mt-1 text-xs text-base-content/60">展示各时间桶内 CPU、内存和磁盘使用率的平均值，Tooltip 同时显示峰值。</p>
-        </div>
-
-        <div class="flex flex-wrap items-end justify-end gap-2">
-          <label class="form-control w-36">
-            <span class="label-text mb-1 text-xs">时间范围</span>
-            <select v-model="range" class="select select-bordered select-sm w-full" :disabled="loading" @change="handleRangeChange">
-              <option v-for="option in rangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
-
-          <label class="form-control w-32">
-            <span class="label-text mb-1 text-xs">时间粒度</span>
-            <select v-model="granularity" class="select select-bordered select-sm w-full" :disabled="loading">
-              <option
-                v-for="option in granularityOptions"
-                :key="option.value"
-                :value="option.value"
-                :disabled="granularityDisabled(option)"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-
-          <button class="btn btn-neutral btn-sm" :disabled="loading" @click="loadHistory()">
-            <span v-if="loading" class="loading loading-spinner loading-xs"></span>
-            {{ loading ? '加载中…' : '应用' }}
-          </button>
-        </div>
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold">服务器资源趋势</h2>
+        <p class="mt-1 text-xs text-base-content/60">展示各时间桶内 CPU、内存和磁盘使用率的平均值，Tooltip 同时显示峰值。</p>
       </div>
 
-      <div v-if="range === 'custom'" class="grid gap-3 rounded-box bg-base-200/60 p-3 sm:grid-cols-2">
-        <label class="form-control w-full">
-          <span class="label-text mb-1 text-xs">开始时间</span>
-          <input v-model="customStart" type="datetime-local" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+      <div class="flex flex-wrap items-end justify-end gap-2">
+        <label class="form-control w-36">
+          <span class="label-text mb-1 text-xs">时间范围</span>
+          <select v-model="range" class="select select-bordered select-sm w-full" :disabled="loading" @change="handleRangeChange">
+            <option v-for="option in rangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
         </label>
-        <label class="form-control w-full">
-          <span class="label-text mb-1 text-xs">结束时间</span>
-          <input v-model="customEnd" type="datetime-local" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+
+        <label class="form-control w-32">
+          <span class="label-text mb-1 text-xs">时间粒度</span>
+          <select v-model="granularity" class="select select-bordered select-sm w-full" :disabled="loading">
+            <option
+              v-for="option in granularityOptions"
+              :key="option.value"
+              :value="option.value"
+              :disabled="granularityDisabled(option)"
+            >
+              {{ option.label }}
+            </option>
+          </select>
         </label>
-      </div>
 
-      <div v-if="hasMetrics" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div v-for="item in resourceStats" :key="item.name" class="rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
-          <div class="text-xs text-base-content/60">{{ item.name }} 最新平均值</div>
-          <div class="mt-1 flex items-baseline justify-between gap-3">
-            <span class="text-xl font-semibold" :class="item.class">{{ item.current }}</span>
-            <span class="text-xs text-base-content/50">区间峰值 {{ item.peak }}</span>
-          </div>
-        </div>
+        <button class="btn btn-neutral btn-sm" :disabled="loading" @click="loadHistory()">
+          <span v-if="loading" class="loading loading-spinner loading-xs"></span>
+          {{ loading ? '加载中…' : '应用' }}
+        </button>
       </div>
-
-      <div v-if="loading && !hasLoaded" class="skeleton h-96 w-full rounded-box"></div>
-      <EmptyState
-        v-else-if="failed && !hasLoaded"
-        type="error"
-        title="资源趋势加载失败"
-        message="无法从服务器读取历史资源数据，请稍后重试。"
-      />
-      <EmptyState
-        v-else-if="!hasMetrics"
-        title="暂无资源数据"
-        message="当前时间范围内没有可用于绘图的系统资源记录。"
-      />
-      <div v-else class="relative">
-        <ApexChart type="line" height="420" :options="chartOptions" :series="chartSeries" />
-        <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
-      </div>
-
-      <div class="text-right text-xs text-base-content/50">{{ statusLabel }}</div>
     </div>
-  </section>
+
+    <div v-if="range === 'custom'" class="grid gap-3 rounded-box bg-base-200/60 p-3 sm:grid-cols-2">
+      <label class="form-control w-full">
+        <span class="label-text mb-1 text-xs">开始时间</span>
+        <input v-model="customStart" type="datetime-local" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+      </label>
+      <label class="form-control w-full">
+        <span class="label-text mb-1 text-xs">结束时间</span>
+        <input v-model="customEnd" type="datetime-local" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+      </label>
+    </div>
+
+    <div v-if="hasMetrics" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div v-for="item in resourceStats" :key="item.name" class="rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
+        <div class="text-xs text-base-content/60">{{ item.name }} 最新平均值</div>
+        <div class="mt-1 flex items-baseline justify-between gap-3">
+          <span class="text-xl font-semibold" :class="item.class">{{ item.current }}</span>
+          <span class="text-xs text-base-content/50">区间峰值 {{ item.peak }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="loading && !hasLoaded" class="skeleton h-96 w-full rounded-box"></div>
+    <EmptyState
+      v-else-if="failed && !hasLoaded"
+      type="error"
+      title="资源趋势加载失败"
+      message="无法从服务器读取历史资源数据，请稍后重试。"
+    />
+    <EmptyState
+      v-else-if="!hasMetrics"
+      title="暂无资源数据"
+      message="当前时间范围内没有可用于绘图的系统资源记录。"
+    />
+    <div v-else class="relative">
+      <ApexChart type="line" height="420" :options="chartOptions" :series="chartSeries" />
+      <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
+    </div>
+
+    <div class="text-right text-xs text-base-content/50">{{ statusLabel }}</div>
+  </div>
 </template>
