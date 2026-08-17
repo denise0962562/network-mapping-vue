@@ -15,6 +15,7 @@ const router = createRouter({
     { path: '/open-source', component: () => import('../views/open-source.vue'), meta: { title: '开源项目' } },
     { path: '/testpage', component: () => import('../views/TestPage.vue'), meta: { title: 'Alert 测试' } },
     { path: '/setting', component: () => import('../views/setting.vue'), meta: { title: '设置' } },
+    { path: '/setting/scan', component: () => import('../views/ScanSettings.vue'), meta: { title: '扫描设置' } },
     { path: '/setting/mail-templates', component: () => import('../views/MailTemplateEditor.vue'), meta: { title: '邮件模板' } },
     { path: '/user/info', component: () => import('../views/PersonalInfo.vue'), meta: { title: '个人信息' } },
     { path: '/user/security', component: () => import('../views/UserSecurity.vue'), meta: { title: '用户安全' } },

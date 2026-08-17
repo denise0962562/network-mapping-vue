@@ -5,6 +5,11 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
 const LEGACY_DRAFT_KEY = 'createscan_draft'
+const scanProfiles = [
+  { value: 'legacy', title: '兼容模式', description: '端口发现后尝试识别服务，识别失败仍保留端口结果。' },
+  { value: 'port_only', title: '仅端口扫描', description: '只发现开放端口，不启动服务识别。' },
+  { value: 'service_inventory', title: '服务识别', description: '必须完成服务识别，识别失败会使任务失败。' }
+]
 
 const ip = ref('')
 const port = ref('')
@@ -16,6 +21,9 @@ const dispatchMode = ref('automatic')
 const scannerIds = ref([])
 const scanners = ref([])
 const scannersLoading = ref(false)
+const scanProfile = ref('legacy')
+const defaultScanProfile = ref('legacy')
+const scanSettingsLoading = ref(true)
 
 const targetAddressFamily = computed(() => {
   const targets = ip.value.split(',').map((item) => item.trim()).filter(Boolean)
@@ -26,7 +34,14 @@ const targetAddressFamily = computed(() => {
   return hasIpv6 ? 'ipv6' : 'ipv4'
 })
 
+function scannerSupportsProfile(scanner) {
+  if (scanProfile.value === 'legacy') return true
+  const profiles = scanner.scan_capabilities?.profiles
+  return Array.isArray(profiles) && profiles.includes(scanProfile.value)
+}
+
 function scannerSupportsTarget(scanner) {
+  if (!scannerSupportsProfile(scanner)) return false
   if (targetAddressFamily.value === 'ipv6') {
     return scanner.supports_ipv6 === true && scanner.ipv6_ready === true
   }
@@ -36,7 +51,7 @@ function scannerSupportsTarget(scanner) {
   return targetAddressFamily.value !== 'mixed'
 }
 
-watch(targetAddressFamily, () => {
+watch([targetAddressFamily, scanProfile], () => {
   const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
   scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
 })
@@ -50,6 +65,7 @@ const hasUnsavedChanges = computed(() => (
   || remark.value.trim() !== ''
   || dispatchMode.value !== 'automatic'
   || scannerIds.value.length > 0
+  || scanProfile.value !== defaultScanProfile.value
 ))
 
 function resetForm() {
@@ -59,6 +75,23 @@ function resetForm() {
   remark.value = ''
   dispatchMode.value = 'automatic'
   scannerIds.value = []
+  scanProfile.value = defaultScanProfile.value
+}
+
+async function loadScanSettings() {
+  try {
+    const response = await http.get('/api/config/scan')
+    const profile = response.data?.data?.defaultScanProfile
+    if (scanProfiles.some((item) => item.value === profile)) {
+      defaultScanProfile.value = profile
+      scanProfile.value = profile
+    }
+  } catch (error) {
+    console.error('load scan settings failed', error)
+    showAlert('warning', '默认扫描模式加载失败', '本次将使用兼容模式。', 7000)
+  } finally {
+    scanSettingsLoading.value = false
+  }
 }
 
 async function loadScanners() {
@@ -81,6 +114,7 @@ async function loadScanners() {
 onMounted(() => {
   localStorage.removeItem(LEGACY_DRAFT_KEY)
   loadScanners()
+  loadScanSettings()
 })
 
 function closeAlertById(id) {
@@ -99,6 +133,7 @@ function showAlert(type, title, description = '', timeout = 5000) {
 
 async function submitTask() {
   if (submitting.value) return false
+  if (scanSettingsLoading.value) return false
   if (!ipInputRef.value?.reportValidity()) return false
   if (port.value && !portInputRef.value?.reportValidity()) return false
   if (targetAddressFamily.value === 'mixed') {
@@ -120,6 +155,7 @@ async function submitTask() {
       remark: remark.value.trim() ? remark.value.trim() : null,
       dispatch_mode: dispatchMode.value,
       scanner_ids: dispatchMode.value === 'selected' ? scannerIds.value : [],
+      scan_profile: scanProfile.value,
     }
 
     const response = await http.post('/api/task/create', payload, {
@@ -182,6 +218,25 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           </div>
         </label>
 
+        <fieldset class="rounded-lg border border-base-300 p-4" :disabled="scanSettingsLoading">
+          <legend class="px-2 text-sm font-medium">扫描模式</legend>
+          <div class="grid gap-2 md:grid-cols-3">
+            <label
+              v-for="profile in scanProfiles"
+              :key="profile.value"
+              class="flex cursor-pointer items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
+              :class="scanProfile === profile.value ? 'border-primary bg-primary/5' : ''"
+            >
+              <input v-model="scanProfile" class="radio radio-sm mt-0.5" type="radio" :value="profile.value" />
+              <span>
+                <span class="block font-medium">{{ profile.title }}</span>
+                <span class="mt-1 block text-xs leading-5 opacity-60">{{ profile.description }}</span>
+              </span>
+            </label>
+          </div>
+          <p class="mt-2 text-xs opacity-60">{{ scanSettingsLoading ? '正在读取系统默认模式...' : '默认值来自系统扫描设置，可为当前任务单独调整。' }}</p>
+        </fieldset>
+
         <fieldset class="rounded-lg border border-base-300 p-4">
           <legend class="px-2 text-sm font-medium">执行扫描器</legend>
           <div class="grid gap-2 md:grid-cols-3">
@@ -206,7 +261,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                 <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" :disabled="!scannerSupportsTarget(scanner)" />
                 <span class="min-w-0">
                   <span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span>
-                  <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }}</span>
+                  <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }} · {{ scannerSupportsProfile(scanner) ? '支持当前模式' : '不支持当前模式' }}</span>
                 </span>
               </label>
             </div>
@@ -253,7 +308,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
       </div>
 
       <div class="flex justify-end mt-3">
-        <button id="task_submit" class="btn rounded-lg btn-neutral w-full md:w-auto" :disabled="submitting" @click="submitTask">
+        <button id="task_submit" class="btn rounded-lg btn-neutral w-full md:w-auto" :disabled="submitting || scanSettingsLoading" @click="submitTask">
           {{ submitting ? '提交中...' : '提交' }}
         </button>
       </div>
