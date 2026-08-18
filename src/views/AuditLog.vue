@@ -19,6 +19,7 @@ const filters = ref({
   keyword: '',
   category: '',
   outcome: '',
+  request_id: '',
   start: '',
   end: ''
 })
@@ -108,7 +109,7 @@ function resourceLabel(event) {
 
 function buildParams(includePagination = true) {
   const params = {}
-  for (const key of ['keyword', 'category', 'outcome']) {
+  for (const key of ['keyword', 'category', 'outcome', 'request_id']) {
     if (filters.value[key]) params[key] = filters.value[key]
   }
   if (filters.value.start) params.start = new Date(filters.value.start).toISOString()
@@ -151,7 +152,15 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  filters.value = { keyword: '', category: '', outcome: '', start: '', end: '' }
+  filters.value = { keyword: '', category: '', outcome: '', request_id: '', start: '', end: '' }
+  page.value = 1
+  loadEvents()
+}
+
+function filterByRequestId(id) {
+  if (!id) return
+  filters.value.request_id = id
+  selectedEvent.value = null
   page.value = 1
   loadEvents()
 }
@@ -238,6 +247,7 @@ onMounted(loadEvents)
           </select>
           <input v-model="filters.start" type="datetime-local" class="input input-bordered w-full" aria-label="开始时间" />
           <input v-model="filters.end" type="datetime-local" class="input input-bordered w-full" aria-label="结束时间" />
+          <input v-model.trim="filters.request_id" class="input input-bordered w-full" placeholder="请求 ID (UUID)" @keyup.enter="applyFilters" />
         </div>
         <div class="flex justify-end gap-2">
           <button class="btn btn-ghost btn-sm" :disabled="loading" @click="resetFilters">重置</button>
@@ -266,6 +276,7 @@ onMounted(loadEvents)
               <th>操作者</th>
               <th>动作</th>
               <th>资源</th>
+              <th>请求 ID</th>
               <th>来源 IP</th>
               <th>结果</th>
               <th></th>
@@ -280,6 +291,13 @@ onMounted(loadEvents)
                 <div class="text-xs text-base-content/50">{{ categoryLabels[event.category] || event.category }}</div>
               </td>
               <td class="max-w-64 truncate" :title="resourceLabel(event)">{{ resourceLabel(event) }}</td>
+              <td class="max-w-48">
+                <div v-if="event.request_id" class="flex items-center gap-1">
+                  <span class="truncate font-mono text-xs" :title="event.request_id">{{ event.request_id }}</span>
+                  <button class="btn btn-ghost btn-xs shrink-0" title="查看本次请求的全部事件" @click="filterByRequestId(event.request_id)">筛选</button>
+                </div>
+                <span v-else class="text-base-content/40">--</span>
+              </td>
               <td class="font-mono text-xs">{{ event.source_ip || '--' }}</td>
               <td><span class="badge badge-sm" :class="resultClass(event.outcome)">{{ resultLabel(event.outcome) }}</span></td>
               <td><button class="btn btn-ghost btn-xs" @click="selectedEvent = event">详情</button></td>
@@ -302,7 +320,11 @@ onMounted(loadEvents)
         <h2 class="text-lg font-semibold">审计事件详情</h2>
         <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
           <div><span class="text-base-content/50">事件 ID</span><div class="break-all font-mono text-xs">{{ selectedEvent.event_id }}</div></div>
-          <div><span class="text-base-content/50">请求 ID</span><div class="break-all font-mono text-xs">{{ selectedEvent.request_id || '--' }}</div></div>
+          <div>
+            <span class="text-base-content/50">请求 ID</span>
+            <div class="break-all font-mono text-xs">{{ selectedEvent.request_id || '--' }}</div>
+            <button v-if="selectedEvent.request_id" class="btn btn-outline btn-xs mt-2" @click="filterByRequestId(selectedEvent.request_id)">筛选此请求的全部事件</button>
+          </div>
           <div><span class="text-base-content/50">时间</span><div>{{ formatTime(selectedEvent.occurred_at) }}</div></div>
           <div><span class="text-base-content/50">响应状态</span><div>{{ selectedEvent.response_status || '--' }}</div></div>
           <div><span class="text-base-content/50">事件触发者 IP</span><div class="font-mono text-xs">{{ selectedEvent.source_ip || '--' }}</div></div>
