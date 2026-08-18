@@ -38,7 +38,8 @@ const notificationPrefs = ref({
   notifyOnComplete: true,
   reportDaily: false,
   reportWeekly: true,
-  reportMonthly: false
+  reportMonthly: false,
+  healthAlertEnabled: true
 })
 
 const savedListenConfig = ref({ ...listenConfig.value })
@@ -212,7 +213,8 @@ function normalizeMailSettings(data) {
       notifyOnComplete: data?.notificationPrefs?.notifyOnComplete ?? true,
       reportDaily: data?.notificationPrefs?.reportDaily ?? false,
       reportWeekly: data?.notificationPrefs?.reportWeekly ?? true,
-      reportMonthly: data?.notificationPrefs?.reportMonthly ?? false
+      reportMonthly: data?.notificationPrefs?.reportMonthly ?? false,
+      healthAlertEnabled: data?.notificationPrefs?.healthAlertEnabled ?? true
     },
     senderKeyConfigured: Boolean(data?.senderKeyConfigured)
   }
@@ -541,6 +543,14 @@ onMounted(() => {
                 <input v-model="notificationPrefs.loginNotifyEnabled" type="checkbox" class="toggle" />
               </div>
               <p class="text-xs opacity-60 mt-2">当用户登录系统时，通知会发送到该用户个人资料中的邮箱。</p>
+            </div>
+
+            <div class="card bg-base-100 border border-base-300 p-4">
+              <div class="flex items-center justify-between">
+                <h4 class="font-medium">健康告警</h4>
+                <input v-model="notificationPrefs.healthAlertEnabled" type="checkbox" class="toggle" />
+              </div>
+              <p class="text-xs opacity-60 mt-2">检测到慢请求、5xx 错误或慢 SQL 时，通过邮件通知所有启用中的管理员。</p>
             </div>
 
             <div class="card bg-base-100 border border-base-300 p-4">
