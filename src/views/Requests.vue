@@ -37,6 +37,17 @@ const windowOptions = [
 
 const methodOptions = ['', 'GET', 'POST', 'PUT', 'DELETE', 'HEAD']
 
+const granularityOptions = [
+  { value: 'auto', label: '自动', seconds: null },
+  { value: '1m', label: '1 分钟', seconds: 60 },
+  { value: '5m', label: '5 分钟', seconds: 300 },
+  { value: '15m', label: '15 分钟', seconds: 900 },
+  { value: '30m', label: '30 分钟', seconds: 1800 },
+  { value: '1h', label: '1 小时', seconds: 3600 },
+  { value: '2h', label: '2 小时', seconds: 7200 },
+  { value: '6h', label: '6 小时', seconds: 21600 }
+]
+
 const errorTypeLabels = {
   bad_request: '错误请求',
   unauthorized: '未授权',
@@ -59,6 +70,8 @@ const filters = ref({
   only_errors: false,
   request_id: ''
 })
+
+const granularity = ref('auto')
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
@@ -103,6 +116,24 @@ function windowRange(window) {
   return null
 }
 
+function trendRangeMilliseconds() {
+  const range = windowRange(filters.value.window)
+  if (range) return new Date(range.end).getTime() - new Date(range.start).getTime()
+  return 30 * 24 * 3600 * 1000 // 「全部时间」按 30 天估算，与后端一致
+}
+
+function granularityDisabled(option) {
+  if (option.value === 'auto') return false
+  const duration = trendRangeMilliseconds()
+  if (!duration || duration <= 0) return false
+  return Math.ceil(duration / (option.seconds * 1000)) > 1500
+}
+
+function ensureValidGranularity() {
+  const selected = granularityOptions.find((item) => item.value === granularity.value)
+  if (selected && granularityDisabled(selected)) granularity.value = 'auto'
+}
+
 function buildParams(includePagination = true, includeWindow = false) {
   const params = {}
   for (const key of ['method', 'path', 'status', 'error_type', 'request_id']) {
@@ -114,7 +145,10 @@ function buildParams(includePagination = true, includeWindow = false) {
     params.start = range.start
     params.end = range.end
   }
-  if (includeWindow && filters.value.window) params.window = filters.value.window
+  if (includeWindow) {
+    if (filters.value.window) params.window = filters.value.window
+    if (granularity.value) params.granularity = granularity.value
+  }
   if (includePagination) {
     params.page = page.value
     params.page_size = pageSize
@@ -172,6 +206,7 @@ function applyFilters() {
 
 function resetFilters() {
   filters.value = { window: '24h', method: '', path: '', status: '', error_type: '', only_errors: false, request_id: '' }
+  granularity.value = 'auto'
   page.value = 1
   loadAll()
 }
@@ -182,26 +217,39 @@ function changePage(nextPage) {
   loadItems()
 }
 
-const trendCategories = computed(() => summary.value.trend.map((point) => point.bucket))
+const granularityLabel = computed(() => {
+  const value = summary.value.granularity
+  if (!value) return ''
+  return granularityOptions.find((item) => item.value === value)?.label || value
+})
 const trendSeries = computed(() => [
-  { name: '请求数', data: summary.value.trend.map((point) => point.total), color: '#3b82f6' },
-  { name: '4xx 客户端错误', data: summary.value.trend.map((point) => point.client_errors), color: '#f59e0b' },
-  { name: '5xx 服务端错误', data: summary.value.trend.map((point) => point.server_errors), color: '#ef4444' }
+  { name: '请求数', data: summary.value.trend.map((point) => ({ x: point.bucket, y: point.total })), color: '#3b82f6' },
+  { name: '4xx 客户端错误', data: summary.value.trend.map((point) => ({ x: point.bucket, y: point.client_errors })), color: '#f59e0b' },
+  { name: '5xx 服务端错误', data: summary.value.trend.map((point) => ({ x: point.bucket, y: point.server_errors })), color: '#ef4444' }
 ])
 const trendOptions = computed(() => ({
   chart: { type: 'area', toolbar: { show: false }, stacked: false },
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
-  xaxis: {
-    type: 'category',
-    categories: trendCategories.value,
-    labels: {
-      formatter: (value) => new Date(value).toLocaleString('zh-CN', { hour12: false })
-    }
-  },
+  xaxis: { type: 'datetime', labels: { datetimeUTC: false } },
   yaxis: { labels: { formatter: (value) => Number(value).toLocaleString('zh-CN') } },
   legend: { position: 'top' },
-  tooltip: { y: { formatter: (value) => Number(value).toLocaleString('zh-CN') } }
+  tooltip: {
+    shared: true,
+    intersect: false,
+    custom({ dataPointIndex }) {
+      const point = summary.value.trend[dataPointIndex]
+      if (!point) return ''
+      const rows = [
+        ['请求数', point.total, '#3b82f6'],
+        ['4xx 客户端错误', point.client_errors, '#f59e0b'],
+        ['5xx 服务端错误', point.server_errors, '#ef4444']
+      ]
+        .map(([name, value, color]) => `<div class="flex items-center justify-between gap-5"><span><i class="mr-1 inline-block size-2 rounded-full" style="background:${color}"></i>${name}</span><span>${Number(value).toLocaleString('zh-CN')}</span></div>`)
+        .join('')
+      return `<div class="space-y-1 p-2 text-xs"><div class="mb-1 font-semibold">${formatTime(point.bucket)}</div>${rows}</div>`
+    }
+  }
 }))
 
 onMounted(loadAll)
@@ -252,11 +300,19 @@ onMounted(loadAll)
 
     <div class="card border border-base-300 bg-base-100 shadow-sm">
       <div class="card-body gap-4 p-4">
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-8">
           <label class="form-control w-full">
             <span class="label-text mb-1 text-xs">时间范围</span>
-            <select v-model="filters.window" class="select select-bordered w-full">
+            <select v-model="filters.window" class="select select-bordered w-full" @change="ensureValidGranularity">
               <option v-for="option in windowOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <label class="form-control w-full">
+            <span class="label-text mb-1 text-xs">时间粒度</span>
+            <select v-model="granularity" class="select select-bordered w-full">
+              <option v-for="option in granularityOptions" :key="option.value" :value="option.value" :disabled="granularityDisabled(option)">
+                {{ option.label }}
+              </option>
             </select>
           </label>
           <label class="form-control w-full">
@@ -291,7 +347,7 @@ onMounted(loadAll)
       <div class="card-body p-4">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <h2 class="font-semibold">请求与错误趋势</h2>
+            <h2 class="font-semibold">请求与错误趋势 <span v-if="granularityLabel" class="badge badge-ghost badge-sm align-middle">{{ granularityLabel }}</span></h2>
             <p class="mt-1 text-xs text-base-content/60">按时间分桶统计请求量，并分别展示 4xx 与 5xx 错误。</p>
           </div>
           <span v-if="summaryLoading" class="loading loading-spinner loading-sm"></span>
