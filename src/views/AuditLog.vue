@@ -292,10 +292,7 @@ onMounted(loadEvents)
               </td>
               <td class="max-w-64 truncate" :title="resourceLabel(event)">{{ resourceLabel(event) }}</td>
               <td class="max-w-48">
-                <div v-if="event.request_id" class="flex items-center gap-1">
-                  <span class="truncate font-mono text-xs" :title="event.request_id">{{ event.request_id }}</span>
-                  <button class="btn btn-ghost btn-xs shrink-0" title="查看本次请求的全部事件" @click="filterByRequestId(event.request_id)">筛选</button>
-                </div>
+                <span v-if="event.request_id" class="block truncate font-mono text-xs" :title="event.request_id">{{ event.request_id }}</span>
                 <span v-else class="text-base-content/40">--</span>
               </td>
               <td class="font-mono text-xs">{{ event.source_ip || '--' }}</td>

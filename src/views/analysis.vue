@@ -307,16 +307,15 @@ const heatmapOptions = computed(() => ({
   chart: { type: 'heatmap', toolbar: { show: false } },
   dataLabels: { enabled: false },
   xaxis: { type: 'category', title: { text: `最近 ${activeFilters.value.weeks} 周（按周起始日）` } },
-  yaxis: { title: { text: '周几' } },
+  yaxis: { title: { text: '星期' } },
   plotOptions: {
     heatmap: {
       shadeIntensity: 0.25,
       radius: 2,
-      useFillColorAsStroke: true,
       colorScale: { ranges: heatmapColorRanges.value }
     }
   },
-  stroke: { width: 1 },
+  stroke: { width: 3, colors: ['#ffffff'] },
   tooltip: {
     custom({ series, seriesIndex, dataPointIndex, w }) {
       const point = w.config.series[seriesIndex].data[dataPointIndex]
