@@ -4,6 +4,7 @@ import { RouterView, useRoute } from 'vue-router'
 import { expireCookie } from './utils/csrf'
 import http from './utils/http'
 import ReLoginModal from './components/ReLoginModal.vue'
+import packageInfo from '../package.json'
 
 const route = useRoute()
 const navbarTitle = computed(() => route.meta?.title || '仪表盘')
@@ -12,6 +13,18 @@ const drawerOpen = ref(true)
 const activeSettingsTab = ref('system')
 const reLoginModalRef = ref(null)
 const isAdmin = ref(false)
+const frontendVersion = packageInfo.version
+const serverVersion = ref('')
+
+async function loadServerVersion() {
+  try {
+    const response = await http.get('/api/version')
+    serverVersion.value = response.data?.version || ''
+  } catch (error) {
+    console.error('load server version failed', error)
+    serverVersion.value = ''
+  }
+}
 
 async function loadCurrentRole() {
   try {
@@ -31,6 +44,7 @@ function onSessionExpired() {
 onMounted(() => {
   window.addEventListener('session-expired', onSessionExpired)
   loadCurrentRole()
+  loadServerVersion()
 })
 
 onBeforeUnmount(() => {
@@ -221,6 +235,14 @@ async function handleLogout() {
             </router-link>
           </li>
         </ul>
+
+        <div class="w-full is-drawer-close:hidden">
+          <div class="divider my-0 px-4 text-xs opacity-60">版本信息</div>
+          <div class="flex items-center justify-between px-4 pb-2 text-xs opacity-70">
+            <span class="whitespace-nowrap">前端 v{{ frontendVersion }}</span>
+            <span class="whitespace-nowrap">服务端 v{{ serverVersion || '—' }}</span>
+          </div>
+        </div>
 
         <div class="w-full px-2 pb-2 is-drawer-close:px-1">
           <div class="tabs tabs-box w-full is-drawer-close:flex is-drawer-close:flex-col is-drawer-close:items-center is-drawer-open:grid is-drawer-open:grid-cols-2">
