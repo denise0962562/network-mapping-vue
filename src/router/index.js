@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/scanner', component: () => import('../views/Scanner.vue'), meta: { title: '扫描器' } },
     { path: '/analysis', component: () => import('../views/analysis.vue'), meta: { title: '数据分析' } },
     { path: '/audit', component: () => import('../views/AuditLog.vue'), meta: { title: '审计日志' } },
+    { path: '/requests', component: () => import('../views/Requests.vue'), meta: { title: '请求日志' } },
     { path: '/admin/users', component: () => import('../views/UserManagement.vue'), meta: { title: '用户管理' } },
     { path: '/open-source', component: () => import('../views/open-source.vue'), meta: { title: '开源项目' } },
     { path: '/testpage', component: () => import('../views/TestPage.vue'), meta: { title: 'Alert 测试' } },

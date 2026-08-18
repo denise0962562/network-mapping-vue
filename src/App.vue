@@ -157,6 +157,13 @@ async function handleLogout() {
           </li>
 
           <li v-if="isAdmin">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="请求日志" to="/requests">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M4 22h16"/><path d="M8 10h8"/><path d="M8 14h8"/><path d="M4 6h16v12H4z"/><path d="M4 2v4"/><path d="M20 2v4"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">请求日志</span>
+            </router-link>
+          </li>
+
+          <li v-if="isAdmin">
             <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="用户管理" to="/admin/users">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">用户管理</span>

@@ -44,7 +44,7 @@ const tableCategoryDefinitions = [
   {
     id: 'logs',
     label: '日志数据',
-    tables: ['system_status', 'login_logs', 'operation_audit', 'audit_event']
+    tables: ['system_status', 'login_logs', 'operation_audit', 'audit_event', 'request_log']
   },
   {
     id: 'network',
