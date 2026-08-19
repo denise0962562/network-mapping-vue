@@ -61,6 +61,30 @@ const errorTypeLabels = {
   server_error: '服务器错误'
 }
 
+// 趋势图错误状态码细分：按总量取前 N 个状态码各画一条线，其余归入「其他」。
+const MAX_STATUS_SERIES = 8
+
+const STATUS_COLORS = {
+  400: '#fbbf24',
+  401: '#f59e0b',
+  403: '#f97316',
+  404: '#fb923c',
+  408: '#facc15',
+  409: '#eab308',
+  422: '#ca8a04',
+  429: '#a16207',
+  500: '#ef4444',
+  502: '#dc2626',
+  503: '#b91c1c',
+  504: '#991b1b'
+}
+
+const FALLBACK_COLORS = ['#10b981', '#06b6d4', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16', '#14b8a6', '#6366f1']
+
+function statusColor(code) {
+  return STATUS_COLORS[code] || FALLBACK_COLORS[Number(code) % FALLBACK_COLORS.length]
+}
+
 const filters = ref({
   window: '24h',
   method: '',
@@ -222,11 +246,57 @@ const granularityLabel = computed(() => {
   if (!value) return ''
   return granularityOptions.find((item) => item.value === value)?.label || value
 })
-const trendSeries = computed(() => [
-  { name: '请求数', data: summary.value.trend.map((point) => ({ x: point.bucket, y: point.total })), color: '#3b82f6' },
-  { name: '4xx 客户端错误', data: summary.value.trend.map((point) => ({ x: point.bucket, y: point.client_errors })), color: '#f59e0b' },
-  { name: '5xx 服务端错误', data: summary.value.trend.map((point) => ({ x: point.bucket, y: point.server_errors })), color: '#ef4444' }
-])
+// 汇总整个时间范围内每个错误状态码的总量，用于决定 Top-N 与「其他」。
+const statusTotals = computed(() => {
+  const totals = new Map()
+  for (const point of summary.value.trend || []) {
+    for (const [code, count] of Object.entries(point.status_codes || {})) {
+      totals.set(code, (totals.get(code) || 0) + Number(count || 0))
+    }
+  }
+  return totals
+})
+
+const topStatusCodes = computed(() => [...statusTotals.value.entries()]
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, MAX_STATUS_SERIES)
+  .map(([code]) => code))
+
+const hasRestStatusCodes = computed(() => statusTotals.value.size > MAX_STATUS_SERIES)
+
+function statusCountAt(point, code) {
+  return Number(point?.status_codes?.[code]) || 0
+}
+
+const trendSeries = computed(() => {
+  const trend = summary.value.trend || []
+  const series = [
+    { name: '请求数', data: trend.map((point) => ({ x: point.bucket, y: point.total })), color: '#3b82f6' },
+    { name: '4xx 客户端错误', data: trend.map((point) => ({ x: point.bucket, y: point.client_errors })), color: '#f59e0b' },
+    { name: '5xx 服务端错误', data: trend.map((point) => ({ x: point.bucket, y: point.server_errors })), color: '#ef4444' }
+  ]
+  for (const code of topStatusCodes.value) {
+    series.push({
+      name: `HTTP ${code}`,
+      data: trend.map((point) => ({ x: point.bucket, y: statusCountAt(point, code) })),
+      color: statusColor(code)
+    })
+  }
+  if (hasRestStatusCodes.value) {
+    series.push({
+      name: '其他错误',
+      data: trend.map((point) => {
+        let rest = 0
+        for (const [code, count] of Object.entries(point.status_codes || {})) {
+          if (!topStatusCodes.value.includes(code)) rest += Number(count || 0)
+        }
+        return { x: point.bucket, y: rest }
+      }),
+      color: '#94a3b8'
+    })
+  }
+  return series
+})
 const trendOptions = computed(() => ({
   chart: { type: 'area', toolbar: { show: false }, stacked: false },
   dataLabels: { enabled: false },
@@ -245,9 +315,21 @@ const trendOptions = computed(() => ({
         ['4xx 客户端错误', point.client_errors, '#f59e0b'],
         ['5xx 服务端错误', point.server_errors, '#ef4444']
       ]
+      for (const code of topStatusCodes.value) {
+        const value = statusCountAt(point, code)
+        if (value > 0) rows.push([`HTTP ${code}`, value, statusColor(code)])
+      }
+      if (hasRestStatusCodes.value) {
+        let rest = 0
+        for (const [code, count] of Object.entries(point.status_codes || {})) {
+          if (!topStatusCodes.value.includes(code)) rest += Number(count || 0)
+        }
+        if (rest > 0) rows.push(['其他错误', rest, '#94a3b8'])
+      }
+      const body = rows
         .map(([name, value, color]) => `<div class="flex items-center justify-between gap-5"><span><i class="mr-1 inline-block size-2 rounded-full" style="background:${color}"></i>${name}</span><span>${Number(value).toLocaleString('zh-CN')}</span></div>`)
         .join('')
-      return `<div class="space-y-1 p-2 text-xs"><div class="mb-1 font-semibold">${formatTime(point.bucket)}</div>${rows}</div>`
+      return `<div class="space-y-1 p-2 text-xs"><div class="mb-1 font-semibold">${formatTime(point.bucket)}</div>${body}</div>`
     }
   }
 }))
@@ -348,7 +430,7 @@ onMounted(loadAll)
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="font-semibold">请求与错误趋势 <span v-if="granularityLabel" class="badge badge-ghost badge-sm align-middle">{{ granularityLabel }}</span></h2>
-            <p class="mt-1 text-xs text-base-content/60">按时间分桶统计请求量，并分别展示 4xx 与 5xx 错误。</p>
+            <p class="mt-1 text-xs text-base-content/60">按时间分桶统计请求量，展示 4xx / 5xx 汇总，并将高频错误状态码细分为独立曲线。</p>
           </div>
           <span v-if="summaryLoading" class="loading loading-spinner loading-sm"></span>
         </div>
