@@ -31,6 +31,7 @@ export default defineConfig({
       input: {
         main: 'index.html',
         search: 'search.html',
+        asset: 'asset.html',
         login: 'login.html'
       }
     }

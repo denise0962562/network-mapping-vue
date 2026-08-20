@@ -1,12 +1,9 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
 import http from '../utils/http'
 
 const HISTORY_PAGE_SIZE = 50
 
-const route = useRoute()
-const router = useRouter()
 const ipInput = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
@@ -21,7 +18,7 @@ const historyTotal = ref(0)
 const historyOffset = ref(0)
 const historyDialogRef = ref(null)
 
-const assetIp = computed(() => typeof route.query.ip === 'string' ? route.query.ip.trim() : '')
+const assetIp = ref(new URLSearchParams(window.location.search).get('ip')?.trim() || '')
 const historyPage = computed(() => Math.floor(historyOffset.value / HISTORY_PAGE_SIZE) + 1)
 const historyPages = computed(() => Math.max(1, Math.ceil(historyTotal.value / HISTORY_PAGE_SIZE)))
 const networkOwner = computed(() => {
@@ -55,7 +52,7 @@ function stateBadgeClass(state) {
 function submitIp() {
   const ip = ipInput.value.trim()
   if (!ip) return
-  router.push({ name: 'asset-detail', query: { ip } })
+  window.location.assign(`/asset.html?ip=${encodeURIComponent(ip)}`)
 }
 
 async function loadAsset() {
@@ -120,11 +117,6 @@ function closeHistory() {
   historyDialogRef.value?.close()
 }
 
-watch(assetIp, (value) => {
-  ipInput.value = value
-  loadAsset()
-})
-
 onMounted(() => {
   ipInput.value = assetIp.value
   loadAsset()
@@ -132,7 +124,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="p-4 md:p-6">
+  <main class="min-h-screen bg-base-200 p-4 md:p-6">
     <div class="mx-auto max-w-7xl space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -141,7 +133,7 @@ onMounted(() => {
         </div>
         <div class="flex gap-2">
           <a href="/search.html" class="btn btn-ghost btn-sm">返回搜索</a>
-          <router-link to="/" class="btn btn-ghost btn-sm">仪表盘</router-link>
+          <a href="/" class="btn btn-ghost btn-sm">仪表盘</a>
         </div>
       </div>
 
@@ -272,7 +264,7 @@ onMounted(() => {
               <td>{{ item.protocol || '-' }}<span v-if="item.service"> · {{ item.service }}</span></td>
               <td>{{ item.source }}</td>
               <td>{{ item.scanner_name || '-' }}</td>
-              <td><router-link class="link link-primary font-mono text-xs" :to="`/task/${item.task_id}`">{{ item.task_id.slice(0, 8) }}</router-link></td>
+              <td><a class="link font-mono text-xs" :href="`/task/${item.task_id}`">{{ item.task_id.slice(0, 8) }}</a></td>
               <td>
                 <details v-if="item.banner || item.data" class="dropdown dropdown-end">
                   <summary class="btn btn-ghost btn-xs">查看</summary>

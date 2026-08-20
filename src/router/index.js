@@ -10,7 +10,6 @@ const router = createRouter({
     { path: '/scanner/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})', component: () => import('../views/ScannerDetail.vue'), meta: { title: '扫描器详情' } },
     { path: '/scanner', component: () => import('../views/Scanner.vue'), meta: { title: '扫描器' } },
     { path: '/analysis', component: () => import('../views/analysis.vue'), meta: { title: '数据分析' } },
-    { path: '/asset', name: 'asset-detail', component: () => import('../views/AssetDetail.vue'), meta: { title: '资产聚合详情' } },
     { path: '/audit', component: () => import('../views/AuditLog.vue'), meta: { title: '审计日志' } },
     { path: '/requests', component: () => import('../views/Requests.vue'), meta: { title: '请求日志' } },
     { path: '/health', component: () => import('../views/Health.vue'), meta: { title: '健康告警' } },
