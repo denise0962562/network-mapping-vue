@@ -61,7 +61,7 @@ const taskMeta = computed(() => ({
 const summaryStats = computed(() => [
   { title: '发现 IP 数', value: task.value?.summary?.ip_count ?? 0, desc: '' },
   { title: '开放端口数', value: task.value?.summary?.port_count ?? 0, desc: '' },
-  { title: '结果记录数', value: task.value?.summary?.result_count ?? 0, desc: '' },
+  { title: '观察记录数', value: task.value?.summary?.result_count ?? 0, desc: '包含端口与服务观察' },
   { title: '扫描耗时', value: formatDuration(task.value?.task_start_time, task.value?.task_end_time), desc: '总耗时' }
 ])
 const taskDetail = computed(() => ({
@@ -281,7 +281,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
             <span class="badge badge-sm" :class="execution.status === 'succeeded' ? 'badge-success' : execution.status === 'failed' ? 'badge-error' : execution.status === 'running' ? 'badge-info' : 'badge-ghost'">{{ statusText[execution.status] || execution.status }}</span>
           </div>
           <div class="mt-1 truncate text-xs opacity-60">{{ execution.scanner_location || '未设置位置' }} · {{ execution.scanner_id || execution.requested_scanner_id || '尚未领取' }}</div>
-          <div class="mt-2 flex gap-3 text-xs opacity-70"><span>IP {{ execution.summary.ip_count }}</span><span>端口 {{ execution.summary.port_count }}</span><span>结果 {{ execution.summary.result_count }}</span></div>
+          <div class="mt-2 flex gap-3 text-xs opacity-70"><span>IP {{ execution.summary.ip_count }}</span><span>端口 {{ execution.summary.port_count }}</span><span>观察 {{ execution.summary.result_count }}</span></div>
           <div v-if="execution.failure_reason" class="mt-2 line-clamp-2 text-xs text-error" :title="execution.failure_reason">{{ execution.failure_reason }}</div>
         </button>
       </div>
