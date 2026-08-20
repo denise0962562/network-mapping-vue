@@ -245,31 +245,37 @@ async function fetchData() {
 ### 7.2 任务页 (`task.vue`)
 
 **功能：**
-- 搜索栏：任务ID、目标、状态、操作者（点击"搜索"提交）
-- 高级筛选（折叠面板）：开始/结束时间、扫描器、每页条目
+- 搜索栏：任务 ID、目标、状态、操作者（点击“查询”后由服务端筛选）
+- 高级筛选（折叠面板）：开始/结束时间、扫描器 ID、每页数量
 - 任务表格：显示 IPv4/IPv6 地址族，点击行展开备注和创建时间
-- 任务ID 为链接，可跳转到 `/task/:taskid`
+- 任务 ID 为链接，可跳转到 `/task/:taskid`
 - 底部分页：上一页/下一页
 
 **Loading：** `isLoadingData` 期间筛选控件全部禁用，表格区显示简单骨架屏（整块 + 底部分页信息条）
 
-**数据来源：** `GET /api/task/all?start=&count=` — 基于游标分页
+**数据来源：** `GET /api/task/all` — 服务端筛选及排他游标分页。首次进入默认只请求 20 条，支持以下参数：
+
+- `cursor`、`limit`：分页游标和每页数量；响应返回 `next_cursor` 与 `has_more`
+- `task_id`、`target`、`status`、`operator`、`scanner_id`：任务字段筛选
+- `start_time`、`end_time`：毫秒时间戳范围
+- `include_system`：是否包含系统自动任务
 
 **核心状态：**
 | 变量 | 说明 |
 |------|------|
 | `draftFilters` / `appliedFilters` | 筛选条件（未提交 / 已生效） |
-| `taskItems` | 原始任务数据 |
-| `filteredTaskItems` | 前端筛选后的数据 |
+| `taskItems` | 服务端返回的当前页任务数据 |
 | `currentPage` / `totalPages` | 分页 |
+| `nextCursor` / `pageCursorHistory` | 下一页游标与上一页游标历史 |
 | `expandedRow` | 当前展开行 ID |
 
 **状态映射：**
 | statusKey | 文本 | CSS 类 |
 |-----------|------|--------|
-| `pending` | 待扫描 | `scan_wait` |
-| `running` | 扫描中 | `scan_open` |
-| `finished` | 扫描完成 | `scan_success` |
+| `pending` | 待扫描 | `badge-warning` |
+| `running` | 扫描中 | `badge-info` |
+| `succeeded` | 扫描完成 | `badge-success` |
+| `failed` | 扫描失败 | `badge-error` |
 
 ### 7.3 任务详情 (`taskdetail.vue`)
 
