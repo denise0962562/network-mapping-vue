@@ -37,12 +37,12 @@ const pageStartHistory = ref([null])
 const inferredPageSize = ref(null)
 
 const stateConfig = {
-  pending: { class: 'scan_wait', text: '待扫描' },
-  running: { class: 'scan_open', text: '扫描中' },
-  succeeded: { class: 'scan_success', text: '扫描完成' },
-  failed: { class: 'scan_faild', text: '扫描失败' },
-  cancelled: { class: 'scan_faild', text: '已取消' },
-  partial: { class: 'scan_wait', text: '部分完成' }
+  pending: { class: 'badge-warning', text: '待扫描' },
+  running: { class: 'badge-info', text: '扫描中' },
+  succeeded: { class: 'badge-success', text: '扫描完成' },
+  failed: { class: 'badge-error', text: '扫描失败' },
+  cancelled: { class: 'badge-ghost', text: '已取消' },
+  partial: { class: 'badge-warning', text: '部分完成' }
 }
 
 function formatUnixMs(value) {
@@ -278,18 +278,30 @@ onMounted(async () => {
     />
   </div>
 
-  <div class="flex justify-center">
-    <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
-      <div class="flex flex-col space-y-3">
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+  <main class="p-4 md:p-6">
+    <div class="mx-auto max-w-7xl space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold">任务</h1>
+          <p class="mt-1 text-sm text-base-content/60">查看扫描任务、执行状态及调度信息。</p>
+        </div>
+        <button class="btn btn-outline btn-sm" :disabled="isLoadingData" @click="reloadFromFirstPage">
+          <span v-if="isLoadingData" class="loading loading-spinner loading-xs"></span>
+          {{ isLoadingData ? '刷新中…' : '刷新' }}
+        </button>
+      </div>
+
+      <section class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-4 p-4">
+          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label class="form-control w-full">
-            <span class="label-text mb-1">任务ID</span>
-            <input v-model="draftFilters.taskId" type="text" class="input input-bordered w-full" placeholder="输入任务ID" :disabled="isLoadingData" />
+            <span class="label-text mb-1">任务 ID</span>
+            <input v-model="draftFilters.taskId" type="text" class="input input-bordered w-full" placeholder="输入任务 ID" :disabled="isLoadingData" @keyup.enter="applySearch" />
           </label>
 
           <label class="form-control w-full">
             <span class="label-text mb-1">目标</span>
-            <input v-model="draftFilters.target" type="text" class="input input-bordered w-full" placeholder="输入目标" :disabled="isLoadingData" />
+            <input v-model="draftFilters.target" type="text" class="input input-bordered w-full" placeholder="IP 或网段" :disabled="isLoadingData" @keyup.enter="applySearch" />
           </label>
 
           <label class="form-control w-full">
@@ -307,33 +319,31 @@ onMounted(async () => {
 
           <label class="form-control w-full">
             <span class="label-text mb-1">操作者</span>
-            <input v-model="draftFilters.operator" type="text" class="input input-bordered w-full" placeholder="输入操作者" :disabled="isLoadingData" />
+            <input v-model="draftFilters.operator" type="text" class="input input-bordered w-full" placeholder="输入操作者" :disabled="isLoadingData" @keyup.enter="applySearch" />
           </label>
-
-          <div class="flex items-end">
-            <button class="btn rounded-lg btn-neutral w-full" :disabled="isLoadingData" @click="applySearch">搜索</button>
           </div>
 
-          <div class="flex items-end">
-            <button class="btn rounded-lg btn-ghost w-full border border-base-300" :disabled="isLoadingData" @click="resetFilters">重置条件</button>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <label class="label cursor-pointer gap-2 py-0">
+              <input
+                v-model="includeSystemTasks"
+                type="checkbox"
+                class="checkbox checkbox-sm"
+                :disabled="isLoadingData"
+                @change="refreshSystemTaskVisibility"
+              />
+              <span class="label-text">显示系统任务</span>
+            </label>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost btn-sm" :disabled="isLoadingData" @click="resetFilters">重置</button>
+              <button class="btn btn-neutral btn-sm" :disabled="isLoadingData" @click="applySearch">查询</button>
+            </div>
           </div>
-        </div>
 
-        <label class="label w-fit cursor-pointer gap-2 py-0">
-          <input
-            v-model="includeSystemTasks"
-            type="checkbox"
-            class="checkbox checkbox-sm"
-            :disabled="isLoadingData"
-            @change="refreshSystemTaskVisibility"
-          />
-          <span class="label-text">显示系统任务</span>
-        </label>
-
-        <details class="collapse bg-base-100 border border-base-300">
-          <summary class="collapse-title font-semibold">高级筛选</summary>
-          <div class="collapse-content">
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 pt-1">
+          <details class="collapse collapse-arrow border border-base-300 bg-base-100">
+            <summary class="collapse-title min-h-0 py-3 text-sm font-semibold">高级筛选</summary>
+            <div class="collapse-content">
+              <div class="grid gap-3 pt-1 md:grid-cols-2 xl:grid-cols-4">
               <label class="form-control w-full">
                 <span class="label-text mb-1">开始时间</span>
                 <input v-model="draftFilters.startTime" type="datetime-local" class="input input-bordered w-full" :disabled="isLoadingData" />
@@ -353,7 +363,7 @@ onMounted(async () => {
               </label>
 
               <label class="form-control w-full">
-                <span class="label-text mb-1">每页条目（可选）</span>
+                <span class="label-text mb-1">每页数量</span>
                 <select v-model="selectedCount" class="select select-bordered w-full" :disabled="isLoadingData" @change="refreshWithCount">
                   <option value="">默认</option>
                   <option value="5">5</option>
@@ -362,16 +372,25 @@ onMounted(async () => {
                   <option value="50">50</option>
                 </select>
               </label>
-
-              <div class="flex items-end text-sm opacity-70">
-                总任务数 {{ lockedTotalCount }}，本页返回 {{ itemCount }}，筛选后 {{ filteredTaskItems.length }}
               </div>
+              <p class="mt-3 text-xs text-base-content/60">
+                总任务 {{ lockedTotalCount }} 条，本页加载 {{ itemCount }} 条，当前筛选显示 {{ filteredTaskItems.length }} 条
+              </p>
             </div>
-          </div>
-        </details>
+          </details>
+        </div>
+      </section>
 
-        <div class="card bg-base-100 border border-base-300">
-          <div v-if="isLoadingData" class="p-5 space-y-3">
+      <section class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 px-4 py-3">
+          <div>
+            <h2 class="font-semibold">任务列表</h2>
+            <p class="mt-0.5 text-xs text-base-content/50">点击任务行可展开调度与失败信息</p>
+          </div>
+          <span class="text-sm text-base-content/60">共 {{ lockedTotalCount }} 条</span>
+        </div>
+
+          <div v-if="isLoadingData" class="space-y-3 p-5">
             <div class="skeleton h-72 w-full rounded-box"></div>
             <div class="skeleton h-4 w-52"></div>
           </div>
@@ -386,75 +405,81 @@ onMounted(async () => {
 
             <EmptyState
               v-else-if="isServerEmpty"
-              type="info"
-              title="没有数据"
-              message="这并非错误，而是没能从数据库或存储介质中找到符合要求的数据"
+              title="暂无任务"
+              message="当前还没有可显示的扫描任务。"
+            />
+
+            <EmptyState
+              v-else-if="isFilteredEmpty"
+              title="没有匹配的任务"
+              message="请调整筛选条件后重试。"
             />
 
             <div v-else class="overflow-x-auto">
-              <table class="table table-fixed w-full">
+              <table class="table table-zebra min-w-[1050px]">
                 <thead>
                   <tr>
-                    <th class="w-8"></th>
-                    <th class="w-40">任务ID</th>
-                    <th class="w-28">扫描器</th>
-                    <th class="w-56">目标</th>
-                    <th class="w-16">协议</th>
-                    <th class="w-24">端口</th>
-                    <th class="w-24">操作者</th>
-                    <th class="w-24">状态</th>
+                    <th class="w-14">#</th>
+                    <th>任务 ID</th>
+                    <th>扫描器</th>
+                    <th>目标</th>
+                    <th>协议</th>
+                    <th>端口</th>
+                    <th>操作者</th>
+                    <th>状态</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <template v-if="filteredTaskItems.length > 0">
                     <template v-for="(taskItem, index) in filteredTaskItems" :key="taskItem.taskId">
-                      <tr class="hover:bg-base-300 cursor-pointer" @click="toggleRow(taskItem.taskId)">
-                        <td class="w-8">{{ (currentPage - 1) * effectivePageSize + index + 1 }}</td>
-                        <td class="w-40 truncate">
-                          <router-link class="link" :to="`/task/${taskItem.taskId}`" @click.stop>
+                      <tr class="cursor-pointer" :class="{ 'bg-base-200': expandedRow === taskItem.taskId }" @click="toggleRow(taskItem.taskId)">
+                        <td class="text-xs text-base-content/50">{{ (currentPage - 1) * effectivePageSize + index + 1 }}</td>
+                        <td class="max-w-48">
+                          <router-link class="link block truncate font-mono text-xs" :to="`/task/${taskItem.taskId}`" :title="taskItem.taskId" @click.stop>
                             {{ taskItem.taskId }}
                           </router-link>
                         </td>
-                        <td class="w-28 truncate">{{ taskItem.scannerId }}</td>
-                        <td class="w-56 truncate">{{ taskItem.target }}</td>
-                        <td class="w-16"><span class="badge badge-ghost badge-xs">{{ taskItem.addressFamily }}</span></td>
-                        <td class="w-24 truncate">{{ taskItem.port }}</td>
-                        <td class="w-24 truncate">{{ taskItem.operator }}</td>
-                        <td class="w-24">
-                          <span class="scan_status w-full" :class="stateConfig[taskItem.statusKey].class">
+                        <td class="max-w-32 truncate font-mono text-xs" :title="taskItem.scannerId">{{ taskItem.scannerId }}</td>
+                        <td class="max-w-60 truncate" :title="taskItem.target">{{ taskItem.target }}</td>
+                        <td><span class="badge badge-outline badge-xs">{{ taskItem.addressFamily }}</span></td>
+                        <td class="max-w-32 truncate font-mono text-xs" :title="taskItem.port">{{ taskItem.port }}</td>
+                        <td class="max-w-32 truncate" :title="taskItem.operator">{{ taskItem.operator }}</td>
+                        <td>
+                          <span class="badge badge-sm whitespace-nowrap" :class="stateConfig[taskItem.statusKey].class">
                             {{ stateConfig[taskItem.statusKey].text }}
                           </span>
                         </td>
                       </tr>
-                      <tr v-if="expandedRow === taskItem.taskId">
-                        <td class="w-10"></td>
-                        <td colspan="7" class="w-full text-sm">
-                          备注：{{ taskItem.remark }} | 创建时间：{{ taskItem.createTime }} | 领取次数：{{ taskItem.attemptCount }}
-                          <span v-if="taskItem.failureReason" class="text-error"> | 失败原因：{{ taskItem.failureReason }}</span>
+                      <tr v-if="expandedRow === taskItem.taskId" class="bg-base-200/60">
+                        <td></td>
+                        <td colspan="7" class="p-4">
+                          <dl class="grid gap-4 text-sm md:grid-cols-3">
+                            <div><dt class="text-xs text-base-content/50">创建时间</dt><dd class="mt-1">{{ taskItem.createTime }}</dd></div>
+                            <div><dt class="text-xs text-base-content/50">领取次数</dt><dd class="mt-1">{{ taskItem.attemptCount }}</dd></div>
+                            <div><dt class="text-xs text-base-content/50">备注</dt><dd class="mt-1 break-words">{{ taskItem.remark }}</dd></div>
+                            <div v-if="taskItem.failureReason" class="md:col-span-3">
+                              <dt class="text-xs text-error/70">失败原因</dt>
+                              <dd class="mt-1 break-words text-error">{{ taskItem.failureReason }}</dd>
+                            </div>
+                          </dl>
                         </td>
                       </tr>
                     </template>
-                  </template>
-                  <tr v-else-if="isFilteredEmpty">
-                    <td colspan="8" class="text-center py-8 opacity-60">暂无符合条件的数据</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
 
-            <div v-if="!initialLoadFailed && !isServerEmpty" class="flex items-center justify-between mt-2 p-3">
-              <div class="text-sm opacity-70">
-                第 {{ currentPage }} 页，本页 {{ itemCount }} 条，筛选后 {{ filteredTaskItems.length }} 条，总数 {{ lockedTotalCount }}
+            <div v-if="!initialLoadFailed && !isServerEmpty && !isFilteredEmpty" class="flex flex-col gap-3 border-t border-base-300 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="text-sm text-base-content/60">
+                本页 {{ itemCount }} 条，筛选后 {{ filteredTaskItems.length }} 条
               </div>
               <div class="join">
                 <button class="join-item btn btn-sm" :disabled="!hasPrevPage || isLoadingData" @click="toPrevPage">上一页</button>
-                <button class="join-item btn btn-sm btn-disabled">第 {{ currentPage }} / {{ totalPages }} 页</button>
+                <button class="join-item btn btn-sm btn-disabled">{{ currentPage }} / {{ totalPages }}</button>
                 <button class="join-item btn btn-sm" :disabled="!hasNextPage || isLoadingData" @click="toNextPage">下一页</button>
               </div>
             </div>
           </template>
-        </div>
-      </div>
+      </section>
     </div>
-  </div>
+  </main>
 </template>
