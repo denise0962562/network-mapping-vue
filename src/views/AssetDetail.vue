@@ -491,7 +491,7 @@ onMounted(() => {
             <label class="form-control"><span class="label-text mb-1">类型</span><select v-model="tagForm.kind" class="select select-bordered"><option value="info">普通信息</option><option value="malicious">恶意</option><option value="benign">正常</option></select></label>
             <label class="form-control sm:col-span-2"><span class="label-text mb-1">描述（可选）</span><textarea v-model="tagForm.description" maxlength="256" class="textarea textarea-bordered" rows="2"></textarea></label>
           </div>
-          <div class="mt-3 flex justify-end"><button type="button" class="btn btn-primary btn-sm" :disabled="tagActionLoading" @click="saveTag">{{ editingTagId ? '保存修改' : '创建并绑定' }}</button></div>
+          <div class="mt-3 flex justify-end"><button type="button" class="btn btn-neutral btn-sm" :disabled="tagActionLoading" @click="saveTag">{{ editingTagId ? '保存修改' : '创建并绑定' }}</button></div>
         </section>
 
         <section v-if="tagCatalog.length">

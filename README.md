@@ -2,6 +2,21 @@
 
 Network Mapping 的 Vue 3/Vite 单页前端，提供扫描任务、扫描器、审计日志和结果分析界面。
 
+## 高级搜索界面
+
+独立入口 `/search.html` 使用 `POST /api/search/v2`，支持 IP/CIDR、端口、服务、Banner、
+地理信息和资产标签的组合查询。搜索框直接提交完整表达式，语法校验由服务端完成；HTTP
+`422` 响应中的 UTF-16 `span` 会用于选中错误位置。页面还会加载标签目录，点击标签即可
+追加精确标签条件。
+
+```text
+country = CN AND port = 443 AND tag = "生产环境"
+has_endpoint(port = 80) AND has_endpoint(port = 443)
+```
+
+完整语法、字段表、标签和跨端点语义参见服务端仓库的
+[资产搜索语法与 API](https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md)。
+
 ## 双栈扫描界面
 
 - 扫描器列表用 IPv4/IPv6 badge 显示当前协议是否就绪。

@@ -31,7 +31,7 @@ function tagClass(tag) {
     <span
       v-for="tag in visibleTags"
       :key="tag.id"
-      class="badge"
+      class="badge rounded"
       :class="[tagClass(tag), size === 'xs' ? 'badge-xs' : 'badge-sm']"
       :title="tag.description || tag.name"
     >

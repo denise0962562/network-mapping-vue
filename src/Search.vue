@@ -180,7 +180,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
 <template>
   <nav class="absolute top-0 right-0 py-5 px-8 flex items-center gap-5">
     <a class="link" target="_blank" href="/">仪表盘</a>
-    <a class="link" target="_blank" href="https://github.com/wshijiang/network-mapping/doc">文档</a>
+    <a class="link" target="_blank" rel="noopener noreferrer" href="https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md">搜索文档</a>
   </nav>
 
   <main class="bg-base-200 min-h-screen px-4 py-24">
@@ -200,11 +200,11 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
           <button type="button" class="link link-hover shrink-0" @click="openSyntaxDialog">搜索语法说明</button>
         </div>
 
-        <div class="mt-3 flex flex-wrap gap-2">
+        <!-- <div class="mt-3 flex flex-wrap gap-2">
           <button v-for="example in examples" :key="example" type="button" class="btn btn-ghost btn-xs h-auto min-h-7 max-w-full justify-start font-mono font-normal" :title="example" @click="useExample(example)">
             <span class="truncate">{{ example }}</span>
           </button>
-        </div>
+        </div> -->
 
         <div v-if="visibleTags.length" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <span class="opacity-60">标签：</span>
@@ -271,6 +271,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
       </div>
 
       <div class="modal-action">
+        <a class="btn btn-ghost" target="_blank" rel="noopener noreferrer" href="https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md">查看完整文档</a>
         <button type="button" class="btn btn-neutral" @click="closeSyntaxDialog">知道了</button>
       </div>
     </div>

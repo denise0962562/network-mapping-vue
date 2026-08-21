@@ -33,6 +33,7 @@
 
 关键文件：
 - `src/main.js` — 应用入口
+- `src/search.js` / `src/Search.vue` — 独立高级搜索入口和页面
 - `src/App.vue` — 全局布局（导航栏 + 侧边抽屉 + `<router-view />`）
 - `src/router/index.js` — 路由配置
 - `src/style.css` — 全局样式（含 `.big_card`、`.scan_status` 等自定义类）
@@ -373,6 +374,22 @@ async function fetchData() {
 - 绑定状态徽章（已绑定 / 未绑定 / 关闭）
 - 未绑定时显示二维码（vue-qrcode）+ 可复制 OTP 内容
 - 进入页面显示 3 秒骨架屏
+
+### 7.12 高级搜索 (`Search.vue`)
+
+`Search.vue` 由 `search.html` / `src/search.js` 独立挂载，不经过主应用 Vue Router。
+
+- 使用 `POST /api/search/v2` 提交完整查询表达式，不在浏览器端拆分 IP、端口或服务类型；
+- 请求继续复用 `src/utils/http.js`，因此自动携带 Session 与 CSRF 请求头；
+- 搜索历史保存在浏览器 `localStorage` 的 `network_mapping_search_history`；
+- 页面加载 `GET /api/tags`，展示前十个标签快捷入口；
+- 点击标签时使用双引号和反斜杠转义后追加 `AND tag = "..."`；
+- 服务端返回 HTTP 422 时，通过 `span.start`、`span.end` 选中错误范围；
+- 分页大小固定为 50，继续使用响应中的 `total`、`limit`、`offset`；
+- 结果以 `(IP, port)` 为单位，标签通过复用的 `AssetTags` 组件显示。
+
+搜索语法由服务端解析器定义。修改字段、操作符、优先级或限制时，应先更新服务端解析器和
+`docs/SEARCH_SYNTAX.md`，再同步页面内的语法说明；不要在前端维护第二套解析规则。
 
 ---
 
