@@ -14,6 +14,8 @@ const actionLoading = ref(false)
 const page = ref(1)
 const selectedExecutionId = ref('')
 let refreshTimer
+let isUnmounted = false
+const refreshableStatuses = new Set(['pending', 'running'])
 
 const displayTaskId = computed(() => taskId.value.length <= 34
   ? taskId.value
@@ -103,6 +105,13 @@ const ipIntelRows = computed(() => (task.value?.results || []).map((item, index)
   location: formatLocation(item)
 })))
 
+function scheduleRefresh() {
+  window.clearTimeout(refreshTimer)
+  refreshTimer = undefined
+  if (isUnmounted || !refreshableStatuses.has(currentExecution.value?.status)) return
+  refreshTimer = window.setTimeout(() => loadTask({ silent: true }), 30000)
+}
+
 async function loadTask({ silent = false } = {}) {
   if (!silent) loading.value = true
   try {
@@ -120,6 +129,7 @@ async function loadTask({ silent = false } = {}) {
     if (!silent) errorMessage.value = error?.response?.status === 404 ? '任务不存在或无权查看' : '任务详情加载失败'
   } finally {
     loading.value = false
+    scheduleRefresh()
   }
 }
 
@@ -215,12 +225,16 @@ async function exportTask(format) {
 
 watch(taskId, () => {
   page.value = 1
+  task.value = null
+  selectedExecutionId.value = ''
+  window.clearTimeout(refreshTimer)
   loadTask()
-  window.clearInterval(refreshTimer)
-  refreshTimer = window.setInterval(() => loadTask({ silent: true }), 30000)
 }, { immediate: true })
 
-onBeforeUnmount(() => window.clearInterval(refreshTimer))
+onBeforeUnmount(() => {
+  isUnmounted = true
+  window.clearTimeout(refreshTimer)
+})
 </script>
 
 <template>
