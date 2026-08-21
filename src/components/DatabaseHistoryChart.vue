@@ -332,6 +332,7 @@ const databaseStats = computed(() => [
 const chartSeries = computed(() =>
   [...selectedTables.value].sort(compareNames).map((name) => ({
     name,
+    color: colorForTable(name),
     data: points.value.map((point) => ({
       x: point.timestamp_ms,
       y: Number.isFinite(point.tables?.[name]?.total) ? point.tables[name].total : null
@@ -349,7 +350,9 @@ const selectedTableDetails = computed(() =>
     .map((name) => ({ name, ...(latestPoint.value?.tables?.[name] || {}) }))
 )
 
-const chartOptions = computed(() => ({
+// Keep callback-bearing options stable: vue3-apexcharts serializes reactive option
+// updates, which would otherwise remove the axis and tooltip formatter functions.
+const chartOptions = {
   chart: {
     type: 'line',
     height: 420,
@@ -357,7 +360,6 @@ const chartOptions = computed(() => ({
     zoom: { enabled: true, type: 'x', autoScaleYaxis: true },
     toolbar: { show: true, autoSelected: 'zoom' }
   },
-  colors: [...selectedTables.value].sort(compareNames).map(colorForTable),
   dataLabels: { enabled: false },
   stroke: { curve: 'straight', width: 2 },
   markers: { size: 0, hover: { size: 4 } },
@@ -380,7 +382,7 @@ const chartOptions = computed(() => ({
     }
   },
   responsive: [{ breakpoint: 640, options: { chart: { height: 360 } } }]
-}))
+}
 
 const totalSamples = computed(() =>
   points.value.reduce((total, point) => total + (Number(point.sample_count) || 0), 0)
