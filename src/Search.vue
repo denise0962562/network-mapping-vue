@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import AssetTags from './components/AssetTags.vue'
 import http from './utils/http'
 
 const STORAGE_KEY = 'network_mapping_search_history'
@@ -210,7 +211,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
         <div v-else class="overflow-x-auto">
           <table class="table table-zebra table-sm">
             <thead><tr><th>IP</th><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>ASN / AS 组织</th><th>位置</th><th>扫描时间</th></tr></thead>
-            <tbody><tr v-for="(item, index) in searchResult.items" :key="`${item.ip_address}-${item.port}-${item.scan_time}-${index}`"><td><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a></td><td>{{ item.port ?? '-' }}</td><td>{{ item.protocol ?? '-' }}</td><td>{{ item.service ?? '-' }}</td><td class="max-w-xs truncate" :title="item.banner">{{ item.banner ?? '-' }}</td><td>{{ formatNetworkOwner(item) }}</td><td>{{ formatLocation(item) }}</td><td class="whitespace-nowrap">{{ formatTime(item.scan_time) }}</td></tr></tbody>
+            <tbody><tr v-for="(item, index) in searchResult.items" :key="`${item.ip_address}-${item.port}-${item.scan_time}-${index}`"><td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /></div></td><td>{{ item.port ?? '-' }}</td><td>{{ item.protocol ?? '-' }}</td><td>{{ item.service ?? '-' }}</td><td class="max-w-xs truncate" :title="item.banner">{{ item.banner ?? '-' }}</td><td>{{ formatNetworkOwner(item) }}</td><td>{{ formatLocation(item) }}</td><td class="whitespace-nowrap">{{ formatTime(item.scan_time) }}</td></tr></tbody>
           </table>
         </div>
         <div v-if="searchResult.total > PAGE_SIZE" class="mt-5 flex justify-end gap-2"><button class="btn btn-sm" :disabled="loading || offset === 0" @click="previousPage">上一页</button><button class="btn btn-sm" :disabled="loading || offset + PAGE_SIZE >= searchResult.total" @click="nextPage">下一页</button></div>

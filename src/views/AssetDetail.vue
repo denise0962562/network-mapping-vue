@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import AssetTags from '../components/AssetTags.vue'
 import http from '../utils/http'
 
 const HISTORY_PAGE_SIZE = 50
@@ -20,12 +21,23 @@ const historyItems = ref([])
 const historyTotal = ref(0)
 const historyOffset = ref(0)
 const historyDialogRef = ref(null)
+const tagDialogRef = ref(null)
+const tagCatalog = ref([])
+const tagCatalogLoading = ref(false)
+const tagActionLoading = ref(false)
+const tagError = ref('')
+const selectedTagId = ref('')
+const editingTagId = ref(null)
+const tagForm = ref({ name: '', kind: 'info', description: '' })
 
 const assetIp = ref(new URLSearchParams(window.location.search).get('ip')?.trim() || '')
 const portsPage = computed(() => Math.floor(portsOffset.value / PORT_PAGE_SIZE) + 1)
 const portsPages = computed(() => Math.max(1, Math.ceil(portsTotal.value / PORT_PAGE_SIZE)))
 const historyPage = computed(() => Math.floor(historyOffset.value / HISTORY_PAGE_SIZE) + 1)
 const historyPages = computed(() => Math.max(1, Math.ceil(historyTotal.value / HISTORY_PAGE_SIZE)))
+const assignedTags = computed(() => summary.value?.tags || [])
+const assignedTagIds = computed(() => new Set(assignedTags.value.map((tag) => tag.id)))
+const availableTags = computed(() => tagCatalog.value.filter((tag) => !assignedTagIds.value.has(tag.id)))
 const networkOwner = computed(() => {
   if (!summary.value) return '-'
   const asn = summary.value.asn
@@ -71,6 +83,7 @@ async function loadAsset() {
       }),
     ])
     summary.value = summaryResponse.data?.data?.summary || null
+    if (summary.value) summary.value.tags = Array.isArray(summary.value.tags) ? summary.value.tags : []
     const portsData = portsResponse.data?.data || {}
     ports.value = portsData.items || []
     portsTotal.value = Number(portsData.total) || 0
@@ -137,6 +150,123 @@ function closeHistory() {
   historyDialogRef.value?.close()
 }
 
+function resetTagForm() {
+  editingTagId.value = null
+  tagForm.value = { name: '', kind: 'info', description: '' }
+}
+
+async function loadTagCatalog() {
+  tagCatalogLoading.value = true
+  tagError.value = ''
+  try {
+    const response = await http.get('/api/tags')
+    tagCatalog.value = response.data?.data?.items || []
+  } catch (error) {
+    tagError.value = error.response?.data?.message || '标签列表加载失败。'
+  } finally {
+    tagCatalogLoading.value = false
+  }
+}
+
+function openTagDialog() {
+  selectedTagId.value = ''
+  tagError.value = ''
+  resetTagForm()
+  tagDialogRef.value?.showModal()
+  loadTagCatalog()
+}
+
+function closeTagDialog() {
+  tagDialogRef.value?.close()
+}
+
+async function assignTag(tagId = selectedTagId.value) {
+  if (!tagId) return
+  tagActionLoading.value = true
+  tagError.value = ''
+  try {
+    const response = await http.post('/api/assets/tags', { ip: assetIp.value, tag_id: Number(tagId) })
+    const tag = response.data?.data?.tag
+    if (tag && !assignedTagIds.value.has(tag.id)) summary.value.tags.push(tag)
+    selectedTagId.value = ''
+  } catch (error) {
+    tagError.value = error.response?.data?.message || '标签绑定失败。'
+  } finally {
+    tagActionLoading.value = false
+  }
+}
+
+async function removeTag(tag) {
+  tagActionLoading.value = true
+  tagError.value = ''
+  try {
+    await http.delete(`/api/assets/tags/${tag.id}`, { params: { ip: assetIp.value } })
+    summary.value.tags = assignedTags.value.filter((item) => item.id !== tag.id)
+  } catch (error) {
+    tagError.value = error.response?.data?.message || '标签移除失败。'
+  } finally {
+    tagActionLoading.value = false
+  }
+}
+
+function editTag(tag) {
+  editingTagId.value = tag.id
+  tagForm.value = {
+    name: tag.name,
+    kind: tag.kind,
+    description: tag.description || '',
+  }
+}
+
+async function saveTag() {
+  const payload = {
+    name: tagForm.value.name.trim(),
+    kind: tagForm.value.kind,
+    description: tagForm.value.description.trim() || null,
+  }
+  if (!payload.name) {
+    tagError.value = '请输入标签名称。'
+    return
+  }
+  tagActionLoading.value = true
+  tagError.value = ''
+  try {
+    if (editingTagId.value) {
+      const response = await http.patch(`/api/tags/${editingTagId.value}`, payload)
+      const updated = response.data?.data?.tag
+      tagCatalog.value = tagCatalog.value.map((tag) => tag.id === updated.id ? updated : tag)
+      summary.value.tags = assignedTags.value.map((tag) => tag.id === updated.id ? updated : tag)
+      resetTagForm()
+    } else {
+      const response = await http.post('/api/tags', payload)
+      const created = response.data?.data?.tag
+      tagCatalog.value.push(created)
+      resetTagForm()
+      await assignTag(created.id)
+    }
+  } catch (error) {
+    tagError.value = error.response?.data?.message || '标签保存失败。'
+  } finally {
+    tagActionLoading.value = false
+  }
+}
+
+async function deleteTag(tag) {
+  if (!window.confirm(`确定停用标签“${tag.name}”吗？它会从所有 IP 上移除。`)) return
+  tagActionLoading.value = true
+  tagError.value = ''
+  try {
+    await http.delete(`/api/tags/${tag.id}`)
+    tagCatalog.value = tagCatalog.value.filter((item) => item.id !== tag.id)
+    summary.value.tags = assignedTags.value.filter((item) => item.id !== tag.id)
+    if (editingTagId.value === tag.id) resetTagForm()
+  } catch (error) {
+    tagError.value = error.response?.data?.message || '标签停用失败。'
+  } finally {
+    tagActionLoading.value = false
+  }
+}
+
 onMounted(() => {
   ipInput.value = assetIp.value
   loadAsset()
@@ -176,9 +306,13 @@ onMounted(() => {
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p class="text-xs font-medium uppercase tracking-wide opacity-55">IP 地址</p>
-              <h2 class="mt-1 break-all font-mono text-2xl font-semibold">{{ summary.ip }}</h2>
+              <div class="mt-1 flex flex-wrap items-center gap-2">
+                <h2 class="break-all font-mono text-2xl font-semibold">{{ summary.ip }}</h2>
+                <AssetTags :tags="assignedTags" />
+              </div>
             </div>
             <div class="flex flex-wrap gap-2">
+              <button v-if="summary.can_manage_tags" type="button" class="btn btn-outline btn-sm" @click="openTagDialog">管理标签</button>
               <span class="badge badge-info badge-lg">{{ summary.port_count }} 个端口</span>
             </div>
           </div>
@@ -301,5 +435,76 @@ onMounted(() => {
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button @click="closeHistory">关闭</button></form>
+  </dialog>
+
+  <dialog ref="tagDialogRef" class="modal">
+    <div class="modal-box w-[calc(100vw-2rem)] max-w-3xl">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-bold">管理资产标签</h3>
+          <p class="mt-1 font-mono text-sm opacity-65">{{ assetIp }}</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" @click="closeTagDialog">关闭</button>
+      </div>
+
+      <div v-if="tagError" role="alert" class="alert alert-error mt-4 text-sm"><span>{{ tagError }}</span></div>
+      <div v-if="tagCatalogLoading" class="flex justify-center py-12"><span class="loading loading-spinner loading-md"></span></div>
+
+      <div v-else class="mt-5 space-y-5">
+        <section>
+          <h4 class="text-sm font-semibold">已绑定标签</h4>
+          <div v-if="assignedTags.length" class="mt-2 flex flex-wrap gap-2">
+            <button
+              v-for="tag in assignedTags"
+              :key="tag.id"
+              type="button"
+              class="btn btn-sm"
+              :class="tag.kind === 'malicious' ? 'btn-error' : tag.kind === 'benign' ? 'btn-success' : 'btn-info'"
+              :disabled="tagActionLoading"
+              :title="`${tag.description || tag.name}（点击移除）`"
+              @click="removeTag(tag)"
+            >
+              {{ tag.name }} ×
+            </button>
+          </div>
+          <p v-else class="mt-2 text-sm opacity-60">该 IP 暂无标签。</p>
+        </section>
+
+        <section class="rounded-lg bg-base-200/60 p-4">
+          <h4 class="text-sm font-semibold">添加已有标签</h4>
+          <div class="mt-3 flex flex-col gap-2 sm:flex-row">
+            <select v-model="selectedTagId" class="select select-bordered w-full" :disabled="tagActionLoading || availableTags.length === 0">
+              <option value="">{{ availableTags.length ? '选择标签' : '没有可添加的标签' }}</option>
+              <option v-for="tag in availableTags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
+            </select>
+            <button type="button" class="btn btn-neutral" :disabled="tagActionLoading || !selectedTagId" @click="assignTag()">添加</button>
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-base-300 p-4">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-sm font-semibold">{{ editingTagId ? '编辑标签' : '新建并绑定标签' }}</h4>
+            <button v-if="editingTagId" type="button" class="btn btn-ghost btn-xs" @click="resetTagForm">取消编辑</button>
+          </div>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label class="form-control"><span class="label-text mb-1">名称</span><input v-model="tagForm.name" maxlength="32" class="input input-bordered" placeholder="例如：办公出口" /></label>
+            <label class="form-control"><span class="label-text mb-1">类型</span><select v-model="tagForm.kind" class="select select-bordered"><option value="info">普通信息</option><option value="malicious">恶意</option><option value="benign">正常</option></select></label>
+            <label class="form-control sm:col-span-2"><span class="label-text mb-1">描述（可选）</span><textarea v-model="tagForm.description" maxlength="256" class="textarea textarea-bordered" rows="2"></textarea></label>
+          </div>
+          <div class="mt-3 flex justify-end"><button type="button" class="btn btn-primary btn-sm" :disabled="tagActionLoading" @click="saveTag">{{ editingTagId ? '保存修改' : '创建并绑定' }}</button></div>
+        </section>
+
+        <section v-if="tagCatalog.length">
+          <h4 class="text-sm font-semibold">标签库</h4>
+          <div class="mt-2 max-h-52 overflow-y-auto rounded-lg border border-base-300 divide-y divide-base-300">
+            <div v-for="tag in tagCatalog" :key="tag.id" class="flex items-center justify-between gap-3 px-3 py-2">
+              <div class="min-w-0"><AssetTags :tags="[tag]" /><p v-if="tag.description" class="mt-1 truncate text-xs opacity-60">{{ tag.description }}</p></div>
+              <div class="flex shrink-0 gap-1"><button type="button" class="btn btn-ghost btn-xs" :disabled="tagActionLoading" @click="editTag(tag)">编辑</button><button type="button" class="btn btn-ghost btn-xs text-error" :disabled="tagActionLoading" @click="deleteTag(tag)">停用</button></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>关闭</button></form>
   </dialog>
 </template>
