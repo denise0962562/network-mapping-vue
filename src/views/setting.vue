@@ -24,6 +24,12 @@ const sessionSettings = ref({
 })
 const sessionLimits = ref({ minimumMinutes: 5, maximumMinutes: 1440 })
 
+const trustedProxySettings = ref({
+  trustedProxyCidrsText: '',
+  clientIpHeader: 'x-forwarded-for'
+})
+const trustedProxyLimits = ref({ maximumCidrs: 32 })
+
 const mailConfig = ref({
   testRecipient: '',
   smtpHost: '',
@@ -45,6 +51,7 @@ const notificationPrefs = ref({
 const savedListenConfig = ref({ ...listenConfig.value })
 const savedSecurityConfig = ref({ ...securityConfig.value })
 const savedSessionSettings = ref({ sessionTtlMinutes: sessionSettings.value.sessionTtlMinutes })
+const savedTrustedProxySettings = ref({ ...trustedProxySettings.value })
 const savedMailConfig = ref({ ...mailConfig.value })
 const savedNotificationPrefs = ref({ ...notificationPrefs.value })
 const showSenderKey = ref(false)
@@ -54,6 +61,8 @@ const savingNotifyConfig = ref(false)
 const testingMailServer = ref(false)
 const loadingSessionSettings = ref(false)
 const savingSessionSettings = ref(false)
+const loadingTrustedProxySettings = ref(false)
+const savingTrustedProxySettings = ref(false)
 
 function pushAlert(type, title, description = '', timeout = 7000) {
   alerts.value.unshift({
@@ -79,6 +88,13 @@ const showSessionSave = computed(() => (
   sessionSettings.value.sessionTtlMinutes !== savedSessionSettings.value.sessionTtlMinutes
   || sessionSettings.value.invalidateOtherSessions
 ))
+const showTrustedProxySave = computed(
+  () => JSON.stringify(trustedProxySettings.value) !== JSON.stringify(savedTrustedProxySettings.value)
+)
+const trustedProxyCidrs = computed(() => trustedProxySettings.value.trustedProxyCidrsText
+  .split(/[\n,]+/)
+  .map((value) => value.trim())
+  .filter(Boolean))
 const showNotifySave = computed(() => {
   const mailChanged = JSON.stringify(mailConfig.value) !== JSON.stringify(savedMailConfig.value)
   const prefChanged = JSON.stringify(notificationPrefs.value) !== JSON.stringify(savedNotificationPrefs.value)
@@ -88,6 +104,7 @@ const hasUnsavedChanges = computed(() => (
   showListenSave.value
   || showSecuritySave.value
   || showSessionSave.value
+  || showTrustedProxySave.value
   || showNotifySave.value
 ))
 
@@ -198,6 +215,77 @@ async function saveSessionSettings() {
   }
 }
 
+function applyTrustedProxySettings(data, limits = {}) {
+  const next = {
+    trustedProxyCidrsText: Array.isArray(data?.trustedProxyCidrs)
+      ? data.trustedProxyCidrs.join('\n')
+      : '',
+    clientIpHeader: ['x-forwarded-for', 'forwarded'].includes(data?.clientIpHeader)
+      ? data.clientIpHeader
+      : 'x-forwarded-for'
+  }
+  trustedProxySettings.value = next
+  savedTrustedProxySettings.value = { ...next }
+  trustedProxyLimits.value = {
+    maximumCidrs: Number(limits?.maximumCidrs) || 32
+  }
+}
+
+async function fetchTrustedProxySettings() {
+  loadingTrustedProxySettings.value = true
+  try {
+    const response = await http.get('/api/config/security/trusted-proxies')
+    if (response.data?.success !== true || !response.data?.data) {
+      throw new Error('服务器未返回有效可信代理配置')
+    }
+    applyTrustedProxySettings(response.data.data, response.data.limits)
+  } catch (error) {
+    console.error('fetch trusted proxy settings failed', error)
+    pushAlert(
+      'error',
+      '可信代理配置加载失败',
+      error?.response?.status === 403 ? '仅管理员可以查看可信代理配置。' : '请稍后刷新页面重试。'
+    )
+  } finally {
+    loadingTrustedProxySettings.value = false
+  }
+}
+
+async function saveTrustedProxySettings() {
+  if (savingTrustedProxySettings.value) return false
+  if (trustedProxyCidrs.value.length > trustedProxyLimits.value.maximumCidrs) {
+    pushAlert(
+      'warning',
+      '可信代理配置过多',
+      `最多允许 ${trustedProxyLimits.value.maximumCidrs} 条 CIDR。`
+    )
+    return false
+  }
+  savingTrustedProxySettings.value = true
+  try {
+    const response = await http.post('/api/config/security/trusted-proxies', {
+      trustedProxyCidrs: trustedProxyCidrs.value,
+      clientIpHeader: trustedProxySettings.value.clientIpHeader
+    })
+    if (response.data?.success !== true || !response.data?.data) {
+      throw new Error('服务器未确认可信代理配置写入成功')
+    }
+    applyTrustedProxySettings(response.data.data, response.data.limits)
+    pushAlert('success', '可信代理配置已保存', '新的来源 IP 解析规则已经即时生效。', 6000)
+    return true
+  } catch (error) {
+    console.error('save trusted proxy settings failed', error)
+    pushAlert(
+      'error',
+      '可信代理配置保存失败',
+      error?.response?.data?.message || '请检查 CIDR 和代理请求头后重试。'
+    )
+    return false
+  } finally {
+    savingTrustedProxySettings.value = false
+  }
+}
+
 function normalizeMailSettings(data) {
   return {
     mail: {
@@ -299,6 +387,7 @@ async function saveAllSettings() {
   if (showListenSave.value) saveListenConfig()
   if (showSecuritySave.value) saveSecurityConfig()
   if (showSessionSave.value && !await saveSessionSettings()) return false
+  if (showTrustedProxySave.value && !await saveTrustedProxySettings()) return false
   if (showNotifySave.value && !await saveNotifyConfig()) return false
   return true
 }
@@ -338,6 +427,7 @@ async function testMailServer() {
 onMounted(() => {
   fetchMailSettings()
   fetchSessionSettings()
+  fetchTrustedProxySettings()
 })
 </script>
 
@@ -386,6 +476,62 @@ onMounted(() => {
             <input v-model="listenConfig.port" type="number" class="input input-bordered w-full" placeholder="例如: 8080" />
           </label>
         </div>
+      </div>
+
+      <div class="card bg-base-100 card-border border-base-300 p-4">
+        <div class="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 class="font-semibold">扫描端可信代理</h3>
+            <p class="mt-1 text-xs opacity-60">控制公网 IP 接口何时允许从反向代理请求头还原扫描端地址。</p>
+          </div>
+          <button
+            class="btn rounded-lg btn-neutral btn-sm"
+            :class="showTrustedProxySave ? 'visible' : 'invisible'"
+            :disabled="!showTrustedProxySave || loadingTrustedProxySettings || savingTrustedProxySettings"
+            @click="saveTrustedProxySettings"
+          >
+            <span v-if="savingTrustedProxySettings" class="loading loading-spinner loading-xs"></span>
+            {{ savingTrustedProxySettings ? '保存中' : '保存' }}
+          </button>
+        </div>
+
+        <div v-if="loadingTrustedProxySettings" class="flex items-center gap-2 py-3 text-sm opacity-60">
+          <span class="loading loading-spinner loading-sm"></span>
+          正在读取可信代理配置...
+        </div>
+
+        <fieldset v-else :disabled="savingTrustedProxySettings" class="space-y-4">
+          <div class="alert alert-warning py-3 text-sm">
+            <span>仅填写实际反向代理的地址范围，推荐使用单地址 /32 或 /128。留空时忽略所有转发头；禁止配置 0.0.0.0/0 或 ::/0。</span>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <label class="form-control w-full">
+              <span class="label-text mb-1">客户端 IP 请求头</span>
+              <select v-model="trustedProxySettings.clientIpHeader" class="select select-bordered w-full">
+                <option value="x-forwarded-for">X-Forwarded-For</option>
+                <option value="forwarded">Forwarded（RFC 7239）</option>
+              </select>
+              <span class="label-text-alt mt-1 opacity-60">只解析选中的一种请求头，避免不同代理头之间产生歧义。</span>
+            </label>
+
+            <label class="form-control w-full lg:col-span-2">
+              <span class="label-text mb-1">可信代理 CIDR</span>
+              <textarea
+                v-model="trustedProxySettings.trustedProxyCidrsText"
+                class="textarea textarea-bordered min-h-28 w-full font-mono text-sm"
+                placeholder="127.0.0.1/32&#10;::1/128"
+              ></textarea>
+              <span class="label-text-alt mt-1 opacity-60">
+                每行一条，也可使用逗号分隔；当前 {{ trustedProxyCidrs.length }}/{{ trustedProxyLimits.maximumCidrs }} 条。
+              </span>
+            </label>
+          </div>
+
+          <div class="rounded-lg bg-base-200/60 p-3 text-xs leading-5 opacity-75">
+            服务端先验证 TCP 直连地址是否属于可信代理，再从右向左剥离代理链并选择第一个非可信地址。未命中可信 CIDR、请求头缺失或整条链均为可信地址时，都会安全回退到 TCP 对端地址。
+          </div>
+        </fieldset>
       </div>
 
       <div class="card bg-base-100 card-border border-base-300 p-4">
