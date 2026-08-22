@@ -225,7 +225,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
               v-for="profile in scanProfiles"
               :key="profile.value"
               class="flex cursor-pointer items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
-              :class="scanProfile === profile.value ? 'border-primary bg-primary/5' : ''"
+              :class="scanProfile === profile.value ? 'border-primary' : ''"
             >
               <input v-model="scanProfile" class="radio radio-sm mt-0.5" type="radio" :value="profile.value" />
               <span>

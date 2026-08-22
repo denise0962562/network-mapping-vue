@@ -282,7 +282,7 @@ onBeforeUnmount(() => {
           v-for="execution in task.executions"
           :key="execution.execution_id"
           class="rounded-lg border p-3 text-left transition-colors"
-          :class="execution.execution_id === task.selected_execution_id ? 'border-primary bg-primary/10' : 'border-base-300 bg-base-200/40 hover:border-base-content/30'"
+          :class="execution.execution_id === task.selected_execution_id ? 'border-neutral bg-neutral/10' : 'border-base-300 bg-base-200/40 hover:border-base-content/30'"
           @click="changeExecution(execution.execution_id)"
         >
           <div class="flex items-center justify-between gap-2">

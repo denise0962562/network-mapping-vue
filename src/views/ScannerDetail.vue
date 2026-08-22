@@ -232,7 +232,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">最后心跳：</span>{{ formatDate(scannerDetail.last_seen_at) }}</div>
           <div class="rounded-lg bg-base-200/60 p-3">
             <span class="opacity-70">当前任务：</span>
-            <router-link v-if="scannerDetail.current_task_id" class="link link-primary" :to="`/task/${scannerDetail.current_task_id}`">
+            <router-link v-if="scannerDetail.current_task_id" class="link link-neutral" :to="`/task/${scannerDetail.current_task_id}`">
               {{ scannerDetail.current_task_id }}
             </router-link>
             <span v-else>-</span>

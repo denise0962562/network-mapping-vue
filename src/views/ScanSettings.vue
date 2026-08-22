@@ -128,7 +128,7 @@ onMounted(fetchSettings)
           v-for="profile in scanProfiles"
           :key="profile.value"
           class="flex cursor-pointer items-start gap-3 rounded-lg border border-base-300 bg-base-200/40 p-4"
-          :class="defaultScanProfile === profile.value ? 'border-primary bg-primary/5' : ''"
+          :class="defaultScanProfile === profile.value ? 'border-neutral bg-neutral/5' : ''"
         >
           <input v-model="defaultScanProfile" class="radio radio-sm mt-0.5" type="radio" :value="profile.value" />
           <span>

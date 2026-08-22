@@ -317,7 +317,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   <td>{{ item.creator }}</td>
                   <td class="whitespace-nowrap">{{ item.lastSeenAt }}</td>
                   <td>
-                    <router-link v-if="item.currentTaskId" class="link link-primary text-xs" :to="`/task/${item.currentTaskId}`">
+                    <router-link v-if="item.currentTaskId" class="link link-neutral text-xs" :to="`/task/${item.currentTaskId}`">
                       查看任务
                     </router-link>
                     <span v-else>-</span>

@@ -255,7 +255,7 @@ onBeforeUnmount(() => {
           刷新
         </button>
         <button class="btn btn-outline btn-sm" :disabled="!summary.enabled || submitting || summary.operationRunning" @click="runCheck">运行检查</button>
-        <button class="btn btn-primary btn-sm" :disabled="!summary.enabled || submitting || summary.operationRunning" @click="openBackupDialog()">立即备份</button>
+        <button class="btn btn-neutral btn-sm" :disabled="!summary.enabled || submitting || summary.operationRunning" @click="openBackupDialog()">立即备份</button>
       </div>
     </div>
 
@@ -309,7 +309,7 @@ onBeforeUnmount(() => {
             <h2 class="font-semibold">快速使用流程</h2>
             <p class="mt-1 text-xs text-base-content/55">首次使用请按顺序完成，成功执行命令不等于已经验证可恢复。</p>
           </div>
-          <button type="button" class="btn btn-link btn-sm h-auto min-h-0 px-0" @click="openGuide">查看完整部署、操作与排障指南</button>
+          <button type="button" class="btn btn-link btn-sm btn-neutral h-auto min-h-0 px-0" @click="openGuide">查看完整部署、操作与排障指南</button>
         </div>
         <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div class="rounded-box bg-base-200 p-3">
@@ -490,7 +490,7 @@ sudo -u network-mapping sudo -n -u postgres -- /bin/sh -c id</code></pre>
           <summary class="collapse-title font-semibold">4. 全量、差异和增量怎样选择？</summary>
           <div class="collapse-content space-y-3 text-sm text-base-content/75">
             <div class="grid gap-3 md:grid-cols-3">
-              <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-primary">全量 full</div><p class="mt-1">完整读取集群并建立新基线。用于首次部署、仓库重建、重大数据迁移或 PostgreSQL 大版本切换后。</p></div>
+              <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-neutral">全量 full</div><p class="mt-1">完整读取集群并建立新基线。用于首次部署、仓库重建、重大数据迁移或 PostgreSQL 大版本切换后。</p></div>
               <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-secondary">差异 diff</div><p class="mt-1">保存相对最近全量的变化。适合日常备份和希望缩短恢复链路的场景。</p></div>
               <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-accent">增量 incr</div><p class="mt-1">保存相对最近一次备份的变化。适合发布前和较短备份周期，单次开销较小但恢复链更长。</p></div>
             </div>
@@ -561,7 +561,7 @@ journalctl -u pgbackrest-backup@full.service -n 100 --no-pager</code></pre>
               <li>不要通过放宽为 root 或授权任意 sudo 来修复权限问题。</li>
               <li>至少每季度恢复一次，并记录恢复时间点、业务校验结果和实际 RTO。</li>
             </ul>
-            <a class="link link-primary inline-block" href="https://pgbackrest.org/user-guide.html" target="_blank" rel="noopener noreferrer">查看 pgBackRest 官方用户指南</a>
+            <a class="link link-neutral inline-block" href="https://pgbackrest.org/user-guide.html" target="_blank" rel="noopener noreferrer">查看 pgBackRest 官方用户指南</a>
           </div>
         </details>
       </div>
@@ -592,7 +592,7 @@ journalctl -u pgbackrest-backup@full.service -n 100 --no-pager</code></pre>
       </div>
       <div class="modal-action">
         <form method="dialog"><button class="btn btn-ghost" :disabled="submitting">取消</button></form>
-        <button class="btn btn-primary" :disabled="submitting" @click="submitBackup">
+        <button class="btn btn-neutral" :disabled="submitting" @click="submitBackup">
           <span v-if="submitting" class="loading loading-spinner loading-sm"></span>
           确认执行
         </button>
