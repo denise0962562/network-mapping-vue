@@ -5,7 +5,15 @@ import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
 const alerts = ref([])
-const summary = ref({ enabled: false, available: false, stanza: '', operationRunning: false, stanzas: [] })
+const summary = ref({
+  enabled: false,
+  available: false,
+  stanza: '',
+  executionMode: 'direct',
+  runAsUser: null,
+  operationRunning: false,
+  stanzas: []
+})
 const jobs = ref([])
 const loading = ref(false)
 const submitting = ref(false)
@@ -72,6 +80,11 @@ const stanzaStatusCode = computed(() => {
   return Number.isFinite(value) ? value : null
 })
 const stanzaHealthy = computed(() => summary.value.available && stanzaStatusCode.value === 0)
+const executorText = computed(() => (
+  summary.value.executionMode === 'sudo' && summary.value.runAsUser
+    ? `sudo → ${summary.value.runAsUser}`
+    : '服务账户直接执行'
+))
 const stanzaStatusText = computed(() => {
   if (!summary.value.enabled) return '管理功能未启用'
   if (!summary.value.available) return '无法运行 info 命令'
@@ -271,7 +284,7 @@ onBeforeUnmount(() => {
         <div class="stat rounded-box border border-base-300 bg-base-100 shadow-sm">
           <div class="stat-title">Stanza</div>
           <div class="stat-value truncate text-xl">{{ summary.stanza || '--' }}</div>
-          <div class="stat-desc">{{ stanzaStatusText }}<span v-if="stanzaStatusCode !== null">（代码 {{ stanzaStatusCode }}）</span></div>
+          <div class="stat-desc">{{ stanzaStatusText }}<span v-if="stanzaStatusCode !== null">（代码 {{ stanzaStatusCode }}）</span> · {{ executorText }}</div>
         </div>
         <div class="stat rounded-box border border-base-300 bg-base-100 shadow-sm">
           <div class="stat-title">最近成功备份</div>
@@ -418,7 +431,40 @@ sudo -u postgres pgbackrest --stanza={{ summary.stanza || 'network_mapping' }} i
         </details>
 
         <details class="collapse collapse-arrow border border-base-300 bg-base-100">
-          <summary class="collapse-title font-semibold">2. 如何判断页面状态？</summary>
+          <summary class="collapse-title font-semibold">2. 如何安全地让 postgres 执行？</summary>
+          <div class="collapse-content space-y-3 text-sm text-base-content/75">
+            <p>当 pgBackRest 必须以 <code class="rounded bg-base-200 px-1">postgres</code> 运行时，不要把 Network Mapping 改成 root。请使用仓库提供的精确 sudoers 模板，让服务账户只能执行 info、check 和三种 backup 命令。</p>
+            <div role="note" class="rounded-box border border-base-300 bg-base-200 p-3">
+              <div class="font-medium">当前后端执行方式：{{ executorText }}</div>
+              <div class="mt-1 text-xs">如果这里未显示“sudo → postgres”，说明服务端尚未启用 run_as_user 配置。</div>
+            </div>
+            <ol class="list-decimal space-y-2 pl-5">
+              <li>确认 systemd 的 <code class="rounded bg-base-200 px-1">User=network-mapping</code>、<code class="rounded bg-base-200 px-1">NoNewPrivileges=no</code>、sudo 和 pgBackRest 的实际绝对路径。如必须保留 NoNewPrivileges，需改用只暴露固定操作的本机代理。</li>
+              <li>在服务端 <code class="rounded bg-base-200 px-1">config.toml</code> 的 <code class="rounded bg-base-200 px-1">[backup]</code> 中固定执行账户和 sudo 路径。</li>
+            </ol>
+            <pre class="overflow-x-auto rounded-box bg-neutral p-3 text-xs text-neutral-content"><code>run_as_user = "postgres"
+sudo_binary = "/usr/bin/sudo"</code></pre>
+            <ol start="3" class="list-decimal space-y-2 pl-5">
+              <li>使用 <code class="rounded bg-base-200 px-1">visudo -cf</code> 检查 <code class="rounded bg-base-200 px-1">deploy/sudoers/network-mapping-pgbackrest</code>，然后以 root:root、0440 安装到 <code class="rounded bg-base-200 px-1">/etc/sudoers.d/</code>。</li>
+              <li>重启后端，刷新本页，确认显示“sudo → postgres”并能读取 stanza 状态。</li>
+              <li>除正向 info/check 测试外，必须验证更换 stanza、restore 和 <code class="rounded bg-base-200 px-1">/bin/sh</code> 全部被 sudo 拒绝。</li>
+            </ol>
+            <pre class="overflow-x-auto rounded-box bg-neutral p-3 text-xs text-neutral-content"><code># 正向：必须成功
+sudo -u network-mapping sudo -n -u postgres -- \
+  /usr/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf \
+  --stanza={{ summary.stanza || 'network_mapping' }} --output=json info
+
+# 反向：必须被拒绝
+sudo -u network-mapping sudo -n -u postgres -- \
+  /usr/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf \
+  --stanza={{ summary.stanza || 'network_mapping' }} restore
+sudo -u network-mapping sudo -n -u postgres -- /bin/sh -c id</code></pre>
+            <p>不要授权无参数的 <code class="rounded bg-base-200 px-1">/usr/bin/pgbackrest</code>、<code class="rounded bg-base-200 px-1">pgbackrest *</code>、任意脚本或 shell。完整的可复制 sudoers 内容、安装命令和反向测试见项目文档 <code class="rounded bg-base-200 px-1">docs/PGBACKREST_BACKUP.md</code>。</p>
+          </div>
+        </details>
+
+        <details class="collapse collapse-arrow border border-base-300 bg-base-100">
+          <summary class="collapse-title font-semibold">3. 如何判断页面状态？</summary>
           <div class="collapse-content space-y-3 text-sm text-base-content/75">
             <p><strong>命令可用</strong>只表示后端能运行并解析 <code>pgbackrest info --output=json</code>；还必须检查 stanza 自身的状态码。</p>
             <div class="overflow-x-auto">
@@ -441,7 +487,7 @@ sudo -u postgres pgbackrest --stanza={{ summary.stanza || 'network_mapping' }} i
         </details>
 
         <details class="collapse collapse-arrow border border-base-300 bg-base-100">
-          <summary class="collapse-title font-semibold">3. 全量、差异和增量怎样选择？</summary>
+          <summary class="collapse-title font-semibold">4. 全量、差异和增量怎样选择？</summary>
           <div class="collapse-content space-y-3 text-sm text-base-content/75">
             <div class="grid gap-3 md:grid-cols-3">
               <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-primary">全量 full</div><p class="mt-1">完整读取集群并建立新基线。用于首次部署、仓库重建、重大数据迁移或 PostgreSQL 大版本切换后。</p></div>
@@ -459,7 +505,7 @@ sudo -u postgres pgbackrest --stanza={{ summary.stanza || 'network_mapping' }} i
         </details>
 
         <details class="collapse collapse-arrow border border-base-300 bg-base-100">
-          <summary class="collapse-title font-semibold">4. “运行检查”会做什么？</summary>
+          <summary class="collapse-title font-semibold">5. “运行检查”会做什么？</summary>
           <div class="collapse-content space-y-2 text-sm text-base-content/75">
             <p>检查任务不会创建备份。它会核对 stanza、数据目录、数据库身份、归档配置，并通过 WAL 切换确认归档文件能到达仓库。</p>
             <p>首次部署、修改 PostgreSQL/pgBackRest 配置、更换仓库或凭据、调整网络策略、发现归档超时后都应运行检查。</p>
@@ -468,7 +514,7 @@ sudo -u postgres pgbackrest --stanza={{ summary.stanza || 'network_mapping' }} i
         </details>
 
         <details class="collapse collapse-arrow border border-base-300 bg-base-100">
-          <summary class="collapse-title font-semibold">5. 定时任务在哪里运行？</summary>
+          <summary class="collapse-title font-semibold">6. 定时任务在哪里运行？</summary>
           <div class="collapse-content space-y-3 text-sm text-base-content/75">
             <p>定时任务由数据库主机上的 systemd timer 直接运行，不依赖 Network Mapping Web 服务。页面当前只展示仓库结果，不在线修改 timer。</p>
             <div class="overflow-x-auto">
@@ -490,11 +536,12 @@ journalctl -u pgbackrest-backup@full.service -n 100 --no-pager</code></pre>
         </details>
 
         <details class="collapse collapse-arrow border border-base-300 bg-base-100">
-          <summary class="collapse-title font-semibold">6. 常见错误怎样处理？</summary>
+          <summary class="collapse-title font-semibold">7. 常见错误怎样处理？</summary>
           <div class="collapse-content space-y-3 text-sm text-base-content/75">
             <div class="space-y-2">
               <p><strong>管理功能未启用：</strong>确认服务实际使用的 config.toml 中 <code>[backup].enabled=true</code>，然后重启服务。</p>
-              <p><strong>无法执行 pgBackRest：</strong>用 Network Mapping 服务账户检查二进制、配置读取、数据目录和仓库权限；不要把服务改为 root。</p>
+              <p><strong>sudo 要求密码或拒绝：</strong>确认页面显示的执行方式为“sudo → postgres”，再用上一节的精确 info 命令以服务账户测试。检查 sudoers 中账户、路径、参数顺序、config 和 stanza 是否与服务配置完全一致。</p>
+              <p><strong>pgBackRest 权限错误：</strong>如果 sudo 已通过但 pgBackRest 仍报错，再检查 postgres 对配置文件、数据目录、spool、日志和仓库的访问权限。</p>
               <p><strong>archive timeout：</strong>检查 PostgreSQL 实际 archive_mode/archive_command、数据库日志、archive-push 日志、spool 权限和对象存储网络。</p>
               <p><strong>HTTP 409：</strong>已有手动任务运行。等待结束并刷新，同时确认操作系统中没有其他 pgBackRest 或 systemd 任务。</p>
               <p><strong>长时间执行：</strong>查看任务日志、pgBackRest 文件日志和 systemd journal，确认仓库 I/O、数据库负载和网络；不要直接删除锁文件。</p>
@@ -504,7 +551,7 @@ journalctl -u pgbackrest-backup@full.service -n 100 --no-pager</code></pre>
         </details>
 
         <details class="collapse collapse-arrow border border-base-300 bg-base-100">
-          <summary class="collapse-title font-semibold">7. 恢复和安全边界</summary>
+          <summary class="collapse-title font-semibold">8. 恢复和安全边界</summary>
           <div class="collapse-content space-y-2 text-sm text-base-content/75">
             <ul class="list-disc space-y-2 pl-5">
               <li>恢复只能在停止 PostgreSQL、目标数据目录为空且权限正确的隔离环境进行。</li>
