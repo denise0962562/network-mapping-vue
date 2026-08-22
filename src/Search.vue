@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AssetTags from './components/AssetTags.vue'
 import http from './utils/http'
+import { formatLocation } from './utils/location'
 
 const STORAGE_KEY = 'network_mapping_search_history'
 const MAX_HISTORY = 12
@@ -155,13 +156,6 @@ function formatTime(timestamp) {
 function formatNetworkOwner(item) {
   const asn = item.asn ? (/^AS/i.test(item.asn) ? item.asn : `AS${item.asn}`) : ''
   return [asn, item.as_org || item.isp].filter(Boolean).join(' · ') || '-'
-}
-
-function formatLocation(item) {
-  const country = item.country_name
-    ? `${item.country_name}${item.country_code ? ` (${item.country_code})` : ''}`
-    : item.country_code || ''
-  return [country, item.city_name].filter(Boolean).join(' · ') || '-'
 }
 
 function onDocumentClick(event) {

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import AssetTags from '../components/AssetTags.vue'
 import http from '../utils/http'
+import { formatLocation } from '../utils/location'
 
 const HISTORY_PAGE_SIZE = 50
 const PORT_PAGE_SIZE = 20
@@ -47,10 +48,7 @@ const networkOwner = computed(() => {
 })
 const location = computed(() => {
   if (!summary.value) return '-'
-  const country = summary.value.country_name
-    ? `${summary.value.country_name}${summary.value.country_code ? ` (${summary.value.country_code})` : ''}`
-    : summary.value.country_code || ''
-  return [country, summary.value.city_name].filter(Boolean).join(' · ') || '-'
+  return formatLocation(summary.value)
 })
 
 function formatTime(timestamp) {

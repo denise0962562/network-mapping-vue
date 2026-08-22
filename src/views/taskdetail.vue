@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import http from '@/utils/http'
+import { formatLocation } from '@/utils/location'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,13 +44,6 @@ function formatNetworkOwner(item) {
   return [asn, item.as_org || item.isp].filter(Boolean).join(' · ') || '-'
 }
 
-function formatLocation(item) {
-  const country = item.country_name
-    ? `${item.country_name}${item.country_code ? ` (${item.country_code})` : ''}`
-    : item.country_code || ''
-  return [country, item.city_name].filter(Boolean).join(' · ') || '-'
-}
-
 const taskRemark = computed(() => task.value?.remarks || '-')
 const currentExecution = computed(() => task.value?.executions?.find(
   (execution) => execution.execution_id === task.value?.selected_execution_id
@@ -84,6 +78,7 @@ const resultByIp = computed(() => (task.value?.results || []).map((item) => ({
   as_org: item.as_org,
   country_code: item.country_code,
   country_name: item.country_name,
+  region_name: item.region_name,
   city_name: item.city_name
 })))
 const timelineSteps = computed(() => {
