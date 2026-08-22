@@ -33,6 +33,7 @@ const categoryLabels = {
   automatic_target: '系统生成目标',
   configuration: '系统配置',
   data_access: '数据访问',
+  backup: '数据备份',
   audit: '审计系统'
 }
 
@@ -61,6 +62,10 @@ const actionLabels = {
   'scanner.disable': '禁用扫描器',
   'scanner.token.reissue': '重发扫描器令牌',
   'scanner.delete': '删除扫描器',
+  'backup.job.create': '提交备份任务',
+  'backup.job.complete': '备份任务完成',
+  'backup.run': '执行数据备份',
+  'backup.check': '执行归档检查',
   'audit.query': '查询审计日志',
   'audit.export': '导出审计日志'
 }

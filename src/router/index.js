@@ -14,6 +14,7 @@ const router = createRouter({
     { path: '/requests', component: () => import('../views/Requests.vue'), meta: { title: '请求日志' } },
     { path: '/health', component: () => import('../views/Health.vue'), meta: { title: '健康告警' } },
     { path: '/admin/users', component: () => import('../views/UserManagement.vue'), meta: { title: '用户管理' } },
+    { path: '/admin/backups', component: () => import('../views/BackupManagement.vue'), meta: { title: '数据备份' } },
     { path: '/open-source', component: () => import('../views/open-source.vue'), meta: { title: '开源项目' } },
     { path: '/testpage', component: () => import('../views/TestPage.vue'), meta: { title: 'Alert 测试' } },
     { path: '/setting', component: () => import('../views/setting.vue'), meta: { title: '设置' } },
