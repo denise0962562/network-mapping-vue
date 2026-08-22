@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '@/components/EmptyState.vue'
+import ScannerLatencyChart from '@/components/ScannerLatencyChart.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
@@ -46,6 +47,20 @@ function formatRam(value) {
   if (!Number.isFinite(megabytes) || megabytes < 0) return '-'
   if (megabytes >= 1024) return `${(megabytes / 1024).toFixed(1)} GB`
   return `${megabytes} MB`
+}
+
+function formatLatency(value) {
+  const milliseconds = Number(value)
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '--'
+  if (milliseconds < 10) return `${milliseconds.toFixed(1)} ms`
+  return `${Math.round(milliseconds)} ms`
+}
+
+function latencyBadge(latency) {
+  if (!latency || latency.stale) return 'badge-ghost'
+  if (latency.network_rtt_ms < 100) return 'badge-success'
+  if (latency.network_rtt_ms <= 300) return 'badge-warning'
+  return 'badge-error'
 }
 
 const scannerStatus = computed(() => {
@@ -268,6 +283,28 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           </div>
         </div>
 
+        <div class="card bg-base-100 card-border border-base-300 p-4 mb-5">
+          <h3 class="font-semibold mb-3">服务端通信</h3>
+          <div v-if="scannerDetail.latency" class="space-y-3 text-sm">
+            <div class="flex items-center justify-between rounded-lg bg-base-200/60 p-3">
+              <span class="opacity-70">估算网络 RTT</span>
+              <span class="badge" :class="latencyBadge(scannerDetail.latency)">
+                {{ formatLatency(scannerDetail.latency.network_rtt_ms) }}
+              </span>
+            </div>
+            <div class="rounded-lg bg-base-200/60 p-3">
+              <div><span class="opacity-70">HTTPS 总 RTT：</span>{{ formatLatency(scannerDetail.latency.rtt_ms) }}</div>
+              <div class="mt-2"><span class="opacity-70">服务端处理：</span>{{ formatLatency(scannerDetail.latency.server_processing_ms) }}</div>
+            </div>
+            <div class="text-xs" :class="scannerDetail.latency.stale ? 'text-warning' : 'opacity-60'">
+              {{ scannerDetail.latency.stale ? '样本已过期 · ' : '测量时间：' }}{{ formatDate(scannerDetail.latency.measured_at) }}
+            </div>
+          </div>
+          <div v-else class="rounded-lg bg-base-200/60 p-3 text-sm opacity-60">
+            暂无样本；升级扫描器并完成两个心跳周期后开始上报。
+          </div>
+        </div>
+
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">扫描器管理</h3>
           <div class="grid gap-3">
@@ -289,6 +326,8 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           </div>
         </div>
       </div>
+
+      <ScannerLatencyChart class="xl:col-span-3" :scanner-id="scannerId" />
     </div>
   </div>
 </template>

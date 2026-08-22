@@ -78,8 +78,24 @@ function resolveStatus(item) {
   return { key: 'offline', text: '离线', class: 'badge-error' }
 }
 
+function normalizeLatency(latency) {
+  const milliseconds = Number(latency?.network_rtt_ms)
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) {
+    return { text: '--', class: 'badge-ghost', title: '尚无延迟样本' }
+  }
+  const text = milliseconds < 10 ? `${milliseconds.toFixed(1)} ms` : `${Math.round(milliseconds)} ms`
+  if (latency.stale) {
+    return { text, class: 'badge-ghost', title: `样本已过期：${formatDate(latency.measured_at)}` }
+  }
+  const badgeClass = milliseconds < 100
+    ? 'badge-success'
+    : milliseconds <= 300 ? 'badge-warning' : 'badge-error'
+  return { text, class: badgeClass, title: `测量时间：${formatDate(latency.measured_at)}` }
+}
+
 function normalizeScanner(item, index) {
   const status = resolveStatus(item)
+  const latency = normalizeLatency(item.latency)
   return {
     id: item.scanner_id,
     index: index + 1,
@@ -92,6 +108,9 @@ function normalizeScanner(item, index) {
     statusKey: status.key,
     statusText: status.text,
     statusClass: status.class,
+    latencyText: latency.text,
+    latencyClass: latency.class,
+    latencyTitle: latency.title,
     ipv4Ready: item.supports_ipv4 === true && item.ipv4_ready === true,
     ipv6Ready: item.supports_ipv6 === true && item.ipv6_ready === true
   }
@@ -271,6 +290,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   <th>地址</th>
                   <th>状态</th>
                   <th>协议</th>
+                  <th>延迟</th>
                   <th>添加者</th>
                   <th>最后心跳</th>
                   <th>当前任务</th>
@@ -293,6 +313,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                       <span class="badge badge-xs" :class="item.ipv6Ready ? 'badge-success' : 'badge-ghost'">IPv6</span>
                     </div>
                   </td>
+                  <td><span class="badge badge-sm whitespace-nowrap" :class="item.latencyClass" :title="item.latencyTitle">{{ item.latencyText }}</span></td>
                   <td>{{ item.creator }}</td>
                   <td class="whitespace-nowrap">{{ item.lastSeenAt }}</td>
                   <td>
