@@ -183,8 +183,8 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
 </script>
 
 <template>
-  <div class="p-5">
-    <div class="mb-4 flex items-start justify-between gap-3">
+  <div class="p-3 sm:p-5">
+    <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
       <div>
         <h2 class="text-lg font-semibold">{{ scannerDetail?.name || '扫描器详情' }}</h2>
         <p class="text-sm opacity-80 mt-1">ID：{{ scannerId }}</p>
@@ -211,9 +211,9 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
       message="无法从服务器获取扫描器信息，请稍后重试。"
     />
 
-    <div v-else-if="scannerDetail" class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
+    <div v-else-if="scannerDetail" class="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
       <div v-if="actionMessage" role="alert" class="alert alert-info xl:col-span-3"><span>{{ actionMessage }}</span></div>
-      <div class="xl:col-span-2">
+      <div class="min-w-0 xl:col-span-2">
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">基本信息</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -244,7 +244,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
         </div>
       </div>
 
-      <div class="xl:col-span-1">
+      <div class="min-w-0 xl:col-span-1">
         <div class="card bg-base-100 card-border border-base-300 p-4 mb-5">
           <h3 class="font-semibold mb-3">运行环境</h3>
           <div class="grid grid-cols-1 gap-3 text-sm">
@@ -282,7 +282,11 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
             <div class="text-xs opacity-60">检测时间：{{ formatDate(scannerDetail.network_capabilities_updated_at) }}</div>
           </div>
         </div>
+      </div>
 
+      <ScannerLatencyChart class="min-w-0 xl:col-span-2" :scanner-id="scannerId" />
+
+      <div class="min-w-0 xl:col-span-1">
         <div class="card bg-base-100 card-border border-base-300 p-4 mb-5">
           <h3 class="font-semibold mb-3">服务端通信</h3>
           <div v-if="scannerDetail.latency" class="space-y-3 text-sm">
@@ -326,8 +330,6 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           </div>
         </div>
       </div>
-
-      <ScannerLatencyChart class="xl:col-span-3" :scanner-id="scannerId" />
     </div>
   </div>
 </template>
