@@ -24,11 +24,18 @@ const sessionSettings = ref({
 })
 const sessionLimits = ref({ minimumMinutes: 5, maximumMinutes: 1440 })
 
+const BUILT_IN_CLIENT_IP_HEADERS = ['x-forwarded-for', 'forwarded']
+const HTTP_HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_\x60|~0-9A-Za-z]+$/
 const trustedProxySettings = ref({
   trustedProxyCidrsText: '',
-  clientIpHeader: 'x-forwarded-for'
+  clientIpHeaderMode: 'x-forwarded-for',
+  customClientIpHeader: ''
 })
-const trustedProxyLimits = ref({ maximumCidrs: 32 })
+const trustedProxyLimits = ref({
+  maximumCidrs: 32,
+  maximumHeaderNameLength: 64,
+  supportsCustomHeader: false
+})
 
 const mailConfig = ref({
   testRecipient: '',
@@ -88,13 +95,39 @@ const showSessionSave = computed(() => (
   sessionSettings.value.sessionTtlMinutes !== savedSessionSettings.value.sessionTtlMinutes
   || sessionSettings.value.invalidateOtherSessions
 ))
-const showTrustedProxySave = computed(
-  () => JSON.stringify(trustedProxySettings.value) !== JSON.stringify(savedTrustedProxySettings.value)
-)
+function resolvedClientIpHeader(settings) {
+  return settings.clientIpHeaderMode === 'custom'
+    ? settings.customClientIpHeader.trim().toLowerCase()
+    : settings.clientIpHeaderMode
+}
+
+function comparableTrustedProxySettings(settings) {
+  return {
+    trustedProxyCidrsText: settings.trustedProxyCidrsText,
+    clientIpHeader: resolvedClientIpHeader(settings)
+  }
+}
+
+const showTrustedProxySave = computed(() => (
+  JSON.stringify(comparableTrustedProxySettings(trustedProxySettings.value))
+    !== JSON.stringify(comparableTrustedProxySettings(savedTrustedProxySettings.value))
+))
 const trustedProxyCidrs = computed(() => trustedProxySettings.value.trustedProxyCidrsText
   .split(/[\n,]+/)
   .map((value) => value.trim())
   .filter(Boolean))
+const customClientIpHeaderError = computed(() => {
+  if (trustedProxySettings.value.clientIpHeaderMode !== 'custom') return ''
+  const value = trustedProxySettings.value.customClientIpHeader.trim()
+  if (!value) return '请输入自定义请求头名称。'
+  if (value.length > trustedProxyLimits.value.maximumHeaderNameLength) {
+    return `请求头名称不能超过 ${trustedProxyLimits.value.maximumHeaderNameLength} 个字符。`
+  }
+  if (!HTTP_HEADER_NAME_PATTERN.test(value)) {
+    return '请求头名称包含空格、冒号或其他非法字符。'
+  }
+  return ''
+})
 const showNotifySave = computed(() => {
   const mailChanged = JSON.stringify(mailConfig.value) !== JSON.stringify(savedMailConfig.value)
   const prefChanged = JSON.stringify(notificationPrefs.value) !== JSON.stringify(savedNotificationPrefs.value)
@@ -216,18 +249,25 @@ async function saveSessionSettings() {
 }
 
 function applyTrustedProxySettings(data, limits = {}) {
+  const configuredHeader = typeof data?.clientIpHeader === 'string'
+    ? data.clientIpHeader.trim().toLowerCase()
+    : 'x-forwarded-for'
+  const clientIpHeaderMode = BUILT_IN_CLIENT_IP_HEADERS.includes(configuredHeader)
+    ? configuredHeader
+    : 'custom'
   const next = {
     trustedProxyCidrsText: Array.isArray(data?.trustedProxyCidrs)
       ? data.trustedProxyCidrs.join('\n')
       : '',
-    clientIpHeader: ['x-forwarded-for', 'forwarded'].includes(data?.clientIpHeader)
-      ? data.clientIpHeader
-      : 'x-forwarded-for'
+    clientIpHeaderMode,
+    customClientIpHeader: clientIpHeaderMode === 'custom' ? configuredHeader : ''
   }
   trustedProxySettings.value = next
   savedTrustedProxySettings.value = { ...next }
   trustedProxyLimits.value = {
-    maximumCidrs: Number(limits?.maximumCidrs) || 32
+    maximumCidrs: Number(limits?.maximumCidrs) || 32,
+    maximumHeaderNameLength: Number(limits?.maximumHeaderNameLength) || 64,
+    supportsCustomHeader: limits?.supportsCustomHeader === true
   }
 }
 
@@ -253,6 +293,10 @@ async function fetchTrustedProxySettings() {
 
 async function saveTrustedProxySettings() {
   if (savingTrustedProxySettings.value) return false
+  if (customClientIpHeaderError.value) {
+    pushAlert('warning', '自定义请求头无效', customClientIpHeaderError.value)
+    return false
+  }
   if (trustedProxyCidrs.value.length > trustedProxyLimits.value.maximumCidrs) {
     pushAlert(
       'warning',
@@ -265,7 +309,7 @@ async function saveTrustedProxySettings() {
   try {
     const response = await http.post('/api/config/security/trusted-proxies', {
       trustedProxyCidrs: trustedProxyCidrs.value,
-      clientIpHeader: trustedProxySettings.value.clientIpHeader
+      clientIpHeader: resolvedClientIpHeader(trustedProxySettings.value)
     })
     if (response.data?.success !== true || !response.data?.data) {
       throw new Error('服务器未确认可信代理配置写入成功')
@@ -501,19 +545,47 @@ onMounted(() => {
         </div>
 
         <fieldset v-else :disabled="savingTrustedProxySettings" class="space-y-4">
-          <div class="alert alert-warning py-3 text-sm">
-            <span>仅填写实际反向代理的地址范围，推荐使用单地址 /32 或 /128。留空时忽略所有转发头；禁止配置 0.0.0.0/0 或 ::/0。</span>
+          <div class="alert alert-warning alert-soft py-3 text-sm">
+            <span>仅填写实际反向代理的地址范围，推荐使用单地址 /32 或 /128。代理必须覆盖或安全追加所选请求头，不能直接透传客户端提交的同名字段。留空时忽略所有转发头；禁止配置 0.0.0.0/0 或 ::/0。</span>
           </div>
 
           <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <label class="form-control w-full">
-              <span class="label-text mb-1">客户端 IP 请求头</span>
-              <select v-model="trustedProxySettings.clientIpHeader" class="select select-bordered w-full">
-                <option value="x-forwarded-for">X-Forwarded-For</option>
-                <option value="forwarded">Forwarded（RFC 7239）</option>
-              </select>
-              <span class="label-text-alt mt-1 opacity-60">只解析选中的一种请求头，避免不同代理头之间产生歧义。</span>
-            </label>
+            <div class="space-y-3">
+              <label class="form-control w-full">
+                <span class="label-text mb-1">客户端 IP 请求头</span>
+                <select v-model="trustedProxySettings.clientIpHeaderMode" class="select select-bordered w-full">
+                  <option value="x-forwarded-for">X-Forwarded-For</option>
+                  <option value="forwarded">Forwarded（RFC 7239）</option>
+                  <option
+                    v-if="trustedProxyLimits.supportsCustomHeader || trustedProxySettings.clientIpHeaderMode === 'custom'"
+                    value="custom"
+                  >
+                    自定义请求头
+                  </option>
+                </select>
+                <span class="label-text-alt mt-1 opacity-60">只解析选中的一种请求头，避免不同代理头之间产生歧义。</span>
+              </label>
+
+              <label v-if="trustedProxySettings.clientIpHeaderMode === 'custom'" class="form-control w-full">
+                <span class="label-text mb-1">自定义请求头名称</span>
+                <input
+                  v-model="trustedProxySettings.customClientIpHeader"
+                  type="text"
+                  class="input input-bordered w-full font-mono"
+                  :class="{ 'input-error': customClientIpHeaderError }"
+                  placeholder="例如: X-Real-IP"
+                  :maxlength="trustedProxyLimits.maximumHeaderNameLength"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <span
+                  class="label-text-alt mt-1"
+                  :class="customClientIpHeaderError ? 'text-error' : 'opacity-60'"
+                >
+                  {{ customClientIpHeaderError || '支持单个 IP 或逗号分隔的 IP 代理链，例如 CF-Connecting-IP。' }}
+                </span>
+              </label>
+            </div>
 
             <label class="form-control w-full lg:col-span-2">
               <span class="label-text mb-1">可信代理 CIDR</span>
@@ -529,7 +601,7 @@ onMounted(() => {
           </div>
 
           <div class="rounded-lg bg-base-200/60 p-3 text-xs leading-5 opacity-75">
-            服务端先验证 TCP 直连地址是否属于可信代理，再从右向左剥离代理链并选择第一个非可信地址。未命中可信 CIDR、请求头缺失或整条链均为可信地址时，都会安全回退到 TCP 对端地址。
+            服务端先验证 TCP 直连地址是否属于可信代理，再从右向左剥离代理链并选择第一个非可信地址。自定义请求头按裸 IP 或逗号分隔的 IP 链解析；Forwarded 按 RFC 7239 的 for 参数解析。未命中可信 CIDR、请求头缺失、格式错误或整条链均为可信地址时，都会安全回退到 TCP 对端地址。
           </div>
         </fieldset>
       </div>
