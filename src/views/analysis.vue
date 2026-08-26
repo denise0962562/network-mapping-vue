@@ -364,7 +364,7 @@ onBeforeUnmount(() => {
   <main class="p-4 md:p-6">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">数据分析</h1>
+        <h1 class="text-2xl font-semibold">扫描分析</h1>
         <p class="mt-1 text-sm text-base-content/60">按扫描结果查看常见服务、开放端口和每日发现的 IP。</p>
       </div>
       <span class="text-xs text-base-content/50">{{ lastUpdatedLabel }}</span>

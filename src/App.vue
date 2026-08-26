@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { expireCookie } from './utils/csrf'
 import http from './utils/http'
@@ -15,6 +15,16 @@ const reLoginModalRef = ref(null)
 const isAdmin = ref(false)
 const frontendVersion = packageInfo.version
 const serverVersion = ref('')
+const taskMenuOpen = ref(route.path === '/create_scan' || route.path.startsWith('/task'))
+const analysisMenuOpen = ref(route.path.startsWith('/analysis'))
+
+watch(
+  () => route.path,
+  (path) => {
+    if (path === '/create_scan' || path.startsWith('/task')) taskMenuOpen.value = true
+    if (path.startsWith('/analysis')) analysisMenuOpen.value = true
+  },
+)
 
 async function loadServerVersion() {
   try {
@@ -39,6 +49,24 @@ async function loadCurrentRole() {
 
 function onSessionExpired() {
   reLoginModalRef.value?.open()
+}
+
+function toggleAnalysisMenu() {
+  if (!drawerOpen.value) {
+    drawerOpen.value = true
+    analysisMenuOpen.value = true
+    return
+  }
+  analysisMenuOpen.value = !analysisMenuOpen.value
+}
+
+function toggleTaskMenu() {
+  if (!drawerOpen.value) {
+    drawerOpen.value = true
+    taskMenuOpen.value = true
+    return
+  }
+  taskMenuOpen.value = !taskMenuOpen.value
 }
 
 onMounted(() => {
@@ -123,16 +151,6 @@ async function handleLogout() {
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="创建扫描" to="/create_scan">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4">
-                <path d="M12 5v14"></path>
-                <path d="M5 12h14"></path>
-              </svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">创建扫描</span>
-            </router-link>
-          </li>
-
-          <li>
             <a class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Search" target="_blank" href="/search.html">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4">
                 <circle cx="11" cy="11" r="8"></circle>
@@ -150,17 +168,85 @@ async function handleLogout() {
           </li>
 
           <li>
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="任务" to="/task">
+            <button
+              type="button"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              data-tip="任务"
+              :aria-expanded="taskMenuOpen"
+              aria-controls="task-submenu"
+              @click="toggleTaskMenu"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">任务</span>
-            </router-link>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="ml-auto size-3.5 transition-transform duration-200 ease-out is-drawer-close:hidden"
+                :class="taskMenuOpen ? 'rotate-90' : 'rotate-0'"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <Transition name="sidebar-submenu">
+              <ul v-if="taskMenuOpen" id="task-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/task">
+                    <span class="whitespace-nowrap">查看任务</span>
+                  </router-link>
+                </li>
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/create_scan">
+                    <span class="whitespace-nowrap">创建任务</span>
+                  </router-link>
+                </li>
+              </ul>
+            </Transition>
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="数据分析" to="/analysis">
+            <button
+              type="button"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              data-tip="数据分析"
+              :aria-expanded="analysisMenuOpen"
+              aria-controls="analysis-submenu"
+              @click="toggleAnalysisMenu"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M5 21V3"/><path d="M12 21V9"/><path d="M19 21v-6"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">数据分析</span>
-            </router-link>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="ml-auto size-3.5 transition-transform duration-200 ease-out is-drawer-close:hidden"
+                :class="analysisMenuOpen ? 'rotate-90' : 'rotate-0'"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <Transition name="sidebar-submenu">
+              <ul v-if="analysisMenuOpen" id="analysis-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/analysis/scan">
+                    <span class="whitespace-nowrap">扫描分析</span>
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/analysis/performance">
+                    <span class="whitespace-nowrap">性能基线</span>
+                  </router-link>
+                </li>
+              </ul>
+            </Transition>
           </li>
 
           <li>
@@ -317,5 +403,27 @@ async function handleLogout() {
 .drawer-side .menu li > a,
 .drawer-side .menu li > button {
   min-height: 2.5rem;
+}
+
+.sidebar-submenu-enter-active,
+.sidebar-submenu-leave-active {
+  max-height: 8rem;
+  transition:
+    max-height 200ms ease-out,
+    opacity 160ms ease-out,
+    padding 200ms ease-out;
+}
+
+.sidebar-submenu-enter-from,
+.sidebar-submenu-leave-to {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+}
+
+.drawer-side .menu .sidebar-submenu-item {
+  width: calc(100% - 1rem);
+  margin: 0.125rem 0.5rem;
 }
 </style>

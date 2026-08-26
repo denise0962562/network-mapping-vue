@@ -1,11 +1,13 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { defineAsyncComponent } from 'vue'
+import { useRoute } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
+const route = useRoute()
 
 const alerts = ref([])
 const items = ref([])
@@ -85,10 +87,15 @@ function statusColor(code) {
   return STATUS_COLORS[code] || FALLBACK_COLORS[Number(code) % FALLBACK_COLORS.length]
 }
 
+function queryString(value) {
+  return typeof value === 'string' ? value : ''
+}
+
+const requestedWindow = queryString(route.query.window)
 const filters = ref({
-  window: '24h',
-  method: '',
-  path: '',
+  window: windowOptions.some((option) => option.value === requestedWindow) ? requestedWindow : '24h',
+  method: queryString(route.query.method).toUpperCase(),
+  path: queryString(route.query.path),
   status: '',
   error_type: '',
   only_errors: false,

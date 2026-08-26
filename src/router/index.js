@@ -4,12 +4,20 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', component: () => import('../views/dashboard.vue'), meta: { title: 'Dashboard' } },
-    { path: '/create_scan', component: () => import('../views/createscan.vue'), meta: { title: '创建扫描' } },
+    { path: '/create_scan', component: () => import('../views/createscan.vue'), meta: { title: '创建任务' } },
     { path: '/task/:taskid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})', component: () => import('../views/taskdetail.vue'), meta: { title: '任务详情' } },
     { path: '/task', component: () => import('../views/task.vue'), meta: { title: '任务' } },
     { path: '/scanner/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})', component: () => import('../views/ScannerDetail.vue'), meta: { title: '扫描器详情' } },
     { path: '/scanner', component: () => import('../views/Scanner.vue'), meta: { title: '扫描器' } },
-    { path: '/analysis', component: () => import('../views/analysis.vue'), meta: { title: '数据分析' } },
+    {
+      path: '/analysis',
+      component: () => import('../views/AnalysisLayout.vue'),
+      redirect: '/analysis/scan',
+      children: [
+        { path: 'scan', component: () => import('../views/analysis.vue'), meta: { title: '扫描分析' } },
+        { path: 'performance', component: () => import('../views/RequestPerformance.vue'), meta: { title: '性能基线' } },
+      ],
+    },
     { path: '/audit', component: () => import('../views/AuditLog.vue'), meta: { title: '审计日志' } },
     { path: '/requests', component: () => import('../views/Requests.vue'), meta: { title: '请求日志' } },
     { path: '/health', component: () => import('../views/Health.vue'), meta: { title: '健康告警' } },

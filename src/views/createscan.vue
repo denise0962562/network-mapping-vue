@@ -24,6 +24,16 @@ const scannersLoading = ref(false)
 const scanProfile = ref('legacy')
 const defaultScanProfile = ref('legacy')
 const scanSettingsLoading = ref(true)
+const selectedScanProfileTitle = computed(() => (
+  scanProfiles.find((profile) => profile.value === scanProfile.value)?.title || '未选择'
+))
+const dispatchModeSummary = computed(() => {
+  if (dispatchMode.value === 'selected') {
+    return scannerIds.value.length > 0 ? `已指定 ${scannerIds.value.length} 台扫描器` : '指定扫描器'
+  }
+  if (dispatchMode.value === 'all') return '全部扫描器'
+  return '自动分配'
+})
 
 const targetAddressFamily = computed(() => {
   const targets = ip.value.split(',').map((item) => item.trim()).filter(Boolean)
@@ -218,55 +228,73 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           </div>
         </label>
 
-        <fieldset class="rounded-lg border border-base-300 p-4" :disabled="scanSettingsLoading">
-          <legend class="px-2 text-sm font-medium">扫描模式</legend>
-          <div class="grid gap-2 md:grid-cols-3">
-            <label
-              v-for="profile in scanProfiles"
-              :key="profile.value"
-              class="flex cursor-pointer items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
-              :class="scanProfile === profile.value ? 'border-primary' : ''"
-            >
-              <input v-model="scanProfile" class="radio radio-sm mt-0.5" type="radio" :value="profile.value" />
-              <span>
-                <span class="block font-medium">{{ profile.title }}</span>
-                <span class="mt-1 block text-xs leading-5 opacity-60">{{ profile.description }}</span>
+        <div class="space-y-3">
+          <details name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100" open>
+            <summary class="collapse-title min-h-0 py-3 pr-12">
+              <span class="block font-medium">扫描模式</span>
+              <span class="mt-0.5 block text-xs text-base-content/60">
+                {{ scanSettingsLoading ? '正在读取系统默认模式...' : `当前：${selectedScanProfileTitle}` }}
               </span>
-            </label>
-          </div>
-          <p class="mt-2 text-xs opacity-60">{{ scanSettingsLoading ? '正在读取系统默认模式...' : '默认值来自系统扫描设置，可为当前任务单独调整。' }}</p>
-        </fieldset>
-
-        <fieldset class="rounded-lg border border-base-300 p-4">
-          <legend class="px-2 text-sm font-medium">执行扫描器</legend>
-          <div class="grid gap-2 md:grid-cols-3">
-            <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
-              <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="automatic" />
-              <span><span class="block font-medium">自动分配</span><span class="text-xs opacity-60">任意可用扫描器执行一次</span></span>
-            </label>
-            <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
-              <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="selected" />
-              <span><span class="block font-medium">指定扫描器</span><span class="text-xs opacity-60">选择一台或多台分别执行</span></span>
-            </label>
-            <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
-              <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="all" />
-              <span><span class="block font-medium">全部扫描器</span><span class="text-xs opacity-60">所有已启用扫描器各执行一次，离线设备上线后执行</span></span>
-            </label>
-          </div>
-          <div v-if="dispatchMode === 'selected'" class="mt-3 rounded-lg border border-base-300 p-3">
-            <div v-if="scannersLoading" class="flex items-center gap-2 text-sm opacity-70"><span class="loading loading-spinner loading-xs"></span>加载扫描器...</div>
-            <div v-else-if="scanners.length === 0" class="text-sm opacity-70">暂无已启用扫描器</div>
-            <div v-else class="grid gap-2 md:grid-cols-2">
-              <label v-for="scanner in scanners" :key="scanner.scanner_id" class="flex items-center gap-3 rounded-lg bg-base-200/50 px-3 py-2" :class="scannerSupportsTarget(scanner) ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'">
-                <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" :disabled="!scannerSupportsTarget(scanner)" />
-                <span class="min-w-0">
-                  <span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span>
-                  <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }} · {{ scannerSupportsProfile(scanner) ? '支持当前模式' : '不支持当前模式' }}</span>
-                </span>
-              </label>
+            </summary>
+            <div class="collapse-content">
+              <fieldset class="pt-1" :disabled="scanSettingsLoading">
+                <div class="grid gap-2 md:grid-cols-3">
+                  <label
+                    v-for="profile in scanProfiles"
+                    :key="profile.value"
+                    class="flex cursor-pointer items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
+                    :class="scanProfile === profile.value ? 'border-primary' : ''"
+                  >
+                    <input v-model="scanProfile" class="radio radio-sm mt-0.5" type="radio" :value="profile.value" />
+                    <span>
+                      <span class="block font-medium">{{ profile.title }}</span>
+                      <span class="mt-1 block text-xs leading-5 opacity-60">{{ profile.description }}</span>
+                    </span>
+                  </label>
+                </div>
+                <p class="mt-2 text-xs opacity-60">{{ scanSettingsLoading ? '正在读取系统默认模式...' : '默认值来自系统扫描设置，可为当前任务单独调整。' }}</p>
+              </fieldset>
             </div>
-          </div>
-        </fieldset>
+          </details>
+
+          <details name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100">
+            <summary class="collapse-title min-h-0 py-3 pr-12">
+              <span class="block font-medium">执行扫描器</span>
+              <span class="mt-0.5 block text-xs text-base-content/60">当前：{{ dispatchModeSummary }}</span>
+            </summary>
+            <div class="collapse-content">
+              <fieldset class="pt-1">
+                <div class="grid gap-2 md:grid-cols-3">
+                  <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
+                    <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="automatic" />
+                    <span><span class="block font-medium">自动分配</span><span class="text-xs opacity-60">任意可用扫描器执行一次</span></span>
+                  </label>
+                  <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
+                    <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="selected" />
+                    <span><span class="block font-medium">指定扫描器</span><span class="text-xs opacity-60">选择一台或多台分别执行</span></span>
+                  </label>
+                  <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
+                    <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="all" />
+                    <span><span class="block font-medium">全部扫描器</span><span class="text-xs opacity-60">所有已启用扫描器各执行一次，离线设备上线后执行</span></span>
+                  </label>
+                </div>
+                <div v-if="dispatchMode === 'selected'" class="mt-3 rounded-lg border border-base-300 p-3">
+                  <div v-if="scannersLoading" class="flex items-center gap-2 text-sm opacity-70"><span class="loading loading-spinner loading-xs"></span>加载扫描器...</div>
+                  <div v-else-if="scanners.length === 0" class="text-sm opacity-70">暂无已启用扫描器</div>
+                  <div v-else class="grid gap-2 md:grid-cols-2">
+                    <label v-for="scanner in scanners" :key="scanner.scanner_id" class="flex items-center gap-3 rounded-lg bg-base-200/50 px-3 py-2" :class="scannerSupportsTarget(scanner) ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'">
+                      <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" :disabled="!scannerSupportsTarget(scanner)" />
+                      <span class="min-w-0">
+                        <span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span>
+                        <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }} · {{ scannerSupportsProfile(scanner) ? '支持当前模式' : '不支持当前模式' }}</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+          </details>
+        </div>
 
         <label class="form-control w-full">
           <span class="label-text input_items_required">目标端口</span>
@@ -328,4 +356,22 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
   text-align: left;
 }
 
+.create-task-accordion {
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.create-task-accordion[open] {
+  border-color: color-mix(in oklab, var(--color-primary) 35%, var(--color-base-300));
+  box-shadow: 0 1px 3px color-mix(in oklab, var(--color-base-content) 8%, transparent);
+}
+
+.create-task-accordion > summary {
+  transition: background-color 200ms ease;
+}
+
+.create-task-accordion > summary:hover {
+  background-color: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+}
 </style>
