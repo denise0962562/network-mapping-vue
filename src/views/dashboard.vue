@@ -169,7 +169,7 @@ import AppAlert from '@/components/AppAlert.vue'
 import SystemHistoryPanel from '@/components/SystemHistoryPanel.vue'
 import http from '@/utils/http'
 
-const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
+const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
 const alerts = ref([])
 

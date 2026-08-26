@@ -4,7 +4,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch 
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
-const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
+const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
 const props = defineProps({
   scannerId: {

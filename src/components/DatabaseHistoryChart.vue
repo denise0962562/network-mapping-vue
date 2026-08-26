@@ -4,7 +4,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
-const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts'))
+const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const emit = defineEmits(['error'])
 
 const DEFAULT_RANGE_MILLISECONDS = 30 * 60 * 1000

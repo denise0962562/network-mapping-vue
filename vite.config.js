@@ -23,7 +23,10 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // This is a client-only app. Keep vue3-apexcharts/core on the browser
+      // build and avoid emitting the default wrapper's full SSR fallback.
+      'apexcharts/core': 'apexcharts'
     },
   },
   build: {
@@ -33,6 +36,30 @@ export default defineConfig({
         search: 'search.html',
         asset: 'asset.html',
         login: 'login.html'
+      },
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replaceAll('\\', '/')
+
+          if (
+            normalizedId.includes('/node_modules/@codemirror/state/') ||
+            normalizedId.includes('/node_modules/@codemirror/view/') ||
+            normalizedId.includes('/node_modules/@lezer/common/') ||
+            normalizedId.includes('/node_modules/@marijn/find-cluster-break/') ||
+            normalizedId.includes('/node_modules/crelt/') ||
+            normalizedId.includes('/node_modules/style-mod/') ||
+            normalizedId.includes('/node_modules/w3c-keyname/')
+          ) {
+            return 'codemirror-core'
+          }
+
+          if (
+            normalizedId.includes('/node_modules/@codemirror/') ||
+            normalizedId.includes('/node_modules/@lezer/')
+          ) {
+            return 'codemirror-language'
+          }
+        }
       }
     }
   },
