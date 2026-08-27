@@ -167,6 +167,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import SystemHistoryPanel from '@/components/SystemHistoryPanel.vue'
+import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
@@ -298,8 +299,17 @@ const resourceChartOptions = ref({
     offsetY: 40
   },
   tooltip: {
-    y: {
-      formatter: (val) => val + '%'
+    shared: true,
+    intersect: false,
+    custom({ series, dataPointIndex, w }) {
+      return renderChartTooltip({
+        title: w.globals.labels[dataPointIndex],
+        rows: series.map((values, index) => ({
+          label: w.globals.seriesNames[index],
+          value: `${Number(values[dataPointIndex]).toFixed(2)}%`,
+          color: w.globals.colors[index]
+        }))
+      })
     }
   }
 })
@@ -365,6 +375,20 @@ const scanChartOptions = computed(() => ({
   },
   fill: {
     opacity: 1
+  },
+  tooltip: {
+    shared: true,
+    intersect: false,
+    custom({ series, dataPointIndex, w }) {
+      return renderChartTooltip({
+        title: new Date(trendDays.value[dataPointIndex]).toLocaleDateString('zh-CN'),
+        rows: series.map((values, index) => ({
+          label: w.globals.seriesNames[index],
+          value: Number(values[dataPointIndex]).toLocaleString('zh-CN'),
+          color: w.globals.colors[index]
+        }))
+      })
+    }
   }
 }))
 

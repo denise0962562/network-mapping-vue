@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
@@ -90,6 +91,11 @@ const chartSeries = computed(() => [
   }
 ])
 
+function formatLatency(value) {
+  const milliseconds = Number(value)
+  return Number.isFinite(milliseconds) ? `${milliseconds.toFixed(1)} ms` : '--'
+}
+
 const chartOptions = computed(() => ({
   chart: {
     type: 'line',
@@ -111,8 +117,19 @@ const chartOptions = computed(() => ({
   tooltip: {
     shared: true,
     intersect: false,
-    x: { format: 'yyyy-MM-dd HH:mm:ss' },
-    y: { formatter: (value) => Number.isFinite(value) ? `${Number(value).toFixed(1)} ms` : '--' }
+    custom({ dataPointIndex }) {
+      const point = points.value[dataPointIndex]
+      if (!point) return ''
+      return renderChartTooltip({
+        title: formatChartTooltipTime(point.timestamp_ms),
+        rows: [
+          { label: '网络 RTT 平均值', value: formatLatency(point.network_avg_ms), color: '#00a76f' },
+          { label: '网络 RTT P95', value: formatLatency(point.network_p95_ms), color: '#f59e0b' },
+          { label: '服务端处理', value: formatLatency(point.server_processing_avg_ms), color: '#008ffb' }
+        ],
+        footer: `样本数 ${Number(point.sample_count).toLocaleString('zh-CN')}`
+      })
+    }
   },
   grid: { borderColor: 'rgba(128, 128, 128, 0.18)' }
 }))

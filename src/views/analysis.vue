@@ -3,6 +3,7 @@ import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
@@ -227,7 +228,18 @@ const pieOptions = computed(() => ({
   },
   stroke: { width: 1 },
   tooltip: {
-    y: { formatter: (value) => `${Number(value).toLocaleString('zh-CN')} 个端点` }
+    custom({ seriesIndex, dataPointIndex, w }) {
+      const index = Number.isInteger(dataPointIndex) ? dataPointIndex : seriesIndex
+      return renderChartTooltip({
+        title: w.globals.labels[index],
+        rows: [{
+          label: '端点数',
+          value: `${Number(pieSeries.value[index]).toLocaleString('zh-CN')} 个`,
+          color: w.globals.colors[index]
+        }],
+        footer: `占比 ${distributionData.value.total > 0 ? ((pieSeries.value[index] / distributionData.value.total) * 100).toFixed(1) : '0.0'}%`
+      })
+    }
   },
   responsive: [
     {
@@ -321,7 +333,15 @@ const heatmapOptions = computed(() => ({
       const point = w.config.series[seriesIndex].data[dataPointIndex]
       const value = series[seriesIndex][dataPointIndex]
       if (value === null || value === undefined) return ''
-      return `<div class="p-2 text-xs"><div><strong>${w.config.series[seriesIndex].name}</strong></div><div>日期: ${point.dateLabel}</div><div>发现 IP: ${Number(value).toLocaleString('zh-CN')}</div></div>`
+      const color = heatmapColorRanges.value.find((range) => value >= range.from && value <= range.to)?.color
+      return renderChartTooltip({
+        title: point.dateLabel,
+        rows: [{
+          label: w.config.series[seriesIndex].name,
+          value: `${Number(value).toLocaleString('zh-CN')} 个 IP`,
+          color
+        }]
+      })
     }
   }
 }))

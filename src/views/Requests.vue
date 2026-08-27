@@ -4,6 +4,7 @@ import { defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
@@ -333,10 +334,14 @@ const trendOptions = computed(() => ({
         }
         if (rest > 0) rows.push(['其他错误', rest, '#94a3b8'])
       }
-      const body = rows
-        .map(([name, value, color]) => `<div class="flex items-center justify-between gap-5"><span><i class="mr-1 inline-block size-2 rounded-full" style="background:${color}"></i>${name}</span><span>${Number(value).toLocaleString('zh-CN')}</span></div>`)
-        .join('')
-      return `<div class="space-y-1 p-2 text-xs"><div class="mb-1 font-semibold">${formatTime(point.bucket)}</div>${body}</div>`
+      return renderChartTooltip({
+        title: formatTime(point.bucket),
+        rows: rows.map(([label, value, color]) => ({
+          label,
+          value: Number(value).toLocaleString('zh-CN'),
+          color
+        }))
+      })
     }
   }
 }))

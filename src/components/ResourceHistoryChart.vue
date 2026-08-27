@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
@@ -217,10 +218,6 @@ const chartSeries = computed(() => [
   }
 ])
 
-function formatTimestamp(value) {
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
-}
-
 const chartOptions = computed(() => ({
   chart: {
     type: 'line',
@@ -252,13 +249,15 @@ const chartOptions = computed(() => ({
       const point = points.value[dataPointIndex]
       if (!point) return ''
       const rows = [
-        ['CPU', point.cpu_avg, point.cpu_max, '#008ffb'],
-        ['内存', point.ram_avg, point.ram_max, '#00a76f'],
-        ['磁盘', point.disk_avg, point.disk_max, '#f59e0b']
+        { label: 'CPU', value: `平均 ${formatPercent(point.cpu_avg)} · 峰值 ${formatPercent(point.cpu_max)}`, color: '#008ffb' },
+        { label: '内存', value: `平均 ${formatPercent(point.ram_avg)} · 峰值 ${formatPercent(point.ram_max)}`, color: '#00a76f' },
+        { label: '磁盘', value: `平均 ${formatPercent(point.disk_avg)} · 峰值 ${formatPercent(point.disk_max)}`, color: '#f59e0b' }
       ]
-        .map(([name, average, peak, color]) => `<div class="flex items-center justify-between gap-5"><span><i class="mr-1 inline-block size-2 rounded-full" style="background:${color}"></i>${name}</span><span>平均 ${formatPercent(average)} · 峰值 ${formatPercent(peak)}</span></div>`)
-        .join('')
-      return `<div class="space-y-1 p-2 text-xs"><div class="mb-1 font-semibold">${formatTimestamp(point.timestamp_ms)}</div>${rows}<div class="pt-1 opacity-60">样本数 ${Number(point.sample_count).toLocaleString('zh-CN')}</div></div>`
+      return renderChartTooltip({
+        title: formatChartTooltipTime(point.timestamp_ms),
+        rows,
+        footer: `样本数 ${Number(point.sample_count).toLocaleString('zh-CN')}`
+      })
     }
   },
   responsive: [

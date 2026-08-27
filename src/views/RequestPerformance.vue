@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
@@ -192,8 +193,19 @@ const trendOptions = computed(() => ({
   tooltip: {
     shared: true,
     intersect: false,
-    x: { format: 'yyyy-MM-dd HH:mm' },
-    y: { formatter: (value) => formatDuration(value) },
+    custom({ series, seriesIndex, dataPointIndex, w }) {
+      const timestamp = w.globals.seriesX[seriesIndex]?.[dataPointIndex]
+      return renderChartTooltip({
+        title: formatChartTooltipTime(timestamp),
+        rows: series
+          .map((values, index) => ({
+            label: w.globals.seriesNames[index],
+            value: formatDuration(values[dataPointIndex]),
+            color: w.globals.colors[index]
+          }))
+          .filter((row) => row.value !== '--')
+      })
+    }
   },
   noData: { text: '暂无趋势数据' },
 }))

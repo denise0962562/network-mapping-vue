@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
@@ -298,10 +299,6 @@ function formatGrowth(value) {
   return `${bytes > 0 ? '+' : '-'}${formatBytes(Math.abs(bytes))}`
 }
 
-function formatTimestamp(value) {
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
-}
-
 function colorForTable(name) {
   let hash = 0
   for (const character of name) hash = ((hash << 5) - hash + character.codePointAt(0)) | 0
@@ -375,10 +372,16 @@ const chartOptions = {
       if (!point) return ''
       const rows = [...selectedTables.value]
         .sort(compareNames)
-        .map((name) => [name, point.tables?.[name]?.total, colorForTable(name)])
-        .map(([name, value, color]) => `<div class="flex items-center justify-between gap-5"><span><i class="mr-1 inline-block size-2 rounded-full" style="background:${color}"></i>${name}</span><span>${formatBytes(value)}</span></div>`)
-        .join('')
-      return `<div class="space-y-1 p-2 text-xs"><div class="mb-1 font-semibold">${formatTimestamp(point.timestamp_ms)}</div>${rows}<div class="pt-1 opacity-60">样本数 ${Number(point.sample_count).toLocaleString('zh-CN')}</div></div>`
+        .map((name) => ({
+          label: name,
+          value: formatBytes(point.tables?.[name]?.total),
+          color: colorForTable(name)
+        }))
+      return renderChartTooltip({
+        title: formatChartTooltipTime(point.timestamp_ms),
+        rows,
+        footer: `样本数 ${Number(point.sample_count).toLocaleString('zh-CN')}`
+      })
     }
   },
   responsive: [{ breakpoint: 640, options: { chart: { height: 360 } } }]
