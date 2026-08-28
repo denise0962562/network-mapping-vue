@@ -7,8 +7,8 @@ import http from '@/utils/http'
 const alerts = ref([])
 
 const listenConfig = ref({
-  host: '0.0.0.0',
-  port: '8080'
+  host: '',
+  port: null
 })
 
 const securityConfig = ref({
@@ -55,7 +55,6 @@ const notificationPrefs = ref({
   healthAlertEnabled: true
 })
 
-const savedListenConfig = ref({ ...listenConfig.value })
 const savedSecurityConfig = ref({ ...securityConfig.value })
 const savedSessionSettings = ref({ sessionTtlMinutes: sessionSettings.value.sessionTtlMinutes })
 const savedTrustedProxySettings = ref({ ...trustedProxySettings.value })
@@ -66,6 +65,8 @@ const senderKeyConfigured = ref(false)
 const loadingMailConfig = ref(false)
 const savingNotifyConfig = ref(false)
 const testingMailServer = ref(false)
+const loadingListenConfig = ref(false)
+const listenConfigLoadFailed = ref(false)
 const loadingSessionSettings = ref(false)
 const savingSessionSettings = ref(false)
 const loadingTrustedProxySettings = ref(false)
@@ -85,9 +86,6 @@ function closeAlert(id) {
   alerts.value = alerts.value.filter((alert) => alert.id !== id)
 }
 
-const showListenSave = computed(
-  () => JSON.stringify(listenConfig.value) !== JSON.stringify(savedListenConfig.value)
-)
 const showSecuritySave = computed(
   () => JSON.stringify(securityConfig.value) !== JSON.stringify(savedSecurityConfig.value)
 )
@@ -134,8 +132,7 @@ const showNotifySave = computed(() => {
   return mailChanged || prefChanged
 })
 const hasUnsavedChanges = computed(() => (
-  showListenSave.value
-  || showSecuritySave.value
+  showSecuritySave.value
   || showSessionSave.value
   || showTrustedProxySave.value
   || showNotifySave.value
@@ -164,14 +161,33 @@ function normalizeRateLimit(field) {
   securityConfig.value[field] = value
 }
 
-function saveListenConfig() {
-  savedListenConfig.value = { ...listenConfig.value }
-}
-
 function saveSecurityConfig() {
   clampLoginRetries()
   normalizeLockMinutes()
   savedSecurityConfig.value = { ...securityConfig.value }
+}
+
+async function fetchListenConfig() {
+  loadingListenConfig.value = true
+  listenConfigLoadFailed.value = false
+  try {
+    const response = await http.get('/api/config/server')
+    const data = response.data?.data
+    if (response.data?.success !== true || typeof data?.host !== 'string' || !Number.isInteger(data?.port)) {
+      throw new Error('服务器未返回有效 Web 监听配置')
+    }
+    listenConfig.value = { host: data.host, port: data.port }
+  } catch (error) {
+    console.error('fetch server listen config failed', error)
+    listenConfigLoadFailed.value = true
+    pushAlert(
+      'error',
+      'Web 监听配置加载失败',
+      error?.response?.status === 403 ? '仅管理员可以查看 Web 监听配置。' : '请稍后刷新页面重试。'
+    )
+  } finally {
+    loadingListenConfig.value = false
+  }
 }
 
 function normalizeSessionTtl() {
@@ -428,7 +444,6 @@ async function saveNotifyConfig() {
 }
 
 async function saveAllSettings() {
-  if (showListenSave.value) saveListenConfig()
   if (showSecuritySave.value) saveSecurityConfig()
   if (showSessionSave.value && !await saveSessionSettings()) return false
   if (showTrustedProxySave.value && !await saveTrustedProxySettings()) return false
@@ -469,6 +484,7 @@ async function testMailServer() {
 }
 
 onMounted(() => {
+  fetchListenConfig()
   fetchMailSettings()
   fetchSessionSettings()
   fetchTrustedProxySettings()
@@ -497,29 +513,31 @@ onMounted(() => {
 
     <div class="grid grid-cols-1 gap-5">
       <div class="card bg-base-100 card-border border-base-300 p-4">
-        <div class="flex items-start justify-between mb-3">
-          <h3 class="font-semibold">当前监听主机和端口</h3>
-          <button
-            class="btn rounded-lg btn-neutral btn-sm"
-            :class="showListenSave ? 'visible' : 'invisible'"
-            :disabled="!showListenSave"
-            @click="saveListenConfig"
-          >
-            保存
-          </button>
+        <div class="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h3 class="font-semibold">Web 监听配置</h3>
+            <p class="mt-1 text-xs opacity-60">读取服务端当前启动配置；如需调整，请修改 config.toml 并重启服务。</p>
+          </div>
+          <span class="badge badge-ghost badge-sm">只读</span>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label class="form-control w-full">
-            <span class="label-text mb-1">监听主机</span>
-            <input v-model="listenConfig.host" type="text" class="input input-bordered w-full" placeholder="例如: 0.0.0.0" />
-          </label>
-
-          <label class="form-control w-full">
-            <span class="label-text mb-1">监听端口</span>
-            <input v-model="listenConfig.port" type="number" class="input input-bordered w-full" placeholder="例如: 8080" />
-          </label>
+        <div v-if="loadingListenConfig" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="skeleton h-16 w-full rounded-box"></div>
+          <div class="skeleton h-16 w-full rounded-box"></div>
         </div>
+        <div v-else-if="listenConfigLoadFailed" class="alert alert-error alert-soft text-sm">
+          无法读取当前 Web 监听配置，请刷新页面重试。
+        </div>
+        <dl v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div class="rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
+            <dt class="text-xs opacity-60">监听主机</dt>
+            <dd class="mt-1 font-mono text-sm">{{ listenConfig.host || '--' }}</dd>
+          </div>
+          <div class="rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
+            <dt class="text-xs opacity-60">监听端口</dt>
+            <dd class="mt-1 font-mono text-sm">{{ listenConfig.port ?? '--' }}</dd>
+          </div>
+        </dl>
       </div>
 
       <div class="card bg-base-100 card-border border-base-300 p-4">
