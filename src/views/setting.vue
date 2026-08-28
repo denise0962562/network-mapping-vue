@@ -525,8 +525,8 @@ onMounted(() => {
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="mb-3 flex items-start justify-between gap-3">
           <div>
-            <h3 class="font-semibold">扫描端可信代理</h3>
-            <p class="mt-1 text-xs opacity-60">控制公网 IP 接口何时允许从反向代理请求头还原扫描端地址。</p>
+            <h3 class="font-semibold">来源 IP 可信代理</h3>
+            <p class="mt-1 text-xs opacity-60">统一控制请求日志、审计、限流和扫描器接口如何从反向代理请求头还原客户端地址。</p>
           </div>
           <button
             class="btn rounded-lg btn-neutral btn-sm"
@@ -546,7 +546,7 @@ onMounted(() => {
 
         <fieldset v-else :disabled="savingTrustedProxySettings" class="space-y-4">
           <div class="alert alert-warning alert-soft py-3 text-sm">
-            <span>仅填写实际反向代理的地址范围，推荐使用单地址 /32 或 /128。代理必须覆盖或安全追加所选请求头，不能直接透传客户端提交的同名字段。留空时忽略所有转发头；禁止配置 0.0.0.0/0 或 ::/0。</span>
+            <span>此配置影响全站来源 IP 判定。仅填写实际反向代理的地址范围，推荐使用单地址 /32 或 /128。代理必须覆盖或安全追加所选请求头，不能直接透传客户端提交的同名字段。留空时忽略所有转发头；禁止配置 0.0.0.0/0 或 ::/0。</span>
           </div>
 
           <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -601,7 +601,7 @@ onMounted(() => {
           </div>
 
           <div class="rounded-lg bg-base-200/60 p-3 text-xs leading-5 opacity-75">
-            服务端先验证 TCP 直连地址是否属于可信代理，再从右向左剥离代理链并选择第一个非可信地址。自定义请求头按裸 IP 或逗号分隔的 IP 链解析；Forwarded 按 RFC 7239 的 for 参数解析。未命中可信 CIDR、请求头缺失、格式错误或整条链均为可信地址时，都会安全回退到 TCP 对端地址。
+            服务端在请求入口统一解析一次来源 IP：先验证 TCP 直连地址是否属于可信代理，再从右向左剥离代理链并选择第一个非可信地址。自定义请求头按裸 IP 或逗号分隔的 IP 链解析；Forwarded 按 RFC 7239 的 for 参数解析。未命中可信 CIDR、请求头缺失、格式错误或整条链均为可信地址时，都会安全回退到 TCP 对端地址。
           </div>
         </fieldset>
       </div>
