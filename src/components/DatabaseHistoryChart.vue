@@ -9,7 +9,9 @@ const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const emit = defineEmits(['error'])
 
 const DEFAULT_RANGE_MILLISECONDS = 30 * 60 * 1000
-const MAX_SELECTED_TABLES = 6
+const MAX_SELECTED_ITEMS = 6
+const POSTGRESQL_PREFIX = 'postgresql:'
+const ELASTICSEARCH_PREFIX = 'elasticsearch:'
 const chartColors = ['#008ffb', '#00a76f', '#f59e0b', '#775dd0', '#ff4560', '#00b8d9', '#8bc34a', '#ff8f00']
 
 const rangeOptions = [
@@ -83,7 +85,8 @@ const customStart = ref(initialCustomRange.start)
 const customEnd = ref(initialCustomRange.end)
 const points = ref([])
 const tableNames = ref([])
-const selectedTables = ref([])
+const elasticsearchIndexNames = ref([])
+const selectedItems = ref([])
 const meta = ref(null)
 const loading = ref(false)
 const failed = ref(false)
@@ -94,23 +97,61 @@ function unqualifiedTableName(name) {
   return name.split('.').at(-1)
 }
 
+function storageKey(engine, name) {
+  return `${engine === 'postgresql' ? POSTGRESQL_PREFIX : ELASTICSEARCH_PREFIX}${name}`
+}
+
+function storageEngine(key) {
+  return key.startsWith(ELASTICSEARCH_PREFIX) ? 'elasticsearch' : 'postgresql'
+}
+
+function storageName(key) {
+  return key.slice(key.indexOf(':') + 1)
+}
+
+function storageLabel(key) {
+  return `${storageEngine(key) === 'postgresql' ? 'PG' : 'ES'} · ${storageName(key)}`
+}
+
+function storageMetrics(point, key) {
+  const name = storageName(key)
+  return storageEngine(key) === 'postgresql'
+    ? point?.tables?.[name]
+    : point?.elasticsearch_indices?.[name]
+}
+
+const availableStorageItems = computed(() => [
+  ...tableNames.value.map((name) => ({ key: storageKey('postgresql', name), name, engine: 'postgresql' })),
+  ...elasticsearchIndexNames.value.map((name) => ({ key: storageKey('elasticsearch', name), name, engine: 'elasticsearch' }))
+])
+
 const categorizedTableNames = new Set(tableCategoryDefinitions.flatMap((category) => category.tables))
 
-const availableTableCategories = computed(() => {
+const availableStorageCategories = computed(() => {
   const categories = tableCategoryDefinitions
     .map((category) => ({
       ...category,
-      tableNames: tableNames.value
+      itemKeys: tableNames.value
         .filter((name) => category.tables.includes(unqualifiedTableName(name)))
+        .map((name) => storageKey('postgresql', name))
         .sort(compareNames)
     }))
-    .filter((category) => category.tableNames.length > 0)
+    .filter((category) => category.itemKeys.length > 0)
   const uncategorizedTables = tableNames.value
     .filter((name) => !categorizedTableNames.has(unqualifiedTableName(name)))
+    .map((name) => storageKey('postgresql', name))
     .sort(compareNames)
 
   if (uncategorizedTables.length > 0) {
-    categories.push({ id: 'other', label: '其他数据', tables: [], tableNames: uncategorizedTables })
+    categories.push({ id: 'other', label: '其他 PostgreSQL', tables: [], itemKeys: uncategorizedTables })
+  }
+  if (elasticsearchIndexNames.value.length > 0) {
+    categories.push({
+      id: 'elasticsearch',
+      label: 'Elasticsearch 索引',
+      tables: [],
+      itemKeys: elasticsearchIndexNames.value.map((name) => storageKey('elasticsearch', name)).sort(compareNames)
+    })
   }
   return categories
 })
@@ -175,29 +216,31 @@ function buildRequestParams() {
   }
 }
 
-function latestPointWithTables(historyPoints) {
-  return [...historyPoints].reverse().find((point) => Object.keys(point.tables || {}).length > 0) || null
+function latestPointWithStorage(historyPoints) {
+  return [...historyPoints].reverse().find((point) =>
+    Object.keys(point.tables || {}).length > 0 || Object.keys(point.elasticsearch_indices || {}).length > 0
+  ) || null
 }
 
-function defaultSelectedTables(names, historyPoints) {
-  const latest = latestPointWithTables(historyPoints)
-  return [...names]
+function defaultSelectedItems(keys, historyPoints) {
+  const latest = latestPointWithStorage(historyPoints)
+  return [...keys]
     .sort((left, right) => {
-      const sizeDifference = Number(latest?.tables?.[right]?.total || 0) - Number(latest?.tables?.[left]?.total || 0)
-      return sizeDifference || compareNames(left, right)
+      const sizeDifference = Number(storageMetrics(latest, right)?.total || 0) - Number(storageMetrics(latest, left)?.total || 0)
+      return sizeDifference || compareNames(storageLabel(left), storageLabel(right))
     })
-    .slice(0, MAX_SELECTED_TABLES)
+    .slice(0, MAX_SELECTED_ITEMS)
     .sort(compareNames)
 }
 
-function updateTableSelection(names, historyPoints) {
-  const available = new Set(names)
-  const retained = selectedTables.value.filter((name) => available.has(name)).sort(compareNames)
-  if (!selectionInitialized || (retained.length === 0 && names.length > 0)) {
-    selectedTables.value = defaultSelectedTables(names, historyPoints)
+function updateStorageSelection(keys, historyPoints) {
+  const available = new Set(keys)
+  const retained = selectedItems.value.filter((key) => available.has(key)).sort(compareNames)
+  if (!selectionInitialized || (retained.length === 0 && keys.length > 0)) {
+    selectedItems.value = defaultSelectedItems(keys, historyPoints)
     selectionInitialized = true
   } else {
-    selectedTables.value = retained
+    selectedItems.value = retained
   }
 }
 
@@ -221,14 +264,26 @@ async function loadHistory({ silent = false } = {}) {
     })
     const responsePoints = response.data?.data?.points
     const responseTableNames = response.data?.data?.table_names
-    if (response.data?.success !== true || !Array.isArray(responsePoints) || !Array.isArray(responseTableNames)) {
+    const responseElasticsearchIndexNames = response.data?.data?.elasticsearch_index_names ?? []
+    if (
+      response.data?.success !== true
+      || !Array.isArray(responsePoints)
+      || !Array.isArray(responseTableNames)
+      || !Array.isArray(responseElasticsearchIndexNames)
+    ) {
       throw new Error('服务器未返回有效的数据库容量数据。')
     }
     if (version !== requestVersion) return
     const names = [...new Set(responseTableNames.map(String))].sort(compareNames)
+    const indexNames = [...new Set(responseElasticsearchIndexNames.map(String))].sort(compareNames)
+    const keys = [
+      ...names.map((name) => storageKey('postgresql', name)),
+      ...indexNames.map((name) => storageKey('elasticsearch', name))
+    ]
     points.value = responsePoints
     tableNames.value = names
-    updateTableSelection(names, responsePoints)
+    elasticsearchIndexNames.value = indexNames
+    updateStorageSelection(keys, responsePoints)
     meta.value = response.data.meta || null
     failed.value = false
     hasLoaded.value = true
@@ -251,35 +306,35 @@ async function loadHistory({ silent = false } = {}) {
   }
 }
 
-function toggleTable(name) {
-  if (selectedTables.value.includes(name)) {
-    selectedTables.value = selectedTables.value.filter((item) => item !== name)
+function toggleStorageItem(key) {
+  if (selectedItems.value.includes(key)) {
+    selectedItems.value = selectedItems.value.filter((item) => item !== key)
     return
   }
-  if (selectedTables.value.length >= MAX_SELECTED_TABLES) return
-  selectedTables.value = [...selectedTables.value, name].sort(compareNames)
+  if (selectedItems.value.length >= MAX_SELECTED_ITEMS) return
+  selectedItems.value = [...selectedItems.value, key].sort(compareNames)
 }
 
 function categorySelection(category) {
-  const latest = latestPointWithTables(points.value)
-  return [...category.tableNames]
+  const latest = latestPointWithStorage(points.value)
+  return [...category.itemKeys]
     .sort((left, right) => {
-      const sizeDifference = Number(latest?.tables?.[right]?.total || 0) - Number(latest?.tables?.[left]?.total || 0)
-      return sizeDifference || compareNames(left, right)
+      const sizeDifference = Number(storageMetrics(latest, right)?.total || 0) - Number(storageMetrics(latest, left)?.total || 0)
+      return sizeDifference || compareNames(storageLabel(left), storageLabel(right))
     })
-    .slice(0, MAX_SELECTED_TABLES)
+    .slice(0, MAX_SELECTED_ITEMS)
     .sort(compareNames)
 }
 
-function selectTableCategory(category) {
-  selectedTables.value = categorySelection(category)
+function selectStorageCategory(category) {
+  selectedItems.value = categorySelection(category)
   selectionInitialized = true
 }
 
-function tableCategoryActive(category) {
-  const categoryTables = categorySelection(category)
-  return categoryTables.length === selectedTables.value.length
-    && categoryTables.every((name, index) => name === [...selectedTables.value].sort(compareNames)[index])
+function storageCategoryActive(category) {
+  const categoryItems = categorySelection(category)
+  return categoryItems.length === selectedItems.value.length
+    && categoryItems.every((key, index) => key === [...selectedItems.value].sort(compareNames)[index])
 }
 
 function formatBytes(value) {
@@ -299,40 +354,81 @@ function formatGrowth(value) {
   return `${bytes > 0 ? '+' : '-'}${formatBytes(Math.abs(bytes))}`
 }
 
-function colorForTable(name) {
+function colorForStorage(key) {
   let hash = 0
-  for (const character of name) hash = ((hash << 5) - hash + character.codePointAt(0)) | 0
+  for (const character of key) hash = ((hash << 5) - hash + character.codePointAt(0)) | 0
   return chartColors[Math.abs(hash) % chartColors.length]
 }
 
 const latestPoint = computed(() =>
   [...points.value].reverse().find((point) =>
-    Number.isFinite(point.database_size) || Number.isFinite(point.connection_count) || Object.keys(point.tables || {}).length > 0
+    Number.isFinite(point.database_size)
+    || Number.isFinite(point.connection_count)
+    || Number.isFinite(point.elasticsearch_total_size)
+    || Object.keys(point.tables || {}).length > 0
+    || Object.keys(point.elasticsearch_indices || {}).length > 0
   ) || null
 )
 
-const firstDatabaseSize = computed(() =>
-  points.value.find((point) => Number.isFinite(point.database_size))?.database_size ?? null
-)
+function combinedStorageSize(point, requireElasticsearch = false) {
+  const postgresql = point?.database_size
+  const elasticsearch = point?.elasticsearch_total_size
+  if (!Number.isFinite(postgresql)) return null
+  if (requireElasticsearch && !Number.isFinite(elasticsearch)) return null
+  return postgresql + (Number.isFinite(elasticsearch) ? elasticsearch : 0)
+}
+
+const latestCombinedSize = computed(() => combinedStorageSize(latestPoint.value))
+const firstCombinedSize = computed(() => {
+  const requireElasticsearch = Number.isFinite(latestPoint.value?.elasticsearch_total_size)
+  return points.value
+    .map((point) => combinedStorageSize(point, requireElasticsearch))
+    .find(Number.isFinite) ?? null
+})
 
 const databaseGrowth = computed(() => {
-  if (!Number.isFinite(latestPoint.value?.database_size) || !Number.isFinite(firstDatabaseSize.value)) return null
-  return latestPoint.value.database_size - firstDatabaseSize.value
+  if (!Number.isFinite(latestCombinedSize.value) || !Number.isFinite(firstCombinedSize.value)) return null
+  return latestCombinedSize.value - firstCombinedSize.value
 })
 
 const databaseStats = computed(() => [
-  { name: '数据库总大小', value: formatBytes(latestPoint.value?.database_size), class: 'text-info' },
-  { name: '区间增长', value: formatGrowth(databaseGrowth.value), class: databaseGrowth.value > 0 ? 'text-warning' : 'text-success' },
-  { name: '当前连接数', value: Number.isFinite(latestPoint.value?.connection_count) ? String(latestPoint.value.connection_count) : '--', class: 'text-secondary' }
+  {
+    name: 'PostgreSQL 总大小',
+    value: formatBytes(latestPoint.value?.database_size),
+    description: '数据库实际占用',
+    class: 'text-info'
+  },
+  {
+    name: 'Elasticsearch 实际占用',
+    value: Number.isFinite(latestPoint.value?.elasticsearch_total_size)
+      ? formatBytes(latestPoint.value.elasticsearch_total_size)
+      : latestPoint.value?.elasticsearch_enabled ? '暂不可用' : '未启用',
+    description: Number.isFinite(latestPoint.value?.elasticsearch_total_size)
+      ? `主分片 ${formatBytes(latestPoint.value.elasticsearch_primary_size)} · 副本 ${formatBytes(latestPoint.value.elasticsearch_replica_size)}`
+      : '仅统计本项目索引',
+    class: 'text-primary'
+  },
+  {
+    name: '合计区间增长',
+    value: formatGrowth(databaseGrowth.value),
+    description: 'PostgreSQL 与 ES 实际占用',
+    class: databaseGrowth.value > 0 ? 'text-warning' : 'text-success'
+  },
+  {
+    name: 'PostgreSQL 当前连接数',
+    value: Number.isFinite(latestPoint.value?.connection_count) ? String(latestPoint.value.connection_count) : '--',
+    description: '当前容量快照',
+    class: 'text-secondary'
+  }
 ])
 
 const chartSeries = computed(() =>
-  [...selectedTables.value].sort(compareNames).map((name) => ({
-    name,
-    color: colorForTable(name),
+  [...selectedItems.value].sort(compareNames).map((key) => ({
+    name: storageLabel(key),
+    color: colorForStorage(key),
     data: points.value.map((point) => ({
       x: point.timestamp_ms,
-      y: Number.isFinite(point.tables?.[name]?.total) ? point.tables[name].total : null
+      y: Number.isFinite(storageMetrics(point, key)?.total) ? storageMetrics(point, key).total : null
     }))
   }))
 )
@@ -341,10 +437,21 @@ const hasMetrics = computed(() =>
   chartSeries.value.some((series) => series.data.some((point) => Number.isFinite(point.y)))
 )
 
-const selectedTableDetails = computed(() =>
-  [...selectedTables.value]
+const selectedStorageDetails = computed(() =>
+  [...selectedItems.value]
     .sort(compareNames)
-    .map((name) => ({ name, ...(latestPoint.value?.tables?.[name] || {}) }))
+    .map((key) => {
+      const engine = storageEngine(key)
+      const metrics = storageMetrics(latestPoint.value, key) || {}
+      return {
+        key,
+        engine,
+        name: storageName(key),
+        primary: engine === 'postgresql' ? metrics.data : metrics.primary,
+        overhead: engine === 'postgresql' ? metrics.index : metrics.replica,
+        total: metrics.total
+      }
+    })
 )
 
 // Keep callback-bearing options stable: vue3-apexcharts serializes reactive option
@@ -370,12 +477,12 @@ const chartOptions = {
     custom({ dataPointIndex }) {
       const point = points.value[dataPointIndex]
       if (!point) return ''
-      const rows = [...selectedTables.value]
+      const rows = [...selectedItems.value]
         .sort(compareNames)
-        .map((name) => ({
-          label: name,
-          value: formatBytes(point.tables?.[name]?.total),
-          color: colorForTable(name)
+        .map((key) => ({
+          label: storageLabel(key),
+          value: formatBytes(storageMetrics(point, key)?.total),
+          color: colorForStorage(key)
         }))
       return renderChartTooltip({
         title: formatChartTooltipTime(point.timestamp_ms),
@@ -416,45 +523,48 @@ onBeforeUnmount(() => {
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 class="text-lg font-semibold">数据库容量趋势</h2>
-        <p class="mt-1 text-xs text-base-content/60">展示所选用户表的总大小；每个时间桶采用最后一次容量快照。</p>
+        <p class="mt-1 text-xs text-base-content/60">展示 PostgreSQL 表与 Elasticsearch 索引的总大小；每个时间桶采用最后一次容量快照。</p>
       </div>
 
       <div class="flex flex-wrap items-end justify-end gap-2">
         <details class="dropdown dropdown-end">
-          <summary class="btn btn-outline btn-sm min-w-36">数据表 {{ selectedTables.length }}/{{ tableNames.length }}</summary>
+          <summary class="btn btn-outline btn-sm min-w-36">存储对象 {{ selectedItems.length }}/{{ availableStorageItems.length }}</summary>
           <div class="dropdown-content z-20 mt-2 w-80 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
-            <div v-if="tableNames.length === 0" class="px-2 py-3 text-sm text-base-content/50">暂无表信息</div>
+            <div v-if="availableStorageItems.length === 0" class="px-2 py-3 text-sm text-base-content/50">暂无存储对象</div>
             <div v-else>
               <div class="px-2 pb-1">
                 <div class="mb-1 text-xs font-medium">快捷选择</div>
-                <div class="mb-2 text-[11px] text-base-content/50">点击分类会替换当前选择，最多展示 {{ MAX_SELECTED_TABLES }} 张表</div>
+                <div class="mb-2 text-[11px] text-base-content/50">点击分类会替换当前选择，最多展示 {{ MAX_SELECTED_ITEMS }} 个对象</div>
                 <div class="grid grid-cols-2 gap-1">
                   <button
-                    v-for="category in availableTableCategories"
+                    v-for="category in availableStorageCategories"
                     :key="category.id"
                     type="button"
                     class="btn btn-ghost btn-sm h-auto min-h-8 justify-between px-2 font-normal"
-                    :class="{ 'btn-active': tableCategoryActive(category) }"
-                    @click="selectTableCategory(category)"
+                    :class="{ 'btn-active': storageCategoryActive(category) }"
+                    @click="selectStorageCategory(category)"
                   >
                     <span class="truncate">{{ category.label }}</span>
-                    <span class="badge badge-ghost badge-sm">{{ category.tableNames.length }}</span>
+                    <span class="badge badge-ghost badge-sm">{{ category.itemKeys.length }}</span>
                   </button>
                 </div>
               </div>
 
-              <div class="divider my-1 px-2 text-[11px] text-base-content/50">具体数据表</div>
+              <div class="divider my-1 px-2 text-[11px] text-base-content/50">具体存储对象</div>
 
               <div class="max-h-64 overflow-y-auto">
-                <label v-for="name in tableNames" :key="name" class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-base-200">
+                <label v-for="item in availableStorageItems" :key="item.key" class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-base-200">
                   <input
                     type="checkbox"
                     class="checkbox checkbox-sm"
-                    :checked="selectedTables.includes(name)"
-                    :disabled="!selectedTables.includes(name) && selectedTables.length >= MAX_SELECTED_TABLES"
-                    @change="toggleTable(name)"
+                    :checked="selectedItems.includes(item.key)"
+                    :disabled="!selectedItems.includes(item.key) && selectedItems.length >= MAX_SELECTED_ITEMS"
+                    @change="toggleStorageItem(item.key)"
                   />
-                  <span class="truncate text-sm" :title="name">{{ name }}</span>
+                  <span class="badge badge-sm" :class="item.engine === 'postgresql' ? 'badge-info' : 'badge-primary'">
+                    {{ item.engine === 'postgresql' ? 'PG' : 'ES' }}
+                  </span>
+                  <span class="truncate text-sm" :title="item.name">{{ item.name }}</span>
                 </label>
               </div>
             </div>
@@ -500,10 +610,11 @@ onBeforeUnmount(() => {
       </label>
     </div>
 
-    <div v-if="hasLoaded" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div v-if="hasLoaded" class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div v-for="item in databaseStats" :key="item.name" class="rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
         <div class="text-xs text-base-content/60">{{ item.name }}</div>
         <div class="mt-1 text-xl font-semibold" :class="item.class">{{ item.value }}</div>
+        <div class="mt-1 text-[11px] text-base-content/50">{{ item.description }}</div>
       </div>
     </div>
 
@@ -515,36 +626,42 @@ onBeforeUnmount(() => {
       message="无法从服务器读取数据库容量历史，请稍后重试。"
     />
     <EmptyState
-      v-else-if="selectedTables.length === 0"
-      title="请选择数据表"
-      message="当前范围内没有可展示的表，或尚未选择数据表。"
+      v-else-if="selectedItems.length === 0"
+      title="请选择存储对象"
+      message="当前范围内没有可展示的 PostgreSQL 表或 Elasticsearch 索引。"
     />
     <EmptyState
       v-else-if="!hasMetrics"
       title="暂无容量数据"
-      message="所选数据表在当前时间范围内没有可用于绘图的记录。"
+      message="所选存储对象在当前时间范围内没有可用于绘图的记录。"
     />
     <div v-else class="relative">
       <ApexChart type="line" height="420" :options="chartOptions" :series="chartSeries" />
       <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
     </div>
 
-    <div v-if="selectedTableDetails.length > 0" class="overflow-x-auto rounded-box border border-base-300">
+    <div v-if="selectedStorageDetails.length > 0" class="overflow-x-auto rounded-box border border-base-300">
       <table class="table table-sm">
         <thead>
           <tr>
-            <th>数据表</th>
-            <th class="text-right">数据</th>
-            <th class="text-right">索引</th>
+            <th>存储</th>
+            <th>对象</th>
+            <th class="text-right">数据 / 主分片</th>
+            <th class="text-right">索引 / 副本</th>
             <th class="text-right">总大小</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="table in selectedTableDetails" :key="table.name">
-            <td class="font-mono text-xs">{{ table.name }}</td>
-            <td class="text-right">{{ formatBytes(table.data) }}</td>
-            <td class="text-right">{{ formatBytes(table.index) }}</td>
-            <td class="text-right font-medium">{{ formatBytes(table.total) }}</td>
+          <tr v-for="item in selectedStorageDetails" :key="item.key">
+            <td>
+              <span class="badge badge-sm" :class="item.engine === 'postgresql' ? 'badge-info' : 'badge-primary'">
+                {{ item.engine === 'postgresql' ? 'PostgreSQL' : 'Elasticsearch' }}
+              </span>
+            </td>
+            <td class="font-mono text-xs">{{ item.name }}</td>
+            <td class="text-right">{{ formatBytes(item.primary) }}</td>
+            <td class="text-right">{{ formatBytes(item.overhead) }}</td>
+            <td class="text-right font-medium">{{ formatBytes(item.total) }}</td>
           </tr>
         </tbody>
       </table>
