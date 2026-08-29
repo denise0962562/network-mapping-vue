@@ -21,7 +21,7 @@ const analysisMenuOpen = ref(route.path.startsWith('/analysis'))
 let maintenanceRefreshTimer = null
 
 const maintenancePhaseLabel = computed(() => (
-  maintenanceStatus.value?.phase === 'draining' ? '扫描服务正在排空' : '扫描服务维护中'
+  maintenanceStatus.value?.phase === 'draining' ? '正在通知 Scanner 进入维护' : '扫描服务维护中'
 ))
 
 watch(

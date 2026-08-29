@@ -17,12 +17,13 @@ const status = ref({
   revision: 0
 })
 const runningTasks = ref(0)
+const heldTasks = ref(0)
 const form = ref({ message: '', expectedEndAt: '' })
 const formRevision = ref(0)
 let refreshTimer = null
 
 const phaseLabel = computed(() => {
-  if (status.value.phase === 'draining') return '正在排空'
+  if (status.value.phase === 'draining') return '正在通知'
   if (status.value.phase === 'active') return '维护中'
   return '正常运行'
 })
@@ -63,6 +64,7 @@ function applyResponse(data, { syncForm = true } = {}) {
   if (!data?.data) throw new Error('服务器未返回有效维护状态')
   status.value = data.data
   runningTasks.value = Number(data.running_tasks) || 0
+  heldTasks.value = Number(data.held_tasks) || 0
   if (syncForm) {
     form.value = {
       message: data.data.message || '',
@@ -99,12 +101,12 @@ async function enterMaintenance() {
     pushAlert('warning', '请输入维护说明')
     return
   }
-  if (!window.confirm('进入后将停止分配新任务，活动任务排空后 Scanner 会开始休眠。确认继续吗？')) return
+  if (!window.confirm('进入后将停止分配新任务，并通知活动 Scanner 继续在本地完成扫描。约 60 秒后即可关闭服务端，结果将在退出维护后补传。确认继续吗？')) return
   submitting.value = true
   try {
     const response = await http.post('/api/admin/scanner-maintenance/enter', requestPayload())
     applyResponse(response.data)
-    pushAlert('success', '已开始进入维护模式', runningTasks.value > 0 ? `正在等待 ${runningTasks.value} 个任务完成。` : '正在确认没有活动任务。')
+    pushAlert('success', '已开始进入维护模式', heldTasks.value > 0 ? `正在通知 ${heldTasks.value} 个活动任务，任务不会阻塞服务端维护。` : '当前没有活动任务。')
   } catch (error) {
     pushAlert('error', '进入维护模式失败', error?.response?.data?.message || '请稍后重试。')
   } finally {
@@ -172,7 +174,7 @@ onBeforeUnmount(() => {
     <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold">扫描服务维护</h1>
-        <p class="mt-1 text-sm text-base-content/60">暂停 Scanner 任务流，Web 管理功能在维护期间保持可用。</p>
+        <p class="mt-1 text-sm text-base-content/60">暂停 Scanner 任务流，活动扫描在本地完成并于维护结束后补传。</p>
       </div>
       <button class="btn btn-ghost btn-sm" :disabled="loading" @click="loadStatus()">
         {{ loading ? '刷新中…' : '刷新状态' }}
@@ -195,10 +197,14 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div class="rounded-box bg-base-200 p-4">
             <div class="text-xs text-base-content/60">运行中任务</div>
             <div class="mt-1 text-2xl font-semibold">{{ runningTasks }}</div>
+          </div>
+          <div class="rounded-box bg-base-200 p-4">
+            <div class="text-xs text-base-content/60">维护冻结任务</div>
+            <div class="mt-1 text-2xl font-semibold">{{ heldTasks }}</div>
           </div>
           <div class="rounded-box bg-base-200 p-4">
             <div class="text-xs text-base-content/60">开始时间</div>
@@ -215,10 +221,10 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="status.phase === 'draining'" role="alert" class="alert alert-warning">
-          <span>已停止分配新任务。活动任务完成上传后，系统会自动切换到完全维护状态。</span>
+          <span>已冻结活动任务租约并通过心跳通知 Scanner。通知窗口最多约 {{ status.notification_grace_seconds || 60 }} 秒，任务无需完成也不会阻塞正式维护。</span>
         </div>
         <div v-else-if="status.phase === 'active'" role="alert" class="alert alert-error">
-          <span>Scanner 正在维护休眠。预计结束时间仅供提示，必须由管理员手动退出。</span>
+          <span>可安全停止服务端。Scanner 会在本地完成活动扫描并缓存结果；手动退出维护后有 {{ status.result_upload_grace_hours || 24 }} 小时补传，随后未完成任务才会重新排队。</span>
         </div>
 
         <fieldset class="fieldset">

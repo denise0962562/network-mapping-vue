@@ -70,6 +70,9 @@ function resolveStatus(item) {
   if (item.is_enable !== true) {
     return { key: 'pending', text: '待注册', class: 'badge-warning' }
   }
+  if (maintenanceStatus.value?.phase === 'active' && item.current_task_id) {
+    return { key: 'maintenance-scanning', text: '维护中 · 本地扫描', class: 'badge-warning' }
+  }
   if (maintenanceStatus.value?.phase === 'active' || (
     maintenanceStatus.value?.phase === 'draining' && !item.current_task_id
   )) {
@@ -79,7 +82,7 @@ function resolveStatus(item) {
     if (item.runtime_state === 'scanning') {
       return {
         key: 'online',
-        text: maintenanceStatus.value?.phase === 'draining' ? '扫描中 · 等待维护' : '扫描中',
+        text: maintenanceStatus.value?.phase === 'draining' ? '扫描中 · 正在冻结任务' : '扫描中',
         class: 'badge-info'
       }
     }
