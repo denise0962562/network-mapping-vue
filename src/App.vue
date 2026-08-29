@@ -15,8 +15,14 @@ const reLoginModalRef = ref(null)
 const isAdmin = ref(false)
 const frontendVersion = packageInfo.version
 const serverVersion = ref('')
+const maintenanceStatus = ref(null)
 const taskMenuOpen = ref(route.path === '/create_scan' || route.path.startsWith('/task'))
 const analysisMenuOpen = ref(route.path.startsWith('/analysis'))
+let maintenanceRefreshTimer = null
+
+const maintenancePhaseLabel = computed(() => (
+  maintenanceStatus.value?.phase === 'draining' ? '扫描服务正在排空' : '扫描服务维护中'
+))
 
 watch(
   () => route.path,
@@ -41,9 +47,20 @@ async function loadCurrentRole() {
     const response = await http.get('/api/userinfo/get')
     const currentUser = Array.isArray(response.data) ? response.data[0] : response.data
     isAdmin.value = currentUser?.role === 1
+    if (isAdmin.value) await loadMaintenanceStatus()
   } catch (error) {
     console.error('load current role failed', error)
     isAdmin.value = false
+  }
+}
+
+async function loadMaintenanceStatus() {
+  if (!isAdmin.value) return
+  try {
+    const response = await http.get('/api/admin/scanner-maintenance')
+    maintenanceStatus.value = response.data?.data?.enabled ? response.data.data : null
+  } catch (error) {
+    console.error('load maintenance status failed', error)
   }
 }
 
@@ -73,10 +90,12 @@ onMounted(() => {
   window.addEventListener('session-expired', onSessionExpired)
   loadCurrentRole()
   loadServerVersion()
+  maintenanceRefreshTimer = window.setInterval(loadMaintenanceStatus, 30000)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('session-expired', onSessionExpired)
+  if (maintenanceRefreshTimer) window.clearInterval(maintenanceRefreshTimer)
 })
 
 async function handleLogout() {
@@ -135,6 +154,16 @@ async function handleLogout() {
           </div>
         </div>
       </nav>
+
+      <div v-if="maintenanceStatus" role="alert" class="alert rounded-none border-x-0 border-t-0" :class="maintenanceStatus.phase === 'draining' ? 'alert-warning' : 'alert-error'">
+        <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="font-medium">{{ maintenancePhaseLabel }}</div>
+            <div class="truncate text-xs opacity-80">{{ maintenanceStatus.message }}</div>
+          </div>
+          <router-link class="btn btn-sm btn-ghost shrink-0" to="/setting/maintenance">查看并管理</router-link>
+        </div>
+      </div>
 
       <router-view />
     </div>
@@ -302,6 +331,13 @@ async function handleLogout() {
             <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="设置" to="/setting">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">设置</span>
+            </router-link>
+          </li>
+
+          <li v-if="isAdmin">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="扫描服务维护" to="/setting/maintenance">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/><circle cx="12" cy="12" r="3"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">扫描服务维护</span>
             </router-link>
           </li>
 

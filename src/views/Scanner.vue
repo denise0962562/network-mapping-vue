@@ -30,6 +30,7 @@ function closeAlert(id) {
 }
 
 const scannerList = ref([])
+const maintenanceStatus = ref(null)
 const isLoadingData = ref(false)
 const initialLoadFailed = ref(false)
 
@@ -69,9 +70,18 @@ function resolveStatus(item) {
   if (item.is_enable !== true) {
     return { key: 'pending', text: '待注册', class: 'badge-warning' }
   }
+  if (maintenanceStatus.value?.phase === 'active' || (
+    maintenanceStatus.value?.phase === 'draining' && !item.current_task_id
+  )) {
+    return { key: 'maintenance', text: '维护休眠', class: 'badge-warning' }
+  }
   if (item.is_online === true) {
     if (item.runtime_state === 'scanning') {
-      return { key: 'online', text: '扫描中', class: 'badge-info' }
+      return {
+        key: 'online',
+        text: maintenanceStatus.value?.phase === 'draining' ? '扫描中 · 等待维护' : '扫描中',
+        class: 'badge-info'
+      }
     }
     return { key: 'online', text: '在线 · 空闲', class: 'badge-success' }
   }
@@ -148,6 +158,7 @@ async function loadScanners({ silent = false } = {}) {
     if (response.data?.success !== true || !Array.isArray(data)) {
       throw new Error('服务器未返回有效扫描器列表')
     }
+    maintenanceStatus.value = response.data?.maintenance || null
     scannerList.value = data.map(normalizeScanner)
     initialLoadFailed.value = false
     if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
