@@ -284,62 +284,43 @@ const heatmapSeries = computed(() => {
   }))
 })
 
-function quantile(sortedValues, ratio) {
-  if (sortedValues.length === 0) return 0
-  const position = (sortedValues.length - 1) * ratio
-  const base = Math.floor(position)
-  const remainder = position - base
-  return sortedValues[base + 1] === undefined
-    ? sortedValues[base]
-    : sortedValues[base] + remainder * (sortedValues[base + 1] - sortedValues[base])
-}
-
-const heatmapColorRanges = computed(() => {
-  const positiveValues = heatmapSeries.value
+const heatmapMaximum = computed(() => Math.max(
+  1,
+  ...heatmapSeries.value
     .flatMap((series) => series.data.map((point) => point.y))
-    .filter((value) => Number.isFinite(value) && value > 0)
-    .sort((left, right) => left - right)
-  const ranges = [{ from: 0, to: 0, name: '无发现', color: '#d1d5db' }]
-  if (positiveValues.length === 0) return ranges
-
-  const maximum = positiveValues[positiveValues.length - 1]
-  const lowEnd = Math.max(1, Math.ceil(quantile(positiveValues, 0.4)))
-  const mediumEnd = Math.max(lowEnd, Math.ceil(quantile(positiveValues, 0.8)))
-  ranges.push({ from: 1, to: Math.min(lowEnd, maximum), name: '较低', color: '#008ffb' })
-  if (lowEnd < maximum) {
-    ranges.push({ from: lowEnd + 1, to: Math.min(mediumEnd, maximum), name: '中等', color: '#00e396' })
-  }
-  if (mediumEnd < maximum) {
-    ranges.push({ from: mediumEnd + 1, to: maximum, name: '较高', color: '#ff4560' })
-  }
-  return ranges.filter((range) => range.from <= range.to)
-})
+    .filter((value) => Number.isFinite(value))
+))
 
 const heatmapOptions = computed(() => ({
   chart: { type: 'heatmap', toolbar: { show: false } },
+  colors: ['#008ffb'],
   dataLabels: { enabled: false },
   xaxis: { type: 'category', title: { text: `最近 ${activeFilters.value.weeks} 周（按周起始日）` } },
   yaxis: { title: { text: '星期' } },
   plotOptions: {
     heatmap: {
-      shadeIntensity: 0.25,
+      shadeIntensity: 0.5,
       radius: 2,
-      colorScale: { ranges: heatmapColorRanges.value }
+      useFillColorAsStroke: false,
+      colorScale: {
+        min: 0,
+        max: heatmapMaximum.value
+      }
     }
   },
-  stroke: { width: 3, colors: ['#ffffff'] },
+  stroke: { width: 1 },
+  legend: { show: false },
   tooltip: {
     custom({ series, seriesIndex, dataPointIndex, w }) {
       const point = w.config.series[seriesIndex].data[dataPointIndex]
       const value = series[seriesIndex][dataPointIndex]
       if (value === null || value === undefined) return ''
-      const color = heatmapColorRanges.value.find((range) => value >= range.from && value <= range.to)?.color
       return renderChartTooltip({
         title: point.dateLabel,
         rows: [{
           label: w.config.series[seriesIndex].name,
           value: `${Number(value).toLocaleString('zh-CN')} 个 IP`,
-          color
+          color: '#008ffb'
         }]
       })
     }
@@ -493,8 +474,14 @@ onBeforeUnmount(() => {
             message="无法从服务器获取统计数据，请稍后重试。"
           />
           <div v-else class="relative mt-2">
-            <ApexChart type="heatmap" height="400" :options="heatmapOptions" :series="heatmapSeries" />
+            <ApexChart type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
             <span v-if="heatmapLoading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
+          </div>
+          <div v-if="hasLoadedHeatmap" class="mt-2 flex items-center justify-end gap-2 text-xs text-base-content/60">
+            <span>发现 IP</span>
+            <span>0</span>
+            <span class="h-3 w-40 rounded-sm border border-base-300" style="background: linear-gradient(90deg, #e0f2fe 0%, #008ffb 100%)"></span>
+            <span>{{ heatmapMaximum.toLocaleString('zh-CN') }}</span>
           </div>
         </div>
       </section>

@@ -2,8 +2,10 @@
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
+import SystemMaintenanceTooltip from '@/components/SystemMaintenanceTooltip.vue'
 import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
+import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
@@ -29,6 +31,7 @@ const meta = ref(null)
 const loading = ref(false)
 const failed = ref(false)
 const lastUpdatedAt = ref(null)
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
 let requestController = null
 let refreshTimer = null
 let requestVersion = 0
@@ -36,6 +39,17 @@ let requestVersion = 0
 function selectedDuration() {
   return rangeOptions.find((item) => item.value === range.value)?.milliseconds
     ?? rangeOptions[0].milliseconds
+}
+
+async function loadMaintenanceAnnotations(startAt, endAt, version) {
+  const history = await loadSystemMaintenanceHistory()
+  if (version !== requestVersion) return
+  maintenanceAnnotations.value = buildSystemMaintenanceAnnotations(history, {
+    startAt,
+    endAt,
+    onLabelMouseEnter: showMaintenanceTooltip,
+    onLabelMouseLeave: hideMaintenanceTooltip
+  })
 }
 
 async function loadHistory({ silent = false } = {}) {
@@ -64,6 +78,7 @@ async function loadHistory({ silent = false } = {}) {
     meta.value = response.data.meta || null
     failed.value = false
     lastUpdatedAt.value = new Date()
+    void loadMaintenanceAnnotations(start, end, version)
   } catch (error) {
     if (version !== requestVersion || axios.isCancel(error)) return
     console.error('load scanner latency history failed', error)
@@ -190,7 +205,10 @@ onBeforeUnmount(() => {
       title="暂无延迟样本"
       message="升级扫描器并完成两个心跳周期后，这里将显示通信延迟趋势。"
     />
-    <ApexChart v-else type="line" height="340" :options="chartOptions" :series="chartSeries" />
+    <div v-else class="relative">
+      <ApexChart ref="maintenanceChartRef" type="line" height="340" :options="chartOptions" :series="chartSeries" />
+      <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
+    </div>
     <div class="mt-2 text-xs opacity-60">{{ statusText }}</div>
   </div>
 </template>

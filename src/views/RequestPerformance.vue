@@ -3,8 +3,10 @@ import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import SystemMaintenanceTooltip from '@/components/SystemMaintenanceTooltip.vue'
 import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
+import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const router = useRouter()
@@ -44,6 +46,7 @@ const trend = ref([])
 const baselineTrend = ref([])
 const events = ref([])
 const meta = ref({})
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
 
 function emptySummary() {
   return {
@@ -125,6 +128,15 @@ async function loadPerformance() {
     baselineTrend.value = response.data.baseline_trend || []
     events.value = response.data.events || []
     meta.value = response.data.meta || {}
+    const windowSeconds = windowOptions.find((item) => item.value === filters.value.window)?.seconds || 0
+    const endAt = new Date()
+    const history = await loadSystemMaintenanceHistory()
+    maintenanceAnnotations.value = buildSystemMaintenanceAnnotations(history, {
+      startAt: windowSeconds ? new Date(endAt.getTime() - windowSeconds * 1000) : trend.value.at(0)?.bucket,
+      endAt,
+      onLabelMouseEnter: showMaintenanceTooltip,
+      onLabelMouseLeave: hideMaintenanceTooltip
+    })
     hasLoaded.value = true
     loadFailed.value = false
   } catch (error) {
@@ -338,7 +350,10 @@ onMounted(loadPerformance)
             <span v-if="loading" class="loading loading-spinner loading-sm"></span>
           </div>
           <EmptyState v-if="!trend.length" class="mt-4" title="暂无耗时趋势" message="当前筛选范围内没有可用于分析的请求样本。" />
-          <ApexChart v-else type="line" height="330" :options="trendOptions" :series="trendSeries" />
+          <div v-else class="relative">
+            <ApexChart ref="maintenanceChartRef" type="line" height="330" :options="trendOptions" :series="trendSeries" />
+            <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
+          </div>
         </div>
       </section>
 

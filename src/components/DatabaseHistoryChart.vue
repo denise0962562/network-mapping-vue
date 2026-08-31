@@ -2,8 +2,10 @@
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
+import SystemMaintenanceTooltip from '@/components/SystemMaintenanceTooltip.vue'
 import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
+import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const emit = defineEmits(['error'])
@@ -92,6 +94,7 @@ const loading = ref(false)
 const failed = ref(false)
 const hasLoaded = ref(false)
 const lastUpdatedAt = ref(null)
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
 
 function unqualifiedTableName(name) {
   return name.split('.').at(-1)
@@ -244,6 +247,17 @@ function updateStorageSelection(keys, historyPoints) {
   }
 }
 
+async function loadMaintenanceAnnotations(params, version) {
+  const history = await loadSystemMaintenanceHistory()
+  if (version !== requestVersion) return
+  maintenanceAnnotations.value = buildSystemMaintenanceAnnotations(history, {
+    startAt: params.start_at,
+    endAt: params.end_at,
+    onLabelMouseEnter: showMaintenanceTooltip,
+    onLabelMouseLeave: hideMaintenanceTooltip
+  })
+}
+
 async function loadHistory({ silent = false } = {}) {
   let params
   try {
@@ -288,6 +302,7 @@ async function loadHistory({ silent = false } = {}) {
     failed.value = false
     hasLoaded.value = true
     lastUpdatedAt.value = new Date()
+    void loadMaintenanceAnnotations(params, version)
   } catch (error) {
     if (version !== requestVersion || axios.isCancel(error)) return
     console.error('load database size history failed', error)
@@ -454,9 +469,7 @@ const selectedStorageDetails = computed(() =>
     })
 )
 
-// Keep callback-bearing options stable: vue3-apexcharts serializes reactive option
-// updates, which would otherwise remove the axis and tooltip formatter functions.
-const chartOptions = {
+const chartOptions = computed(() => ({
   chart: {
     type: 'line',
     height: 420,
@@ -492,7 +505,7 @@ const chartOptions = {
     }
   },
   responsive: [{ breakpoint: 640, options: { chart: { height: 360 } } }]
-}
+}))
 
 const totalSamples = computed(() =>
   points.value.reduce((total, point) => total + (Number(point.sample_count) || 0), 0)
@@ -636,7 +649,8 @@ onBeforeUnmount(() => {
       message="所选存储对象在当前时间范围内没有可用于绘图的记录。"
     />
     <div v-else class="relative">
-      <ApexChart type="line" height="420" :options="chartOptions" :series="chartSeries" />
+      <ApexChart ref="maintenanceChartRef" type="line" height="420" :options="chartOptions" :series="chartSeries" />
+      <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
       <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
     </div>
 

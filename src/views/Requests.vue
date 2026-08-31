@@ -4,8 +4,10 @@ import { defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import SystemMaintenanceTooltip from '@/components/SystemMaintenanceTooltip.vue'
 import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
+import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const route = useRoute()
@@ -30,6 +32,7 @@ const summary = ref({
   trend: []
 })
 const summaryLoading = ref(false)
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
 
 const windowOptions = [
   { value: '', label: '全部时间' },
@@ -194,6 +197,15 @@ async function loadSummary() {
     const response = await http.get('/api/requests/summary', { params: buildParams(false, true) })
     if (response.data?.success === true && response.data?.summary) {
       summary.value = response.data.summary
+      const trend = summary.value.trend || []
+      const range = windowRange(filters.value.window)
+      const history = await loadSystemMaintenanceHistory()
+      maintenanceAnnotations.value = buildSystemMaintenanceAnnotations(history, {
+        startAt: range?.start || trend.at(0)?.bucket,
+        endAt: range?.end || trend.at(-1)?.bucket,
+        onLabelMouseEnter: showMaintenanceTooltip,
+        onLabelMouseLeave: hideMaintenanceTooltip
+      })
     }
   } catch (error) {
     console.error('load request summary failed', error)
@@ -449,7 +461,8 @@ onMounted(loadAll)
         <div v-if="summaryLoading && !summary.trend.length" class="mt-4 skeleton h-72 w-full rounded-box"></div>
         <EmptyState v-else-if="!summary.trend.length" class="mt-4" title="暂无趋势数据" message="当前筛选范围内没有请求记录。" />
         <div v-else class="relative mt-2">
-          <ApexChart type="area" height="300" :options="trendOptions" :series="trendSeries" />
+          <ApexChart ref="maintenanceChartRef" type="area" height="300" :options="trendOptions" :series="trendSeries" />
+          <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
         </div>
       </div>
     </section>

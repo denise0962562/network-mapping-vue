@@ -2,8 +2,10 @@
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
+import SystemMaintenanceTooltip from '@/components/SystemMaintenanceTooltip.vue'
 import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
+import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
@@ -56,6 +58,7 @@ const loading = ref(false)
 const failed = ref(false)
 const hasLoaded = ref(false)
 const lastUpdatedAt = ref(null)
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
 
 let requestController = null
 let refreshTimer = null
@@ -117,6 +120,17 @@ function buildRequestParams() {
   }
 }
 
+async function loadMaintenanceAnnotations(params, version) {
+  const history = await loadSystemMaintenanceHistory()
+  if (version !== requestVersion) return
+  maintenanceAnnotations.value = buildSystemMaintenanceAnnotations(history, {
+    startAt: params.start_at,
+    endAt: params.end_at,
+    onLabelMouseEnter: showMaintenanceTooltip,
+    onLabelMouseLeave: hideMaintenanceTooltip
+  })
+}
+
 async function loadHistory({ silent = false } = {}) {
   let params
   try {
@@ -145,6 +159,7 @@ async function loadHistory({ silent = false } = {}) {
     failed.value = false
     hasLoaded.value = true
     lastUpdatedAt.value = new Date()
+    void loadMaintenanceAnnotations(params, version)
   } catch (error) {
     if (version !== requestVersion || axios.isCancel(error)) return
     console.error('load resource history failed', error)
@@ -365,7 +380,8 @@ onBeforeUnmount(() => {
       message="当前时间范围内没有可用于绘图的系统资源记录。"
     />
     <div v-else class="relative">
-      <ApexChart type="line" height="420" :options="chartOptions" :series="chartSeries" />
+      <ApexChart ref="maintenanceChartRef" type="line" height="420" :options="chartOptions" :series="chartSeries" />
+      <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
       <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
     </div>
 
