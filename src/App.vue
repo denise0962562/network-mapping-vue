@@ -18,6 +18,7 @@ const serverVersion = ref('')
 const maintenanceStatus = ref(null)
 const taskMenuOpen = ref(route.path === '/create_scan' || route.path.startsWith('/task'))
 const analysisMenuOpen = ref(route.path.startsWith('/analysis'))
+const logsMenuOpen = ref(route.path === '/audit' || route.path.startsWith('/requests'))
 const settingsMenuOpen = ref(route.path.startsWith('/setting') || route.path === '/admin/tags')
 let maintenanceRefreshTimer = null
 
@@ -30,6 +31,7 @@ watch(
   (path) => {
     if (path === '/create_scan' || path.startsWith('/task')) taskMenuOpen.value = true
     if (path.startsWith('/analysis')) analysisMenuOpen.value = true
+    if (path === '/audit' || path.startsWith('/requests')) logsMenuOpen.value = true
     if (path.startsWith('/setting') || path === '/admin/tags') settingsMenuOpen.value = true
   },
 )
@@ -86,6 +88,15 @@ function toggleTaskMenu() {
     return
   }
   taskMenuOpen.value = !taskMenuOpen.value
+}
+
+function toggleLogsMenu() {
+  if (!drawerOpen.value) {
+    drawerOpen.value = true
+    logsMenuOpen.value = true
+    return
+  }
+  logsMenuOpen.value = !logsMenuOpen.value
 }
 
 function toggleSettingsMenu() {
@@ -290,17 +301,44 @@ async function handleLogout() {
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="审计日志" to="/audit">
+            <button
+              type="button"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              data-tip="日志"
+              :aria-expanded="logsMenuOpen"
+              aria-controls="logs-submenu"
+              @click="toggleLogsMenu"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9 12l2 2 4-4"/><path d="M12 22c4.4-1 8-5 8-10V5l-8-3-8 3v7c0 5 3.6 9 8 10"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">审计日志</span>
-            </router-link>
-          </li>
-
-          <li v-if="isAdmin">
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="请求日志" to="/requests">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M4 22h16"/><path d="M8 10h8"/><path d="M8 14h8"/><path d="M4 6h16v12H4z"/><path d="M4 2v4"/><path d="M20 2v4"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">请求日志</span>
-            </router-link>
+              <span class="is-drawer-close:hidden whitespace-nowrap">日志</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="ml-auto size-3.5 transition-transform duration-200 ease-out is-drawer-close:hidden"
+                :class="logsMenuOpen ? 'rotate-90' : 'rotate-0'"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <Transition name="sidebar-submenu">
+              <ul v-if="logsMenuOpen" id="logs-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/audit">
+                    <span class="whitespace-nowrap">审计日志</span>
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/requests">
+                    <span class="whitespace-nowrap">请求日志</span>
+                  </router-link>
+                </li>
+              </ul>
+            </Transition>
           </li>
 
           <li v-if="isAdmin">
