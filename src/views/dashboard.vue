@@ -79,7 +79,7 @@
             <span class="text-sm font-medium">网络接口</span>
             <span class="text-xs opacity-60">系统启动以来累计流量</span>
           </div>
-          <div class="divide-y divide-base-300">
+          <div class="max-h-64 divide-y divide-base-300 overflow-y-auto">
             <div v-for="iface in networkInterfaces" :key="iface.name" class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5 text-sm">
               <span class="truncate font-mono text-xs" :title="iface.name">{{ iface.name }}</span>
               <span class="text-right text-xs opacity-70">
