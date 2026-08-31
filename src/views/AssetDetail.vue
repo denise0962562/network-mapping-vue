@@ -28,8 +28,6 @@ const tagCatalogLoading = ref(false)
 const tagActionLoading = ref(false)
 const tagError = ref('')
 const selectedTagId = ref('')
-const editingTagId = ref(null)
-const tagForm = ref({ name: '', kind: 'info', description: '' })
 
 const assetIp = ref(new URLSearchParams(window.location.search).get('ip')?.trim() || '')
 const portsPage = computed(() => Math.floor(portsOffset.value / PORT_PAGE_SIZE) + 1)
@@ -148,11 +146,6 @@ function closeHistory() {
   historyDialogRef.value?.close()
 }
 
-function resetTagForm() {
-  editingTagId.value = null
-  tagForm.value = { name: '', kind: 'info', description: '' }
-}
-
 async function loadTagCatalog() {
   tagCatalogLoading.value = true
   tagError.value = ''
@@ -169,7 +162,6 @@ async function loadTagCatalog() {
 function openTagDialog() {
   selectedTagId.value = ''
   tagError.value = ''
-  resetTagForm()
   tagDialogRef.value?.showModal()
   loadTagCatalog()
 }
@@ -202,64 +194,6 @@ async function removeTag(tag) {
     summary.value.tags = assignedTags.value.filter((item) => item.id !== tag.id)
   } catch (error) {
     tagError.value = error.response?.data?.message || '标签移除失败。'
-  } finally {
-    tagActionLoading.value = false
-  }
-}
-
-function editTag(tag) {
-  editingTagId.value = tag.id
-  tagForm.value = {
-    name: tag.name,
-    kind: tag.kind,
-    description: tag.description || '',
-  }
-}
-
-async function saveTag() {
-  const payload = {
-    name: tagForm.value.name.trim(),
-    kind: tagForm.value.kind,
-    description: tagForm.value.description.trim() || null,
-  }
-  if (!payload.name) {
-    tagError.value = '请输入标签名称。'
-    return
-  }
-  tagActionLoading.value = true
-  tagError.value = ''
-  try {
-    if (editingTagId.value) {
-      const response = await http.patch(`/api/tags/${editingTagId.value}`, payload)
-      const updated = response.data?.data?.tag
-      tagCatalog.value = tagCatalog.value.map((tag) => tag.id === updated.id ? updated : tag)
-      summary.value.tags = assignedTags.value.map((tag) => tag.id === updated.id ? updated : tag)
-      resetTagForm()
-    } else {
-      const response = await http.post('/api/tags', payload)
-      const created = response.data?.data?.tag
-      tagCatalog.value.push(created)
-      resetTagForm()
-      await assignTag(created.id)
-    }
-  } catch (error) {
-    tagError.value = error.response?.data?.message || '标签保存失败。'
-  } finally {
-    tagActionLoading.value = false
-  }
-}
-
-async function deleteTag(tag) {
-  if (!window.confirm(`确定停用标签“${tag.name}”吗？它会从所有 IP 上移除。`)) return
-  tagActionLoading.value = true
-  tagError.value = ''
-  try {
-    await http.delete(`/api/tags/${tag.id}`)
-    tagCatalog.value = tagCatalog.value.filter((item) => item.id !== tag.id)
-    summary.value.tags = assignedTags.value.filter((item) => item.id !== tag.id)
-    if (editingTagId.value === tag.id) resetTagForm()
-  } catch (error) {
-    tagError.value = error.response?.data?.message || '标签停用失败。'
   } finally {
     tagActionLoading.value = false
   }
@@ -439,7 +373,7 @@ onMounted(() => {
     <div class="modal-box w-[calc(100vw-2rem)] max-w-3xl">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <h3 class="text-lg font-bold">管理资产标签</h3>
+          <h3 class="text-lg font-bold">绑定资产标签</h3>
           <p class="mt-1 font-mono text-sm opacity-65">{{ assetIp }}</p>
         </div>
         <button type="button" class="btn btn-ghost btn-sm" @click="closeTagDialog">关闭</button>
@@ -459,7 +393,7 @@ onMounted(() => {
               class="btn btn-sm"
               :class="tag.kind === 'malicious' ? 'btn-error' : tag.kind === 'benign' ? 'btn-success' : 'btn-info'"
               :disabled="tagActionLoading"
-              :title="`${tag.description || tag.name}（点击移除）`"
+              :title="`${tag.category_name || '未分类'} · ${tag.description || tag.name}（点击移除）`"
               @click="removeTag(tag)"
             >
               {{ tag.name }} ×
@@ -473,34 +407,16 @@ onMounted(() => {
           <div class="mt-3 flex flex-col gap-2 sm:flex-row">
             <select v-model="selectedTagId" class="select select-bordered w-full" :disabled="tagActionLoading || availableTags.length === 0">
               <option value="">{{ availableTags.length ? '选择标签' : '没有可添加的标签' }}</option>
-              <option v-for="tag in availableTags" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
+              <option v-for="tag in availableTags" :key="tag.id" :value="tag.id">{{ tag.category_name || '未分类' }} · {{ tag.name }}</option>
             </select>
             <button type="button" class="btn btn-neutral" :disabled="tagActionLoading || !selectedTagId" @click="assignTag()">添加</button>
           </div>
         </section>
 
-        <section class="rounded-lg border border-base-300 p-4">
-          <div class="flex items-center justify-between gap-2">
-            <h4 class="text-sm font-semibold">{{ editingTagId ? '编辑标签' : '新建并绑定标签' }}</h4>
-            <button v-if="editingTagId" type="button" class="btn btn-ghost btn-xs" @click="resetTagForm">取消编辑</button>
-          </div>
-          <div class="mt-3 grid gap-3 sm:grid-cols-2">
-            <label class="form-control"><span class="label-text mb-1">名称</span><input v-model="tagForm.name" maxlength="32" class="input input-bordered" placeholder="例如：办公出口" /></label>
-            <label class="form-control"><span class="label-text mb-1">类型</span><select v-model="tagForm.kind" class="select select-bordered"><option value="info">普通信息</option><option value="malicious">恶意</option><option value="benign">正常</option></select></label>
-            <label class="form-control sm:col-span-2"><span class="label-text mb-1">描述（可选）</span><textarea v-model="tagForm.description" maxlength="256" class="textarea textarea-bordered" rows="2"></textarea></label>
-          </div>
-          <div class="mt-3 flex justify-end"><button type="button" class="btn btn-neutral btn-sm" :disabled="tagActionLoading" @click="saveTag">{{ editingTagId ? '保存修改' : '创建并绑定' }}</button></div>
-        </section>
-
-        <section v-if="tagCatalog.length">
-          <h4 class="text-sm font-semibold">标签库</h4>
-          <div class="mt-2 max-h-52 overflow-y-auto rounded-lg border border-base-300 divide-y divide-base-300">
-            <div v-for="tag in tagCatalog" :key="tag.id" class="flex items-center justify-between gap-3 px-3 py-2">
-              <div class="min-w-0"><AssetTags :tags="[tag]" /><p v-if="tag.description" class="mt-1 truncate text-xs opacity-60">{{ tag.description }}</p></div>
-              <div class="flex shrink-0 gap-1"><button type="button" class="btn btn-ghost btn-xs" :disabled="tagActionLoading" @click="editTag(tag)">编辑</button><button type="button" class="btn btn-ghost btn-xs text-error" :disabled="tagActionLoading" @click="deleteTag(tag)">停用</button></div>
-            </div>
-          </div>
-        </section>
+        <div class="flex items-center justify-between gap-3 rounded-lg border border-base-300 p-4 text-sm">
+          <span class="opacity-65">标签分类、名称和风险属性由标签中心统一维护。</span>
+          <a class="btn btn-ghost btn-sm" href="/admin/tags">打开标签管理</a>
+        </div>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>关闭</button></form>

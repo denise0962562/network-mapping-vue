@@ -26,6 +26,7 @@ const examples = [
   'ip IN 192.168.1.0/24 AND port IN (80, 443)',
   'service = "https" AND banner ~ "nginx"',
   'tag = "生产环境" AND NOT tag.kind = malicious',
+  'tag.category = "运行环境" AND tag = "生产环境"',
   'has_endpoint(port = 80) AND has_endpoint(port = 443)',
 ]
 
@@ -260,7 +261,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
         </div>
         <div class="rounded-lg border border-base-300 p-3">
           <p class="font-medium">支持字段</p>
-          <p class="mt-1 break-words font-mono text-xs opacity-70">ip, asn, isp, org, country, city, tag, tag.id, tag.kind, port, protocol, service, banner, source, scanner, first_seen, last_seen</p>
+          <p class="mt-1 break-words font-mono text-xs opacity-70">ip, asn, isp, org, country, city, tag, tag.id, tag.kind, tag.category, port, protocol, service, banner, source, scanner, first_seen, last_seen</p>
         </div>
       </div>
 
