@@ -129,7 +129,7 @@ function backToLogin() {
 
 <template>
   <div class="flex min-h-screen flex-col bg-gray-200 font-sans">
-    <div class="fixed top-4 left-1/2 z-50 flex w-[calc(100vw-2rem)] -translate-x-1/2 justify-center sm:left-auto sm:right-4 sm:w-auto sm:translate-x-0 sm:justify-end">
+    <div class="fixed right-4 top-4 z-50 flex w-[calc(100vw-2rem)] flex-col items-end sm:w-auto">
       <transition
         enter-active-class="transition duration-200 ease-out"
         enter-from-class="opacity-0 translate-y-[-8px]"

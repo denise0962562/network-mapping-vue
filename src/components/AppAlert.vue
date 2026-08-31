@@ -102,14 +102,18 @@ onBeforeUnmount(() => {
     <div
       role="alert"
       tabindex="0"
-      class="alert alert-soft cursor-default flex min-h-12 sm:min-h-14 w-full items-center justify-between rounded-lg px-[10px] py-2 shadow-sm outline-none transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus:-translate-y-1 focus:shadow-lg focus-visible:ring-2 focus-visible:ring-current/25"
+      class="alert alert-soft cursor-default flex min-h-12 max-h-[50vh] w-full items-start justify-between rounded-lg px-[10px] py-2 shadow-sm outline-none transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus:-translate-y-1 focus:shadow-lg focus-visible:ring-2 focus-visible:ring-current/25 sm:min-h-14"
       :class="currentConfig.alertClass"
       @mouseenter="pauseAlertTimer('hover')"
       @mouseleave="resumeAlertTimer('hover')"
       @focusin="pauseAlertTimer('focus')"
       @focusout="resumeAlertTimer('focus')"
     >
-      <div class="flex min-w-0 items-center gap-2">
+      <div
+        tabindex="0"
+        aria-label="提示详细内容"
+        class="flex max-h-[calc(50vh-1rem)] min-h-0 min-w-0 flex-1 items-start gap-2 overflow-y-auto pr-1 outline-none focus-visible:ring-2 focus-visible:ring-current/25"
+      >
         <div class="shrink-0 rounded-lg bg-base-100/40 p-1 backdrop-blur-xl" :class="currentConfig.iconClass">
           <svg
             v-if="type === 'error'"
@@ -183,9 +187,9 @@ onBeforeUnmount(() => {
           </svg>
         </div>
 
-        <div class="min-w-0">
-          <p class="truncate font-medium">{{ title }}</p>
-          <p v-if="description" class="truncate opacity-65">{{ description }}</p>
+        <div class="min-w-0 flex-1">
+          <p class="break-words font-medium">{{ title }}</p>
+          <p v-if="description" class="mt-1 break-words whitespace-pre-wrap opacity-65">{{ description }}</p>
         </div>
       </div>
 
