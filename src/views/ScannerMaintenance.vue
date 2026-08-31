@@ -161,7 +161,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-5xl p-4 lg:p-6">
+  <main class="p-4 md:p-6">
     <div class="fixed right-4 top-20 z-50 flex w-[min(28rem,calc(100vw-2rem))] flex-col gap-2">
       <AppAlert
         v-for="alert in alerts"

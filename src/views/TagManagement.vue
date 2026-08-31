@@ -258,8 +258,8 @@ onMounted(loadCatalog)
 </script>
 
 <template>
-  <div class="p-5">
-    <div class="mx-auto max-w-7xl space-y-5">
+  <main class="p-4 md:p-6">
+    <div class="space-y-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 class="text-xl font-semibold">标签管理</h1>
@@ -376,7 +376,7 @@ onMounted(loadCatalog)
         </div>
       </section>
     </div>
-  </div>
+  </main>
 
   <dialog ref="categoryDialogRef" class="modal">
     <div class="modal-box max-w-lg">
