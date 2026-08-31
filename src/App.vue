@@ -221,7 +221,7 @@ async function handleLogout() {
           <li>
             <button
               type="button"
-              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="任务"
               :aria-expanded="taskMenuOpen"
               aria-controls="task-submenu"
@@ -262,7 +262,7 @@ async function handleLogout() {
           <li>
             <button
               type="button"
-              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="数据分析"
               :aria-expanded="analysisMenuOpen"
               aria-controls="analysis-submenu"
@@ -303,7 +303,7 @@ async function handleLogout() {
           <li>
             <button
               type="button"
-              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="日志"
               :aria-expanded="logsMenuOpen"
               aria-controls="logs-submenu"
@@ -379,7 +379,7 @@ async function handleLogout() {
           <li>
             <button
               type="button"
-              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="设置"
               :aria-expanded="settingsMenuOpen"
               aria-controls="settings-submenu"
