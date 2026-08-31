@@ -6,6 +6,11 @@ import http from '@/utils/http'
 const alerts = ref([])
 const loading = ref(false)
 const submitting = ref(false)
+const historyLoading = ref(false)
+const historyError = ref('')
+const historyItems = ref([])
+const historyTotal = ref(0)
+const historyOffset = ref(0)
 const status = ref({
   enabled: false,
   phase: 'off',
@@ -22,6 +27,8 @@ const form = ref({ message: '', expectedEndAt: '' })
 const formRevision = ref(0)
 let refreshTimer = null
 
+const HISTORY_PAGE_SIZE = 20
+
 const phaseLabel = computed(() => {
   if (status.value.phase === 'draining') return '正在通知'
   if (status.value.phase === 'active') return '维护中'
@@ -37,6 +44,8 @@ const expectedEndOverdue = computed(() => (
   && status.value.expected_end_at
   && new Date(status.value.expected_end_at).getTime() < Date.now()
 ))
+const historyPage = computed(() => Math.floor(historyOffset.value / HISTORY_PAGE_SIZE) + 1)
+const historyPages = computed(() => Math.max(1, Math.ceil(historyTotal.value / HISTORY_PAGE_SIZE)))
 
 function pushAlert(type, title, description = '') {
   alerts.value.unshift({ id: crypto.randomUUID(), type, title, description, timeout: 7000 })
@@ -50,6 +59,19 @@ function formatTime(value) {
   if (!value) return '未设置'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(Number(seconds)) || Number(seconds) < 0) return '—'
+  const total = Math.floor(Number(seconds))
+  const days = Math.floor(total / 86_400)
+  const hours = Math.floor((total % 86_400) / 3_600)
+  const minutes = Math.floor((total % 3_600) / 60)
+  const remainSeconds = total % 60
+  if (days > 0) return `${days} 天 ${hours} 小时 ${minutes} 分钟`
+  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
+  if (minutes > 0) return `${minutes} 分钟 ${remainSeconds} 秒`
+  return `${remainSeconds} 秒`
 }
 
 function toLocalDateTime(value) {
@@ -86,14 +108,38 @@ function requestPayload() {
 async function loadStatus({ silent = false } = {}) {
   if (!silent) loading.value = true
   try {
-    const response = await http.get('/api/admin/scanner-maintenance')
+    const response = await http.get('/api/admin/system-maintenance')
     applyResponse(response.data, { syncForm: !silent })
   } catch (error) {
-    console.error('load scanner maintenance failed', error)
+    console.error('load system maintenance failed', error)
     if (!silent) pushAlert('error', '维护状态加载失败', error?.response?.data?.message || '请稍后重试。')
   } finally {
     if (!silent) loading.value = false
   }
+}
+
+async function loadHistory(offset = 0) {
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const response = await http.get('/api/admin/system-maintenance/history', {
+      params: { limit: HISTORY_PAGE_SIZE, offset }
+    })
+    const data = response.data?.data || {}
+    historyItems.value = Array.isArray(data.items) ? data.items : []
+    historyTotal.value = Number(data.total) || 0
+    historyOffset.value = offset
+  } catch (error) {
+    historyItems.value = []
+    historyTotal.value = 0
+    historyError.value = error?.response?.data?.message || '请稍后重试。'
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function refreshMaintenance() {
+  return Promise.all([loadStatus(), loadHistory(historyOffset.value)])
 }
 
 async function enterMaintenance() {
@@ -104,8 +150,9 @@ async function enterMaintenance() {
   if (!window.confirm('进入后将停止分配新任务，并通知活动 Scanner 继续在本地完成扫描。约 60 秒后即可关闭服务端，结果将在退出维护后补传。确认继续吗？')) return
   submitting.value = true
   try {
-    const response = await http.post('/api/admin/scanner-maintenance/enter', requestPayload())
+    const response = await http.post('/api/admin/system-maintenance/enter', requestPayload())
     applyResponse(response.data)
+    await loadHistory(historyOffset.value)
     pushAlert('success', '已开始进入维护模式', heldTasks.value > 0 ? `正在通知 ${heldTasks.value} 个活动任务，任务不会阻塞服务端维护。` : '当前没有活动任务。')
   } catch (error) {
     pushAlert('error', '进入维护模式失败', error?.response?.data?.message || '请稍后重试。')
@@ -121,11 +168,12 @@ async function updateMaintenance() {
   }
   submitting.value = true
   try {
-    const response = await http.patch('/api/admin/scanner-maintenance', {
+    const response = await http.patch('/api/admin/system-maintenance', {
       ...requestPayload(),
       revision: formRevision.value
     })
     applyResponse(response.data)
+    await loadHistory(historyOffset.value)
     pushAlert('success', '维护信息已更新')
   } catch (error) {
     pushAlert('error', '维护信息更新失败', error?.response?.data?.message || '状态可能已变化，请刷新后重试。')
@@ -138,10 +186,11 @@ async function exitMaintenance() {
   if (!window.confirm('确认手动退出维护模式吗？Scanner 将在下一次探测后恢复，最长约 10 分钟。')) return
   submitting.value = true
   try {
-    const response = await http.post('/api/admin/scanner-maintenance/exit', {
+    const response = await http.post('/api/admin/system-maintenance/exit', {
       revision: status.value.revision
     })
     applyResponse(response.data)
+    await loadHistory(historyOffset.value)
     pushAlert('success', '已退出维护模式', 'Scanner 将在下一次维护探测后恢复运行。')
   } catch (error) {
     pushAlert('error', '退出维护模式失败', error?.response?.data?.message || '状态可能已变化，请刷新后重试。')
@@ -152,6 +201,7 @@ async function exitMaintenance() {
 
 onMounted(() => {
   loadStatus()
+  loadHistory()
   refreshTimer = window.setInterval(() => loadStatus({ silent: true }), 5000)
 })
 
@@ -173,10 +223,10 @@ onBeforeUnmount(() => {
 
     <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">扫描服务维护</h1>
-        <p class="mt-1 text-sm text-base-content/60">暂停 Scanner 任务流，活动扫描在本地完成并于维护结束后补传。</p>
+        <h1 class="text-2xl font-semibold">系统维护</h1>
+        <p class="mt-1 text-sm text-base-content/60">进入系统维护后暂停 Scanner 任务流，活动扫描在本地完成并于维护结束后补传。</p>
       </div>
-      <button class="btn btn-ghost btn-sm" :disabled="loading" @click="loadStatus()">
+      <button class="btn btn-ghost btn-sm" :disabled="loading || historyLoading" @click="refreshMaintenance()">
         {{ loading ? '刷新中…' : '刷新状态' }}
       </button>
     </div>
@@ -224,7 +274,7 @@ onBeforeUnmount(() => {
           <span>已冻结活动任务租约并通过心跳通知 Scanner。通知窗口最多约 {{ status.notification_grace_seconds || 60 }} 秒，任务无需完成也不会阻塞正式维护。</span>
         </div>
         <div v-else-if="status.phase === 'active'" role="alert" class="alert alert-error">
-          <span>可安全停止服务端。Scanner 会在本地完成活动扫描并缓存结果；手动退出维护后有 {{ status.result_upload_grace_hours || 24 }} 小时补传，随后未完成任务才会重新排队。</span>
+          <span>系统可安全停机。Scanner 会在本地完成活动扫描并缓存结果；手动退出维护后有 {{ status.result_upload_grace_hours || 24 }} 小时补传，随后未完成任务才会重新排队。</span>
         </div>
 
         <fieldset class="fieldset">
@@ -262,6 +312,37 @@ onBeforeUnmount(() => {
             </button>
           </template>
         </div>
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-xl border border-base-300 bg-base-100 shadow-sm">
+      <div class="flex items-center justify-between border-b border-base-300 px-4 py-3">
+        <h2 class="font-semibold">维护历史</h2>
+        <span class="text-sm text-base-content/60">共 {{ historyTotal }} 条</span>
+      </div>
+      <div v-if="historyLoading" class="flex justify-center py-16"><span class="loading loading-spinner loading-lg"></span></div>
+      <div v-else-if="historyError" role="alert" class="alert alert-error m-4"><span>维护历史加载失败：{{ historyError }}</span></div>
+      <div v-else-if="historyItems.length === 0" class="py-16 text-center text-base-content/60">暂无维护历史。</div>
+      <div v-else class="overflow-x-auto">
+        <table class="table table-zebra">
+          <thead>
+            <tr><th>维护开始时间</th><th>维护结束时间</th><th>预计结束时间</th><th>实际维护时长</th><th>操作者</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in historyItems" :key="item.maintenance_id">
+              <td class="whitespace-nowrap">{{ formatTime(item.started_at) }}</td>
+              <td class="whitespace-nowrap">{{ item.in_progress ? '进行中' : formatTime(item.ended_at) }}</td>
+              <td class="whitespace-nowrap">{{ formatTime(item.expected_end_at) }}</td>
+              <td class="whitespace-nowrap">{{ formatDuration(item.actual_duration_seconds) }}</td>
+              <td>{{ item.operator_username || '未知操作者' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="historyTotal > HISTORY_PAGE_SIZE" class="flex items-center justify-end gap-3 border-t border-base-300 px-4 py-3">
+        <span class="text-sm text-base-content/60">第 {{ historyPage }} / {{ historyPages }} 页</span>
+        <button class="btn btn-sm" :disabled="historyLoading || historyOffset === 0" @click="loadHistory(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))">上一页</button>
+        <button class="btn btn-sm" :disabled="historyLoading || historyOffset + HISTORY_PAGE_SIZE >= historyTotal" @click="loadHistory(historyOffset + HISTORY_PAGE_SIZE)">下一页</button>
       </div>
     </section>
   </main>

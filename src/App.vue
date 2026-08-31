@@ -23,7 +23,7 @@ const settingsMenuOpen = ref(route.path.startsWith('/setting') || route.path ===
 let maintenanceRefreshTimer = null
 
 const maintenancePhaseLabel = computed(() => (
-  maintenanceStatus.value?.phase === 'draining' ? '正在通知 Scanner 进入维护' : '扫描服务维护中'
+  maintenanceStatus.value?.phase === 'draining' ? '正在通知 Scanner 进入系统维护' : '系统维护中'
 ))
 
 watch(
@@ -61,7 +61,7 @@ async function loadCurrentRole() {
 async function loadMaintenanceStatus() {
   if (!isAdmin.value) return
   try {
-    const response = await http.get('/api/admin/scanner-maintenance')
+    const response = await http.get('/api/admin/system-maintenance')
     maintenanceStatus.value = response.data?.data?.enabled ? response.data.data : null
   } catch (error) {
     console.error('load maintenance status failed', error)
@@ -415,7 +415,7 @@ async function handleLogout() {
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/maintenance">
-                    <span class="whitespace-nowrap">维护</span>
+                    <span class="whitespace-nowrap">系统维护</span>
                   </router-link>
                 </li>
                 <li>
