@@ -18,6 +18,7 @@ const serverVersion = ref('')
 const maintenanceStatus = ref(null)
 const taskMenuOpen = ref(route.path === '/create_scan' || route.path.startsWith('/task'))
 const analysisMenuOpen = ref(route.path.startsWith('/analysis'))
+const settingsMenuOpen = ref(route.path.startsWith('/setting') || route.path === '/admin/tags')
 let maintenanceRefreshTimer = null
 
 const maintenancePhaseLabel = computed(() => (
@@ -29,6 +30,7 @@ watch(
   (path) => {
     if (path === '/create_scan' || path.startsWith('/task')) taskMenuOpen.value = true
     if (path.startsWith('/analysis')) analysisMenuOpen.value = true
+    if (path.startsWith('/setting') || path === '/admin/tags') settingsMenuOpen.value = true
   },
 )
 
@@ -84,6 +86,15 @@ function toggleTaskMenu() {
     return
   }
   taskMenuOpen.value = !taskMenuOpen.value
+}
+
+function toggleSettingsMenu() {
+  if (!drawerOpen.value) {
+    drawerOpen.value = true
+    settingsMenuOpen.value = true
+    return
+  }
+  settingsMenuOpen.value = !settingsMenuOpen.value
 }
 
 onMounted(() => {
@@ -307,13 +318,6 @@ async function handleLogout() {
           </li>
 
           <li v-if="isAdmin">
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="标签管理" to="/admin/tags">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">标签管理</span>
-            </router-link>
-          </li>
-
-          <li v-if="isAdmin">
             <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="数据备份" to="/admin/backups">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">数据备份</span>
@@ -335,31 +339,54 @@ async function handleLogout() {
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="设置" to="/setting">
+            <button
+              type="button"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus:bg-transparent active:bg-transparent"
+              data-tip="设置"
+              :aria-expanded="settingsMenuOpen"
+              aria-controls="settings-submenu"
+              @click="toggleSettingsMenu"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">设置</span>
-            </router-link>
-          </li>
-
-          <li v-if="isAdmin">
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="扫描服务维护" to="/setting/maintenance">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/><circle cx="12" cy="12" r="3"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">扫描服务维护</span>
-            </router-link>
-          </li>
-
-          <li v-if="isAdmin">
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="扫描设置" to="/setting/scan">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><circle cx="12" cy="12" r="3"/><path d="M3 12h3"/><path d="M18 12h3"/><path d="M12 3v3"/><path d="M12 18v3"/><path d="m5.6 5.6 2.1 2.1"/><path d="m16.3 16.3 2.1 2.1"/><path d="m18.4 5.6-2.1 2.1"/><path d="m7.7 16.3-2.1 2.1"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">扫描设置</span>
-            </router-link>
-          </li>
-
-          <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="邮件模板" to="/setting/mail-templates">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="M16 16h.01"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">邮件模板</span>
-            </router-link>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="ml-auto size-3.5 transition-transform duration-200 ease-out is-drawer-close:hidden"
+                :class="settingsMenuOpen ? 'rotate-90' : 'rotate-0'"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <Transition name="sidebar-submenu">
+              <ul v-if="settingsMenuOpen" id="settings-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting">
+                    <span class="whitespace-nowrap">常规设置</span>
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/admin/tags">
+                    <span class="whitespace-nowrap">标签</span>
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/maintenance">
+                    <span class="whitespace-nowrap">维护</span>
+                  </router-link>
+                </li>
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/mail-templates">
+                    <span class="whitespace-nowrap">邮件模板</span>
+                  </router-link>
+                </li>
+              </ul>
+            </Transition>
           </li>
         </ul>
 
@@ -450,7 +477,7 @@ async function handleLogout() {
 
 .sidebar-submenu-enter-active,
 .sidebar-submenu-leave-active {
-  max-height: 8rem;
+  max-height: 12rem;
   transition:
     max-height 200ms ease-out,
     opacity 160ms ease-out,
