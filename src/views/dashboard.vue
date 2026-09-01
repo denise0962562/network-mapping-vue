@@ -29,7 +29,7 @@
       </div>
       <div v-if="isFirstLoad" class="skeleton h-64 w-full rounded-box"></div>
       <div v-else class="relative">
-        <ApexChart ref="maintenanceChartRef" type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" />
+        <ApexChart ref="maintenanceChartRef" type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" @mounted="applyMaintenanceAnnotations" />
         <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
       </div>
     </div>
@@ -183,7 +183,7 @@ const systemData = ref(null)
 const dashboardData = ref(null)
 const systemDataErrorVisible = ref(false)
 const isFirstLoad = ref(true)
-const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
 let refreshTimer = null
 let dashboardTimer = null
 

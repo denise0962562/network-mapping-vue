@@ -32,7 +32,7 @@ const summary = ref({
   trend: []
 })
 const summaryLoading = ref(false)
-const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
 
 const windowOptions = [
   { value: '', label: '全部时间' },
@@ -461,7 +461,7 @@ onMounted(loadAll)
         <div v-if="summaryLoading && !summary.trend.length" class="mt-4 skeleton h-72 w-full rounded-box"></div>
         <EmptyState v-else-if="!summary.trend.length" class="mt-4" title="暂无趋势数据" message="当前筛选范围内没有请求记录。" />
         <div v-else class="relative mt-2">
-          <ApexChart ref="maintenanceChartRef" type="area" height="300" :options="trendOptions" :series="trendSeries" />
+          <ApexChart ref="maintenanceChartRef" type="area" height="300" :options="trendOptions" :series="trendSeries" @mounted="applyMaintenanceAnnotations" />
           <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
         </div>
       </div>

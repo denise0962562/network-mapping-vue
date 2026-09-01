@@ -31,7 +31,7 @@ const meta = ref(null)
 const loading = ref(false)
 const failed = ref(false)
 const lastUpdatedAt = ref(null)
-const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
 let requestController = null
 let refreshTimer = null
 let requestVersion = 0
@@ -206,7 +206,7 @@ onBeforeUnmount(() => {
       message="升级扫描器并完成两个心跳周期后，这里将显示通信延迟趋势。"
     />
     <div v-else class="relative">
-      <ApexChart ref="maintenanceChartRef" type="line" height="340" :options="chartOptions" :series="chartSeries" />
+      <ApexChart ref="maintenanceChartRef" type="line" height="340" :options="chartOptions" :series="chartSeries" @mounted="applyMaintenanceAnnotations" />
       <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
     </div>
     <div class="mt-2 text-xs opacity-60">{{ statusText }}</div>

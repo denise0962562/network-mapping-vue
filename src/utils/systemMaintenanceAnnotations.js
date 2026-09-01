@@ -68,13 +68,20 @@ export function useSystemMaintenanceAnnotations() {
   const maintenanceChartRef = ref(null)
   const tooltip = useSystemMaintenanceTooltip()
 
-  watch([maintenanceAnnotations, maintenanceChartRef], ([annotations, chart]) => {
-    chart?.updateOptions?.({ annotations: { xaxis: annotations } }, false, false)
+  function applyMaintenanceAnnotations() {
+    const apexChart = maintenanceChartRef.value?.chart
+    if (!apexChart?.updateOptions) return
+    apexChart.updateOptions({ annotations: { xaxis: maintenanceAnnotations.value } }, false, false)
+  }
+
+  watch([maintenanceAnnotations, maintenanceChartRef], () => {
+    applyMaintenanceAnnotations()
   }, { flush: 'post' })
 
   return {
     maintenanceAnnotations,
     maintenanceChartRef,
+    applyMaintenanceAnnotations,
     ...tooltip
   }
 }

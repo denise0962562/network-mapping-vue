@@ -46,7 +46,7 @@ const trend = ref([])
 const baselineTrend = ref([])
 const events = ref([])
 const meta = ref({})
-const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
 
 function emptySummary() {
   return {
@@ -351,7 +351,7 @@ onMounted(loadPerformance)
           </div>
           <EmptyState v-if="!trend.length" class="mt-4" title="暂无耗时趋势" message="当前筛选范围内没有可用于分析的请求样本。" />
           <div v-else class="relative">
-            <ApexChart ref="maintenanceChartRef" type="line" height="330" :options="trendOptions" :series="trendSeries" />
+            <ApexChart ref="maintenanceChartRef" type="line" height="330" :options="trendOptions" :series="trendSeries" @mounted="applyMaintenanceAnnotations" />
             <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
           </div>
         </div>

@@ -58,7 +58,7 @@ const loading = ref(false)
 const failed = ref(false)
 const hasLoaded = ref(false)
 const lastUpdatedAt = ref(null)
-const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
 
 let requestController = null
 let refreshTimer = null
@@ -380,7 +380,7 @@ onBeforeUnmount(() => {
       message="当前时间范围内没有可用于绘图的系统资源记录。"
     />
     <div v-else class="relative">
-      <ApexChart ref="maintenanceChartRef" type="line" height="420" :options="chartOptions" :series="chartSeries" />
+      <ApexChart ref="maintenanceChartRef" type="line" height="420" :options="chartOptions" :series="chartSeries" @mounted="applyMaintenanceAnnotations" />
       <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
       <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
     </div>

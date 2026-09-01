@@ -94,7 +94,7 @@ const loading = ref(false)
 const failed = ref(false)
 const hasLoaded = ref(false)
 const lastUpdatedAt = ref(null)
-const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip } = useSystemMaintenanceAnnotations()
+const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
 
 function unqualifiedTableName(name) {
   return name.split('.').at(-1)
@@ -649,7 +649,7 @@ onBeforeUnmount(() => {
       message="所选存储对象在当前时间范围内没有可用于绘图的记录。"
     />
     <div v-else class="relative">
-      <ApexChart ref="maintenanceChartRef" type="line" height="420" :options="chartOptions" :series="chartSeries" />
+      <ApexChart ref="maintenanceChartRef" type="line" height="420" :options="chartOptions" :series="chartSeries" @mounted="applyMaintenanceAnnotations" />
       <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
       <span v-if="loading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
     </div>
