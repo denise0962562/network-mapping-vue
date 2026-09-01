@@ -32,6 +32,7 @@ const heatmapFailed = ref(false)
 const hasLoadedDistribution = ref(false)
 const hasLoadedHeatmap = ref(false)
 const lastUpdatedAt = ref(null)
+const snapshotDataAsOf = ref(null)
 
 let analysisController = null
 let scannerController = null
@@ -165,6 +166,8 @@ async function loadAnalysis() {
   if (distributionResult.status === 'fulfilled') {
     try {
       distributionData.value = parseDistribution(distributionResult.value)
+      const dataAsOf = distributionResult.value.data?.meta?.data_as_of
+      snapshotDataAsOf.value = dataAsOf ? new Date(dataAsOf) : null
       distributionFailed.value = false
       hasLoadedDistribution.value = true
     } catch (error) {
@@ -332,6 +335,9 @@ const discoveredTotal = computed(() =>
 )
 
 const lastUpdatedLabel = computed(() => {
+  if (snapshotDataAsOf.value) {
+    return `统计截至 ${snapshotDataAsOf.value.toLocaleString('zh-CN', { hour12: false })}`
+  }
   if (!lastUpdatedAt.value) return '尚未完成加载'
   return `更新于 ${lastUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
 })
