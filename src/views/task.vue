@@ -63,12 +63,14 @@ function resolveStatus(status) {
 function normalizeTask(item) {
   const targets = Array.isArray(item.task_target) ? item.task_target.join(', ') : '-'
   const createTimeMs = Number(item.task_create_time)
+  const isDnsTask = item.task_kind === 'dns'
   return {
     taskId: item.task_id || '-',
     scannerId: item.scanner_id || '-',
     target: targets,
-    addressFamily: item.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
-    port: item.task_port || '-',
+    taskKind: isDnsTask ? 'dns' : 'ip',
+    addressFamily: isDnsTask ? 'DNS' : item.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
+    port: isDnsTask ? 'A / AAAA' : item.task_port || '-',
     operator: item.task_initiator || '-',
     createTimeMs: Number.isFinite(createTimeMs) ? createTimeMs : null,
     createTime: formatUnixMs(item.task_create_time),
@@ -277,7 +279,7 @@ onMounted(async () => {
 
             <label class="form-control w-full">
               <span class="label-text mb-1">目标</span>
-              <input v-model="draftFilters.target" type="text" class="input input-bordered w-full" placeholder="IP 或网段" :disabled="isLoadingData" @keyup.enter="applySearch" />
+              <input v-model="draftFilters.target" type="text" class="input input-bordered w-full" placeholder="IP、网段或域名" :disabled="isLoadingData" @keyup.enter="applySearch" />
             </label>
 
             <label class="form-control w-full">
@@ -404,7 +406,9 @@ onMounted(async () => {
                       </router-link>
                     </td>
                     <td class="max-w-32 truncate font-mono text-xs" :title="taskItem.scannerId">{{ taskItem.scannerId }}</td>
-                    <td class="max-w-60 truncate" :title="taskItem.target">{{ taskItem.target }}</td>
+                    <td class="max-w-60 truncate" :title="taskItem.target">
+                      <span class="mr-1 badge badge-outline badge-xs">{{ taskItem.taskKind === 'dns' ? 'DNS' : 'IP' }}</span>{{ taskItem.target }}
+                    </td>
                     <td><span class="badge badge-outline badge-xs">{{ taskItem.addressFamily }}</span></td>
                     <td class="max-w-32 truncate font-mono text-xs" :title="taskItem.port">{{ taskItem.port }}</td>
                     <td class="max-w-32 truncate" :title="taskItem.operator">{{ taskItem.operator }}</td>

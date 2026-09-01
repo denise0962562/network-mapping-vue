@@ -52,6 +52,7 @@ const actionLabels = {
   'user.delete': '删除用户',
   'user.login_records.query': '查询登录记录',
   'task.create': '创建任务',
+  'task.create_dns': '创建 DNS 任务',
   'task.auto_generate': '生成系统目标',
   'task.cancel': '取消任务',
   'task.retry': '重试任务',

@@ -11,7 +11,9 @@ const scanProfiles = [
   { value: 'service_inventory', title: '服务识别', description: '必须完成服务识别，识别失败会使任务失败。' }
 ]
 
+const targetType = ref('ip')
 const ip = ref('')
+const domains = ref('')
 const port = ref('')
 const level = ref(1)
 const remark = ref('')
@@ -25,8 +27,11 @@ const scanProfile = ref('legacy')
 const defaultScanProfile = ref('legacy')
 const scanSettingsLoading = ref(true)
 const selectedScanProfileTitle = computed(() => (
-  scanProfiles.find((profile) => profile.value === scanProfile.value)?.title || '未选择'
+  targetType.value === 'dns'
+    ? 'DNS 记录查询'
+    : scanProfiles.find((profile) => profile.value === scanProfile.value)?.title || '未选择'
 ))
+const isDnsTask = computed(() => targetType.value === 'dns')
 const dispatchModeSummary = computed(() => {
   if (dispatchMode.value === 'selected') {
     return scannerIds.value.length > 0 ? `已指定 ${scannerIds.value.length} 台扫描器` : '指定扫描器'
@@ -36,6 +41,7 @@ const dispatchModeSummary = computed(() => {
 })
 
 const targetAddressFamily = computed(() => {
+  if (isDnsTask.value) return 'ipv4'
   const targets = ip.value.split(',').map((item) => item.trim()).filter(Boolean)
   if (targets.length === 0) return null
   const hasIpv4 = targets.some((target) => !target.includes(':'))
@@ -61,15 +67,24 @@ function scannerSupportsTarget(scanner) {
   return targetAddressFamily.value !== 'mixed'
 }
 
-watch([targetAddressFamily, scanProfile], () => {
+watch([targetAddressFamily, scanProfile, targetType], () => {
   const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
   scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
 })
 
+watch(targetType, (value) => {
+  if (value !== 'dns') return
+  dispatchMode.value = 'automatic'
+  scannerIds.value = []
+})
+
 const ipInputRef = ref(null)
+const domainsInputRef = ref(null)
 const portInputRef = ref(null)
 const hasUnsavedChanges = computed(() => (
   ip.value.trim() !== ''
+  || domains.value.trim() !== ''
+  || targetType.value !== 'ip'
   || port.value.trim() !== ''
   || level.value !== 1
   || remark.value.trim() !== ''
@@ -80,6 +95,8 @@ const hasUnsavedChanges = computed(() => (
 
 function resetForm() {
   ip.value = ''
+  domains.value = ''
+  targetType.value = 'ip'
   port.value = ''
   level.value = 1
   remark.value = ''
@@ -143,14 +160,16 @@ function showAlert(type, title, description = '', timeout = 5000) {
 
 async function submitTask() {
   if (submitting.value) return false
-  if (scanSettingsLoading.value) return false
-  if (!ipInputRef.value?.reportValidity()) return false
-  if (port.value && !portInputRef.value?.reportValidity()) return false
+  if (!isDnsTask.value && scanSettingsLoading.value) return false
+  if (isDnsTask.value) {
+    if (!domainsInputRef.value?.reportValidity()) return false
+  } else if (!ipInputRef.value?.reportValidity()) return false
+  if (!isDnsTask.value && port.value && !portInputRef.value?.reportValidity()) return false
   if (targetAddressFamily.value === 'mixed') {
     showAlert('warning', '不能混合地址协议', '请将 IPv4 和 IPv6 目标拆分为两个扫描任务。')
     return false
   }
-  if (dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
+  if (!isDnsTask.value && dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
     showAlert('warning', '请选择扫描器', '指定扫描器模式至少需要选择一台扫描器。')
     return false
   }
@@ -158,17 +177,28 @@ async function submitTask() {
   try {
     submitting.value = true
 
-    const payload = {
-      ip: ip.value.trim(),
-      port: port.value.trim(),
-      level: Number(level.value),
-      remark: remark.value.trim() ? remark.value.trim() : null,
-      dispatch_mode: dispatchMode.value,
-      scanner_ids: dispatchMode.value === 'selected' ? scannerIds.value : [],
-      scan_profile: scanProfile.value,
+    const dnsTargets = domains.value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)
+    if (isDnsTask.value && (dnsTargets.length === 0 || dnsTargets.length > 500)) {
+      showAlert('warning', '请输入有效域名', '一次 DNS 任务最多可包含 500 个域名。')
+      return false
     }
+    const payload = isDnsTask.value
+      ? {
+          domains: dnsTargets,
+          level: Number(level.value),
+          remark: remark.value.trim() ? remark.value.trim() : null
+        }
+      : {
+          ip: ip.value.trim(),
+          port: port.value.trim(),
+          level: Number(level.value),
+          remark: remark.value.trim() ? remark.value.trim() : null,
+          dispatch_mode: dispatchMode.value,
+          scanner_ids: dispatchMode.value === 'selected' ? scannerIds.value : [],
+          scan_profile: scanProfile.value,
+        }
 
-    const response = await http.post('/api/task/create', payload, {
+    const response = await http.post(isDnsTask.value ? '/api/task/create-dns' : '/api/task/create', payload, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -176,7 +206,7 @@ async function submitTask() {
 
     if (response.status === 200) {
       resetForm()
-      showAlert('success', '创建扫描任务成功', '任务已提交到扫描队列。', 5000)
+      showAlert('success', isDnsTask.value ? '创建 DNS 任务成功' : '创建扫描任务成功', '任务已提交到扫描队列。', 5000)
       return true
     } else {
       showAlert('error', '创建扫描失败', '服务器未接受本次创建请求。', 7000)
@@ -211,7 +241,12 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
   <div class="flex justify-center">
     <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
       <div class="grid grid-cols-1 gap-4">
-        <label class="form-control w-full">
+        <div class="join self-start" aria-label="任务类型">
+          <button class="join-item btn btn-sm" :class="!isDnsTask ? 'btn-neutral' : 'btn-ghost'" type="button" @click="targetType = 'ip'">IP / 网段</button>
+          <button class="join-item btn btn-sm" :class="isDnsTask ? 'btn-neutral' : 'btn-ghost'" type="button" @click="targetType = 'dns'">DNS 域名</button>
+        </div>
+
+        <label v-if="!isDnsTask" class="form-control w-full">
           <span class="label-text input_items_required">目标 IP</span>
           <input
             id="create_task_ip"
@@ -228,6 +263,19 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           </div>
         </label>
 
+        <label v-else class="form-control w-full">
+          <span class="label-text input_items_required">目标域名</span>
+          <textarea
+            id="create_task_domains"
+            ref="domainsInputRef"
+            v-model="domains"
+            class="textarea w-full min-h-32"
+            required
+            placeholder="每行一个域名，也可使用英文逗号分隔"
+          ></textarea>
+          <span class="label-text-alt mt-1 text-base-content/60">最多 500 个域名；仅查询已获得授权的资产。</span>
+        </label>
+
         <div class="space-y-3">
           <details name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100" open>
             <summary class="collapse-title min-h-0 py-3 pr-12">
@@ -237,7 +285,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
               </span>
             </summary>
             <div class="collapse-content">
-              <fieldset class="pt-1" :disabled="scanSettingsLoading">
+              <fieldset v-if="!isDnsTask" class="pt-1" :disabled="scanSettingsLoading">
                 <div class="grid gap-2 md:grid-cols-3">
                   <label
                     v-for="profile in scanProfiles"
@@ -254,10 +302,13 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                 </div>
                 <p class="mt-2 text-xs opacity-60">{{ scanSettingsLoading ? '正在读取系统默认模式...' : '默认值来自系统扫描设置，可为当前任务单独调整。' }}</p>
               </fieldset>
+              <div v-else class="rounded-lg bg-base-200/50 p-3 text-sm">
+                查询 A 与 AAAA 记录；结果会归档为 DNS 历史观察并更新当前 DNS 资产。
+              </div>
             </div>
           </details>
 
-          <details name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100">
+          <details v-if="!isDnsTask" name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100">
             <summary class="collapse-title min-h-0 py-3 pr-12">
               <span class="block font-medium">执行扫描器</span>
               <span class="mt-0.5 block text-xs text-base-content/60">当前：{{ dispatchModeSummary }}</span>
@@ -294,9 +345,14 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
               </fieldset>
             </div>
           </details>
+
+          <div v-else class="rounded-lg border border-base-300 bg-base-100 p-3 text-sm">
+            <p class="font-medium">执行方式：自动分配</p>
+            <p class="mt-1 text-xs text-base-content/60">DNS 任务由支持 DNS 查询阶段的可用扫描器自动领取。</p>
+          </div>
         </div>
 
-        <label class="form-control w-full">
+        <label v-if="!isDnsTask" class="form-control w-full">
           <span class="label-text input_items_required">目标端口</span>
           <input
             id="create_task_port"
@@ -336,7 +392,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
       </div>
 
       <div class="flex justify-end mt-3">
-        <button id="task_submit" class="btn rounded-lg btn-neutral w-full md:w-auto" :disabled="submitting || scanSettingsLoading" @click="submitTask">
+        <button id="task_submit" class="btn rounded-lg btn-neutral w-full md:w-auto" :disabled="submitting || (!isDnsTask && scanSettingsLoading)" @click="submitTask">
           {{ submitting ? '提交中...' : '提交' }}
         </button>
       </div>

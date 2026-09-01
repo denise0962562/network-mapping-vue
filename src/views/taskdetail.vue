@@ -45,6 +45,7 @@ function formatNetworkOwner(item) {
 }
 
 const taskRemark = computed(() => task.value?.remarks || '-')
+const isDnsTask = computed(() => task.value?.task_kind === 'dns')
 const currentExecution = computed(() => task.value?.executions?.find(
   (execution) => execution.execution_id === task.value?.selected_execution_id
 ) || null)
@@ -55,16 +56,17 @@ const taskMeta = computed(() => ({
   failureReason: task.value?.failure_reason || ''
 }))
 const summaryStats = computed(() => [
-  { title: '发现 IP 数', value: task.value?.summary?.ip_count ?? 0, desc: '' },
-  { title: '开放端口数', value: task.value?.summary?.port_count ?? 0, desc: '' },
-  { title: '观察记录数', value: task.value?.summary?.result_count ?? 0, desc: '包含端口与服务观察' },
+  { title: isDnsTask.value ? '目标域名数' : '发现 IP 数', value: isDnsTask.value ? task.value?.task_target?.length ?? 0 : task.value?.summary?.ip_count ?? 0, desc: '' },
+  { title: isDnsTask.value ? '查询类型' : '开放端口数', value: isDnsTask.value ? 'A / AAAA' : task.value?.summary?.port_count ?? 0, desc: '' },
+  { title: '观察记录数', value: task.value?.summary?.result_count ?? 0, desc: isDnsTask.value ? 'DNS 查询观察' : '包含端口与服务观察' },
   { title: '扫描耗时', value: formatDuration(task.value?.task_start_time, task.value?.task_end_time), desc: '总耗时' }
 ])
 const taskDetail = computed(() => ({
-  targetIp: task.value?.task_target?.join(', ') || '-',
-  addressFamily: task.value?.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
-  port: task.value?.task_port || '-',
-  scanType: '端口扫描',
+  target: task.value?.task_target?.join(', ') || '-',
+  targetLabel: isDnsTask.value ? '目标域名' : '目标 IP',
+  addressFamily: isDnsTask.value ? 'DNS' : task.value?.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
+  port: isDnsTask.value ? 'A / AAAA' : task.value?.task_port || '-',
+  scanType: isDnsTask.value ? 'DNS 记录查询' : '端口扫描',
   startTime: formatTime(task.value?.task_start_time),
   endTime: formatTime(task.value?.task_end_time),
   starter: task.value?.task_initiator || '-',
@@ -252,7 +254,7 @@ onBeforeUnmount(() => {
           {{ task?.cancel_requested ? '正在取消' : '取消任务' }}
         </button>
         <button v-if="['succeeded', 'failed', 'cancelled', 'partial'].includes(task?.task_status)" class="btn btn-outline btn-sm" :disabled="actionLoading" @click="retryTask">重新执行</button>
-        <div v-if="['succeeded', 'partial'].includes(task?.task_status)" class="dropdown dropdown-end">
+        <div v-if="!isDnsTask && ['succeeded', 'partial'].includes(task?.task_status)" class="dropdown dropdown-end">
           <button tabindex="0" class="btn btn-outline btn-sm">导出结果</button>
           <ul tabindex="0" class="dropdown-content menu z-10 mt-2 w-36 rounded-box border border-base-300 bg-base-100 p-2 shadow">
             <li><button @click="exportTask('csv')">CSV</button></li>
@@ -311,8 +313,8 @@ onBeforeUnmount(() => {
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">任务细节</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">目标 IP：</span>{{ taskDetail.targetIp }}</div>
-            <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">Port：</span>{{ taskDetail.port }}</div>
+            <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">{{ taskDetail.targetLabel }}：</span>{{ taskDetail.target }}</div>
+            <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">{{ isDnsTask ? '查询类型' : 'Port' }}：</span>{{ taskDetail.port }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">地址协议：</span>{{ taskDetail.addressFamily }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">扫描类型：</span>{{ taskDetail.scanType }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">扫描发起人：</span>{{ taskDetail.starter }}</div>
@@ -324,7 +326,10 @@ onBeforeUnmount(() => {
 
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">结果展示</h3>
-          <div class="flex flex-col gap-2">
+          <div v-if="isDnsTask" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">
+            DNS 查询已完成 {{ task.summary?.result_count ?? 0 }} 条观察。当前 DNS 资产与历史观察已由后端归档。
+          </div>
+          <div v-else class="flex flex-col gap-2">
             <div v-if="resultByIp.length === 0" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">暂无扫描结果</div>
             <div v-for="row in resultByIp" :key="row.ip" class="overflow-hidden rounded-lg border border-base-300 bg-base-100 text-sm">
               <div class="flex flex-wrap items-center justify-between gap-2 bg-base-200/60 px-3 py-2">
@@ -350,7 +355,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-          <div v-if="task.pagination.total_pages > 1" class="mt-4 flex items-center justify-between">
+          <div v-if="!isDnsTask && task.pagination.total_pages > 1" class="mt-4 flex items-center justify-between">
             <span class="text-sm opacity-70">第 {{ task.pagination.page }} / {{ task.pagination.total_pages }} 页</span>
             <div class="join">
               <button class="join-item btn btn-sm" :disabled="page <= 1 || loading" @click="changePage(page - 1)">上一页</button>
@@ -400,7 +405,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="card bg-base-100 card-border border-base-300 p-4">
+        <div v-if="!isDnsTask" class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">IP 情报</h3>
           <div class="overflow-x-auto rounded-box border border-base-300">
             <table class="table table-sm">
