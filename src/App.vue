@@ -418,6 +418,11 @@ async function handleLogout() {
                     <span class="whitespace-nowrap">系统维护</span>
                   </router-link>
                 </li>
+                <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/runtime">
+                    <span class="whitespace-nowrap">运行时配置</span>
+                  </router-link>
+                </li>
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/mail-templates">
                     <span class="whitespace-nowrap">邮件模板</span>
