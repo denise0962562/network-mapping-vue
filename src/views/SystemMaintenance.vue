@@ -326,7 +326,7 @@ onBeforeUnmount(() => {
       <div v-else class="overflow-x-auto">
         <table class="table table-zebra">
           <thead>
-            <tr><th>维护开始时间</th><th>维护结束时间</th><th>预计结束时间</th><th>实际维护时长</th><th>操作者</th></tr>
+            <tr><th>维护开始时间</th><th>维护结束时间</th><th>预计结束时间</th><th>实际维护时长</th><th>维护说明</th><th>操作者</th></tr>
           </thead>
           <tbody>
             <tr v-for="item in historyItems" :key="item.maintenance_id">
@@ -334,6 +334,7 @@ onBeforeUnmount(() => {
               <td class="whitespace-nowrap">{{ item.in_progress ? '进行中' : formatTime(item.ended_at) }}</td>
               <td class="whitespace-nowrap">{{ formatTime(item.expected_end_at) }}</td>
               <td class="whitespace-nowrap">{{ formatDuration(item.actual_duration_seconds) }}</td>
+              <td class="max-w-sm whitespace-pre-wrap break-words">{{ item.message || '—' }}</td>
               <td>{{ item.operator_username || '未知操作者' }}</td>
             </tr>
           </tbody>

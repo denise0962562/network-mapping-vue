@@ -44,7 +44,8 @@ const tooltipContent = computed(() => {
       { label: '预计结束', value: maintenance.expected_end_at ? formatChartTooltipTime(maintenance.expected_end_at) : '--' },
       { label: '实际时长', value: formatMaintenanceDuration(maintenance) },
       { label: '操作者', value: maintenance.operator_username || '--' }
-    ]
+    ],
+    footer: maintenance.message ? `维护说明：${maintenance.message}` : ''
   })
 })
 
@@ -97,7 +98,7 @@ watch(() => props.tooltip, async (tooltip) => {
   <div
     v-if="tooltip"
     ref="tooltipElement"
-    class="pointer-events-none fixed z-[60] min-w-56 rounded-box border border-base-300 bg-base-100 shadow-xl"
+    class="pointer-events-none fixed z-[60] min-w-56 max-w-sm rounded-box border border-base-300 bg-base-100 shadow-xl"
     :style="tooltipStyle"
     v-html="tooltipContent"
   ></div>
