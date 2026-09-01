@@ -241,9 +241,27 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
   <div class="flex justify-center">
     <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
       <div class="grid grid-cols-1 gap-4">
-        <div class="join self-start" aria-label="任务类型">
-          <button class="join-item btn btn-sm" :class="!isDnsTask ? 'btn-neutral' : 'btn-ghost'" type="button" @click="targetType = 'ip'">IP / 网段</button>
-          <button class="join-item btn btn-sm" :class="isDnsTask ? 'btn-neutral' : 'btn-ghost'" type="button" @click="targetType = 'dns'">DNS 域名</button>
+        <div role="tablist" class="tabs tabs-box w-fit" aria-label="任务类型">
+          <button
+            type="button"
+            role="tab"
+            class="tab task-type-tab"
+            :class="{ 'tab-active': !isDnsTask }"
+            :aria-selected="!isDnsTask"
+            @click="targetType = 'ip'"
+          >
+            IP / CIDR
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab task-type-tab"
+            :class="{ 'tab-active': isDnsTask }"
+            :aria-selected="isDnsTask"
+            @click="targetType = 'dns'"
+          >
+            域名
+          </button>
         </div>
 
         <label v-if="!isDnsTask" class="form-control w-full">
@@ -291,7 +309,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                     v-for="profile in scanProfiles"
                     :key="profile.value"
                     class="flex cursor-pointer items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
-                    :class="scanProfile === profile.value ? 'border-primary' : ''"
+                    :class="scanProfile === profile.value ? 'border-neutral' : ''"
                   >
                     <input v-model="scanProfile" class="radio radio-sm mt-0.5" type="radio" :value="profile.value" />
                     <span>
@@ -419,7 +437,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
 }
 
 .create-task-accordion[open] {
-  border-color: color-mix(in oklab, var(--color-primary) 35%, var(--color-base-300));
+  border-color: color-mix(in oklab, var(--color-neutral) 35%, var(--color-base-300));
   box-shadow: 0 1px 3px color-mix(in oklab, var(--color-base-content) 8%, transparent);
 }
 
@@ -429,5 +447,23 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
 
 .create-task-accordion > summary:hover {
   background-color: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+}
+
+.task-type-tab {
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.task-type-tab.tab-active {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-type-tab {
+    transition: none;
+  }
 }
 </style>
