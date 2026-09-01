@@ -14,6 +14,9 @@ const actionMessage = ref('')
 const actionLoading = ref(false)
 const page = ref(1)
 const selectedExecutionId = ref('')
+const dnsComparison = ref([])
+const dnsComparisonLoading = ref(false)
+const dnsComparisonError = ref('')
 let refreshTimer
 let isUnmounted = false
 const refreshableStatuses = new Set(['pending', 'running'])
@@ -120,6 +123,8 @@ async function loadTask({ silent = false } = {}) {
     if (response.data?.success !== true || !response.data?.data) throw new Error('服务器未返回有效任务数据')
     task.value = response.data.data
     selectedExecutionId.value = response.data.data.selected_execution_id || ''
+    if (response.data.data.task_kind === 'dns') await loadDnsComparison()
+    else dnsComparison.value = []
     errorMessage.value = ''
   } catch (error) {
     console.error('load task detail failed', error)
@@ -127,6 +132,22 @@ async function loadTask({ silent = false } = {}) {
   } finally {
     loading.value = false
     scheduleRefresh()
+  }
+}
+
+async function loadDnsComparison() {
+  dnsComparisonLoading.value = true
+  dnsComparisonError.value = ''
+  try {
+    const response = await http.get(`/api/task/${taskId.value}/dns-comparison`)
+    if (response.data?.success !== true || !Array.isArray(response.data?.data?.records)) throw new Error('invalid DNS comparison')
+    dnsComparison.value = response.data.data.records
+  } catch (error) {
+    console.error('load DNS comparison failed', error)
+    dnsComparison.value = []
+    dnsComparisonError.value = 'DNS 对比结果暂不可用。'
+  } finally {
+    dnsComparisonLoading.value = false
   }
 }
 
@@ -321,13 +342,29 @@ onBeforeUnmount(() => {
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">开始时间：</span>{{ taskDetail.startTime }}</div>
             <div class="rounded-lg bg-base-200/50 p-3"><span class="opacity-60">结束时间：</span>{{ taskDetail.endTime }}</div>
             <div class="rounded-lg bg-base-200/50 p-3 md:col-span-2"><span class="opacity-60">执行扫描器：</span>{{ taskDetail.scanner }}</div>
+            <div v-if="isDnsTask" class="rounded-lg bg-base-200/50 p-3 md:col-span-2"><span class="opacity-60">解析服务器：</span><span v-if="task.dns_resolvers?.length">{{ task.dns_resolvers.map((resolver) => `${resolver.label} (${resolver.ip}:${resolver.port}/${resolver.transport})`).join('；') }}</span><span v-else>扫描器系统 DNS</span></div>
           </div>
         </div>
 
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">结果展示</h3>
-          <div v-if="isDnsTask" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">
-            DNS 查询已完成 {{ task.summary?.result_count ?? 0 }} 条观察。当前 DNS 资产与历史观察已由后端归档。
+          <div v-if="isDnsTask" class="flex flex-col gap-3">
+            <div v-if="dnsComparisonLoading" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70"><span class="loading loading-spinner loading-xs mr-2"></span>正在加载 DNS 对比结果...</div>
+            <div v-else-if="dnsComparisonError" class="rounded-lg bg-warning/10 p-4 text-sm text-warning">{{ dnsComparisonError }}</div>
+            <div v-else-if="dnsComparison.length === 0" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">暂无 DNS 查询观察。</div>
+            <template v-else>
+            <div v-for="record in dnsComparison" :key="`${record.name}-${record.record_type}`" class="overflow-hidden rounded-lg border border-base-300 bg-base-100 text-sm">
+              <div class="flex flex-wrap items-center justify-between gap-2 bg-base-200/60 px-3 py-2"><span class="font-medium break-all">{{ record.name }}</span><span class="badge badge-outline">{{ record.record_type }}</span></div>
+              <div class="overflow-x-auto">
+                <table class="table table-sm">
+                  <thead><tr><th>DNS 服务器</th><th>响应</th><th>延迟</th><th>返回记录</th></tr></thead>
+                  <tbody><tr v-for="resolver in record.resolvers" :key="resolver.id"><td>{{ resolver.label }}<div class="text-xs opacity-60">{{ resolver.ip || '系统 DNS' }}{{ resolver.port ? `:${resolver.port}` : '' }} · {{ resolver.transport || '-' }}</div></td><td><span class="badge badge-sm" :class="resolver.response_code === 'NOERROR' ? 'badge-success' : 'badge-warning'">{{ resolver.response_code }}</span></td><td>{{ resolver.latency_ms == null ? '-' : `${resolver.latency_ms} ms` }}</td><td class="max-w-xl break-all">{{ resolver.answers?.map((answer) => `${answer.type} ${answer.value} (TTL ${answer.ttl})`).join('；') || '-' }}</td></tr></tbody>
+                </table>
+              </div>
+              <div v-if="record.differences?.length || record.response_code_difference" class="border-t border-warning/20 bg-warning/10 px-3 py-2 text-xs text-warning">差异：<span v-if="record.response_code_difference" class="mr-2">响应码不同；</span><span v-for="(difference, index) in record.differences" :key="index" class="mr-2">{{ difference.answer?.type }} {{ difference.answer?.value }}（{{ difference.resolver_ids?.join('、') }}）</span></div>
+              <div v-else-if="record.resolvers.length > 1" class="border-t border-success/20 bg-success/10 px-3 py-2 text-xs text-success">各 DNS 服务器返回的记录一致。</div>
+            </div>
+            </template>
           </div>
           <div v-else class="flex flex-col gap-2">
             <div v-if="resultByIp.length === 0" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">暂无扫描结果</div>

@@ -30,6 +30,8 @@ const scanners = ref([])
 const scannersLoading = ref(false)
 const scanProfile = ref('legacy')
 const dnsScanProfile = ref('dns_full')
+const dnsResolverMode = ref('system')
+const dnsResolvers = ref([])
 const defaultScanProfile = ref('legacy')
 const scanSettingsLoading = ref(true)
 const selectedScanProfileTitle = computed(() => (
@@ -99,7 +101,19 @@ const hasUnsavedChanges = computed(() => (
   || scannerIds.value.length > 0
   || scanProfile.value !== defaultScanProfile.value
   || dnsScanProfile.value !== 'dns_full'
+  || dnsResolverMode.value !== 'system'
+  || dnsResolvers.value.length > 0
 ))
+
+function addDnsResolver() {
+  if (dnsResolvers.value.length >= 8) return
+  const index = dnsResolvers.value.length + 1
+  dnsResolvers.value.push({ id: `dns-${index}`, label: `DNS 服务器 ${index}`, ip: '', port: 53, transport: 'udp' })
+}
+
+function removeDnsResolver(index) {
+  dnsResolvers.value.splice(index, 1)
+}
 
 function resetForm() {
   ip.value = ''
@@ -112,6 +126,8 @@ function resetForm() {
   scannerIds.value = []
   scanProfile.value = defaultScanProfile.value
   dnsScanProfile.value = 'dns_full'
+  dnsResolverMode.value = 'system'
+  dnsResolvers.value = []
 }
 
 async function loadScanSettings() {
@@ -191,13 +207,39 @@ async function submitTask() {
       showAlert('warning', '请输入有效域名', '一次 DNS 任务最多可包含 500 个域名。')
       return false
     }
+    if (isDnsTask.value && dnsResolverMode.value === 'specified') {
+      if (dnsResolvers.value.length === 0) {
+        showAlert('warning', '请添加 DNS 服务器', '指定 DNS 服务器模式至少需要添加一台服务器。')
+        return false
+      }
+      const resolverIds = new Set()
+      for (const resolver of dnsResolvers.value) {
+        const id = resolver.id.trim()
+        const ip = resolver.ip.trim()
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id) || !resolver.label.trim() || !ip || !['udp', 'tcp'].includes(resolver.transport)) {
+          showAlert('warning', 'DNS 服务器配置无效', '请填写 ID、名称、IP 地址和 UDP 或 TCP 传输协议。')
+          return false
+        }
+        if (resolverIds.has(id.toLowerCase())) {
+          showAlert('warning', 'DNS 服务器 ID 重复', '每台 DNS 服务器需要唯一 ID。')
+          return false
+        }
+        resolverIds.add(id.toLowerCase())
+      }
+    }
     const payload = isDnsTask.value
       ? {
           domains: dnsTargets,
           level: Number(level.value),
           remark: remark.value.trim() ? remark.value.trim() : null,
           scan_profile: dnsScanProfile.value,
-          port: dnsIncludesPortScan.value ? port.value.trim() : null
+          port: dnsIncludesPortScan.value ? port.value.trim() : null,
+          dns_resolvers: dnsResolverMode.value === 'specified'
+            ? dnsResolvers.value.map((item) => ({
+                id: item.id.trim(), label: item.label.trim(), ip: item.ip.trim(),
+                port: Number(item.port) || 53, transport: item.transport
+              }))
+            : []
         }
       : {
           ip: ip.value.trim(),
@@ -349,6 +391,29 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                 <p class="mt-3 text-xs leading-5 text-base-content/60">
                   {{ dnsScanProfiles.find((profile) => profile.value === dnsScanProfile)?.description }}
                 </p>
+              </div>
+              <div v-if="isDnsTask" class="mt-3 rounded-lg bg-base-200/50 p-3 text-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p class="font-medium">解析服务器</p>
+                    <p class="mt-1 text-xs text-base-content/60">指定多台服务器后，将对同一域名记录进行逐台对比。</p>
+                  </div>
+                  <select v-model="dnsResolverMode" class="select select-sm w-full sm:w-auto">
+                    <option value="system">使用扫描器系统 DNS</option>
+                    <option value="specified">指定 DNS 服务器</option>
+                  </select>
+                </div>
+                <div v-if="dnsResolverMode === 'specified'" class="mt-3 space-y-2">
+                  <div v-for="(resolver, index) in dnsResolvers" :key="index" class="grid gap-2 rounded-lg border border-base-300 bg-base-100 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_6rem_6rem_auto]">
+                    <input v-model="resolver.id" class="input input-sm w-full" maxlength="64" placeholder="ID，如 dns-1" />
+                    <input v-model="resolver.label" class="input input-sm w-full" maxlength="128" placeholder="名称" />
+                    <input v-model="resolver.ip" class="input input-sm w-full" placeholder="IP 地址" />
+                    <input v-model.number="resolver.port" class="input input-sm w-full" type="number" min="1" max="65535" aria-label="DNS 端口" />
+                    <select v-model="resolver.transport" class="select select-sm w-full" aria-label="DNS 传输协议"><option value="udp">UDP</option><option value="tcp">TCP</option></select>
+                    <button type="button" class="btn btn-ghost btn-sm text-error" @click="removeDnsResolver(index)">删除</button>
+                  </div>
+                  <button type="button" class="btn btn-outline btn-sm" :disabled="dnsResolvers.length >= 8" @click="addDnsResolver">添加 DNS 服务器</button>
+                </div>
               </div>
             </div>
           </details>
