@@ -226,18 +226,18 @@ onMounted(loadAll)
 
       <div v-if="loading[activeItem.key]" class="flex items-center gap-2 py-8 text-sm opacity-60"><span class="loading loading-spinner loading-sm"></span>正在读取配置...</div>
 
-      <fieldset v-else :disabled="saving[activeItem.key]" class="space-y-4">
+      <fieldset v-else :disabled="saving[activeItem.key]" class="runtime-fields space-y-4">
         <template v-if="activeItem.key === 'requests'">
-          <div class="grid gap-4 md:grid-cols-2">
-            <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.requests.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">采集请求日志</span><span class="mt-1 block text-xs opacity-60">关闭后停止写入新访问日志；后台 writer 保持待命。</span></span></label>
+          <div class="grid gap-3 lg:grid-cols-2">
+            <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.requests.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">采集请求日志</span><span class="mt-1 block text-xs opacity-60">关闭后停止写入新访问日志；后台 writer 保持待命。</span></span></label>
             <label class="form-control"><span class="label-text mb-1">在线保留天数</span><input v-model.number="settings.requests.retention_days" min="1" type="number" class="input input-bordered" /><span class="label-text-alt mt-1 opacity-60">保存后会按新版本重新安排清理。</span></label>
           </div>
         </template>
 
         <template v-else-if="activeItem.key === 'monitor'">
-          <div class="grid gap-4 lg:grid-cols-3">
-            <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用健康监控</span><span class="mt-1 block text-xs opacity-60">关闭时不再发送健康告警。</span></span></label>
-            <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.server_error_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">5xx 告警</span><span class="mt-1 block text-xs opacity-60">维护响应不会触发该告警。</span></span></label>
+          <div class="grid gap-3 lg:grid-cols-2">
+            <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用健康监控</span><span class="mt-1 block text-xs opacity-60">关闭时不再发送健康告警。</span></span></label>
+            <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.server_error_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">5xx 告警</span><span class="mt-1 block text-xs opacity-60">维护响应不会触发该告警。</span></span></label>
             <label class="form-control"><span class="label-text mb-1">告警冷却时间（秒）</span><input v-model.number="settings.monitor.alert_cooldown_seconds" min="1" type="number" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1">慢请求阈值（ms）</span><input v-model.number="settings.monitor.slow_request_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1">慢 SQL 阈值（ms）</span><input v-model.number="settings.monitor.slow_sql_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
@@ -251,9 +251,9 @@ onMounted(loadAll)
 
         <template v-else-if="activeItem.key === 'automatic_target'">
           <div class="alert alert-warning alert-soft text-sm">自动目标会创建实际扫描任务。只允许填写已获得明确授权的网段；启用前请复核范围、端口和优先级。</div>
-          <div class="grid gap-4 lg:grid-cols-3">
-            <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv4 自动生成</span><span class="mt-1 block text-xs opacity-60">必须配置授权 IPv4 CIDR。</span></span></label>
-            <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.ipv6_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv6 自动生成</span><span class="mt-1 block text-xs opacity-60">仅在支持 IPv6 的扫描器在线时补充。</span></span></label>
+          <div class="grid gap-3 lg:grid-cols-2">
+            <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv4 自动生成</span><span class="mt-1 block text-xs opacity-60">必须配置授权 IPv4 CIDR。</span></span></label>
+            <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.ipv6_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv6 自动生成</span><span class="mt-1 block text-xs opacity-60">仅在支持 IPv6 的扫描器在线时补充。</span></span></label>
             <label class="form-control"><span class="label-text mb-1">生成间隔（秒）</span><input v-model.number="settings.automatic_target.interval_seconds" min="5" type="number" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1">IPv4 队列低水位 / 高水位</span><div class="join"><input v-model.number="settings.automatic_target.pending_low_watermark" min="0" max="100" type="number" class="input input-bordered join-item w-1/2" /><input v-model.number="settings.automatic_target.pending_high_watermark" min="1" max="100" type="number" class="input input-bordered join-item w-1/2" /></div></label>
             <label class="form-control"><span class="label-text mb-1">IPv6 队列低水位 / 高水位</span><div class="join"><input v-model.number="settings.automatic_target.ipv6_pending_low_watermark" min="0" max="100" type="number" class="input input-bordered join-item w-1/2" /><input v-model.number="settings.automatic_target.ipv6_pending_high_watermark" min="1" max="100" type="number" class="input input-bordered join-item w-1/2" /></div></label>
@@ -262,7 +262,7 @@ onMounted(loadAll)
             <label class="form-control"><span class="label-text mb-1">IPv6 任务前缀</span><input v-model.number="settings.automatic_target.ipv6_task_prefix" min="0" max="128" type="number" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1">重复扫描间隔（秒）</span><input v-model.number="settings.automatic_target.repeat_after_seconds" min="1" type="number" class="input input-bordered" /></label>
           </div>
-          <div class="grid gap-4 lg:grid-cols-2">
+          <div class="grid gap-3 lg:grid-cols-2">
             <label class="form-control"><span class="label-text mb-1">授权 IPv4 CIDR</span><textarea v-model="cidrText.automaticAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="198.51.100.0/24"></textarea></label>
             <label class="form-control"><span class="label-text mb-1">排除 IPv4 CIDR</span><textarea v-model="cidrText.automaticExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="198.51.100.128/25"></textarea></label>
             <label class="form-control"><span class="label-text mb-1">授权 IPv6 CIDR</span><textarea v-model="cidrText.automaticIpv6Authorized" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="2001:db8::/32"></textarea></label>
@@ -273,15 +273,15 @@ onMounted(loadAll)
 
         <template v-else-if="activeItem.key === 'dns_follow_up'">
           <div class="alert alert-warning alert-soft text-sm">此策略允许 DNS 解析结果创建端口扫描任务。必须将范围限制在已授权的 CIDR 内，排除项优先。</div>
-          <div class="grid gap-4 lg:grid-cols-3">
-            <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.dns_follow_up.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 DNS 后续任务</span><span class="mt-1 block text-xs opacity-60">启用时必须配置授权 CIDR。</span></span></label>
+          <div class="grid gap-3 lg:grid-cols-2">
+            <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.dns_follow_up.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 DNS 后续任务</span><span class="mt-1 block text-xs opacity-60">启用时必须配置授权 CIDR。</span></span></label>
             <label class="form-control"><span class="label-text mb-1">单任务最大目标数</span><input v-model.number="settings.dns_follow_up.max_targets_per_task" min="1" max="500" type="number" class="input input-bordered" /></label>
           </div>
-          <div class="grid gap-4 lg:grid-cols-2"><label class="form-control"><span class="label-text mb-1">授权 CIDR</span><textarea v-model="cidrText.dnsAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label><label class="form-control"><span class="label-text mb-1">排除 CIDR</span><textarea v-model="cidrText.dnsExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label></div>
+          <div class="grid gap-3 lg:grid-cols-2"><label class="form-control"><span class="label-text mb-1">授权 CIDR</span><textarea v-model="cidrText.dnsAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label><label class="form-control"><span class="label-text mb-1">排除 CIDR</span><textarea v-model="cidrText.dnsExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label></div>
         </template>
 
         <template v-else-if="activeItem.key === 'analytics_snapshot'">
-          <div class="grid gap-4 md:grid-cols-2"><label class="form-control"><span class="label-text mb-1">运行模式</span><select v-model="settings.analytics_snapshot.mode" class="select select-bordered"><option value="realtime">realtime（实时聚合）</option><option value="shadow">shadow（后台构建快照）</option><option value="snapshot">snapshot（读取快照）</option></select><span class="label-text-alt mt-1 opacity-60">切换为 snapshot 前请确认历史快照已构建完成。</span></label><label class="form-control"><span class="label-text mb-1">处理间隔（分钟）</span><input v-model.number="settings.analytics_snapshot.interval_minutes" min="1" max="1440" type="number" class="input input-bordered" /></label></div>
+          <div class="grid gap-3 lg:grid-cols-2"><label class="form-control"><span class="label-text mb-1">运行模式</span><select v-model="settings.analytics_snapshot.mode" class="select select-bordered"><option value="realtime">realtime（实时聚合）</option><option value="shadow">shadow（后台构建快照）</option><option value="snapshot">snapshot（读取快照）</option></select><span class="label-text-alt mt-1 opacity-60">切换为 snapshot 前请确认历史快照已构建完成。</span></label><label class="form-control"><span class="label-text mb-1">处理间隔（分钟）</span><input v-model.number="settings.analytics_snapshot.interval_minutes" min="1" max="1440" type="number" class="input input-bordered" /></label></div>
         </template>
 
         <label class="form-control"><span class="label-text mb-1">变更原因 <span class="opacity-60">（建议填写，最长 500 字）</span></span><input v-model="changeReasons[activeItem.key]" maxlength="500" type="text" class="input input-bordered" placeholder="例如：调整告警阈值以适应新的性能基线" /></label>
@@ -289,3 +289,73 @@ onMounted(loadAll)
     </section>
   </div>
 </template>
+
+<style scoped>
+.runtime-switch {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+}
+
+.runtime-fields .form-control {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(14rem, 28rem);
+  align-items: center;
+  column-gap: 1.25rem;
+  row-gap: 0.4rem;
+}
+
+.runtime-fields .form-control > .label-text {
+  grid-column: 1;
+  grid-row: 1;
+  margin-bottom: 0;
+  text-align: right;
+}
+
+.runtime-fields .form-control > :is(.input, .select, .textarea, .join) {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+}
+
+.runtime-fields .form-control > .label-text-alt {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 0;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.runtime-fields .form-control:has(> .textarea) {
+  align-items: start;
+}
+
+.runtime-fields .form-control:has(> .textarea) > .label-text {
+  padding-top: 0.45rem;
+}
+
+@media (max-width: 640px) {
+  .runtime-fields .form-control {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runtime-fields .form-control > .label-text,
+  .runtime-fields .form-control > :is(.input, .select, .textarea, .join),
+  .runtime-fields .form-control > .label-text-alt {
+    grid-column: 1;
+  }
+
+  .runtime-fields .form-control > .label-text {
+    grid-row: auto;
+    padding-top: 0;
+    text-align: left;
+  }
+
+  .runtime-fields .form-control > :is(.input, .select, .textarea, .join) {
+    grid-row: auto;
+  }
+
+  .runtime-fields .form-control > .label-text-alt {
+    grid-row: auto;
+  }
+}
+</style>
