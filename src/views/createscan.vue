@@ -267,7 +267,15 @@ async function submitTask() {
     }
   } catch (error) {
     console.error('create scan task failed', error)
-    showAlert('error', '创建扫描失败', '请检查网络连接或服务器运行状态。', 7000)
+    const message = error?.response?.data?.message
+    showAlert(
+      'error',
+      '创建扫描失败',
+      typeof message === 'string' && message.trim()
+        ? message
+        : '请检查网络连接或服务器运行状态。',
+      7000
+    )
     return false
   } finally {
     submitting.value = false
