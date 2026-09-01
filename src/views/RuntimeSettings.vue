@@ -128,6 +128,7 @@ function isDirty(namespace) {
 }
 
 const hasUnsavedChanges = computed(() => namespaces.some(({ key }) => isDirty(key)))
+const activeItem = computed(() => namespaces.find(({ key }) => key === activeTab.value) || namespaces[0])
 
 function selectTab(namespace) {
   activeTab.value = namespace
@@ -208,32 +209,32 @@ onMounted(loadAll)
       </button>
     </div>
 
-    <section v-for="item in namespaces" v-show="activeTab === item.key" :key="item.key" class="card card-border border-base-300 bg-base-100 p-4">
+    <section v-if="activeItem" :key="activeItem.key" class="card card-border border-base-300 bg-base-100 p-4">
       <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 class="font-semibold">{{ item.title }}</h3>
-          <p class="mt-1 text-xs opacity-60">{{ item.description }}</p>
+          <h3 class="font-semibold">{{ activeItem.title }}</h3>
+          <p class="mt-1 text-xs opacity-60">{{ activeItem.description }}</p>
         </div>
         <div class="flex items-center gap-2">
-          <span class="badge badge-ghost badge-sm">版本 #{{ revisions[item.key] || '—' }}</span>
-          <button type="button" class="btn btn-ghost btn-sm rounded-lg" :disabled="loading[item.key] || saving[item.key]" @click="loadNamespace(item.key)">重新加载</button>
-          <button type="button" class="btn btn-neutral btn-sm rounded-lg" :class="isDirty(item.key) ? 'visible' : 'invisible'" :disabled="!isDirty(item.key) || loading[item.key] || saving[item.key]" @click="saveNamespace(item.key)">
-            <span v-if="saving[item.key]" class="loading loading-spinner loading-xs"></span>{{ saving[item.key] ? '发布中' : '发布' }}
+          <span class="badge badge-ghost badge-sm">版本 #{{ revisions[activeItem.key] || '—' }}</span>
+          <button type="button" class="btn btn-ghost btn-sm rounded-lg" :disabled="loading[activeItem.key] || saving[activeItem.key]" @click="loadNamespace(activeItem.key)">重新加载</button>
+          <button type="button" class="btn btn-neutral btn-sm rounded-lg" :class="isDirty(activeItem.key) ? 'visible' : 'invisible'" :disabled="!isDirty(activeItem.key) || loading[activeItem.key] || saving[activeItem.key]" @click="saveNamespace(activeItem.key)">
+            <span v-if="saving[activeItem.key]" class="loading loading-spinner loading-xs"></span>{{ saving[activeItem.key] ? '发布中' : '发布' }}
           </button>
         </div>
       </div>
 
-      <div v-if="loading[item.key]" class="flex items-center gap-2 py-8 text-sm opacity-60"><span class="loading loading-spinner loading-sm"></span>正在读取配置...</div>
+      <div v-if="loading[activeItem.key]" class="flex items-center gap-2 py-8 text-sm opacity-60"><span class="loading loading-spinner loading-sm"></span>正在读取配置...</div>
 
-      <fieldset v-else :disabled="saving[item.key]" class="space-y-4">
-        <template v-if="item.key === 'requests'">
+      <fieldset v-else :disabled="saving[activeItem.key]" class="space-y-4">
+        <template v-if="activeItem.key === 'requests'">
           <div class="grid gap-4 md:grid-cols-2">
             <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.requests.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">采集请求日志</span><span class="mt-1 block text-xs opacity-60">关闭后停止写入新访问日志；后台 writer 保持待命。</span></span></label>
             <label class="form-control"><span class="label-text mb-1">在线保留天数</span><input v-model.number="settings.requests.retention_days" min="1" type="number" class="input input-bordered" /><span class="label-text-alt mt-1 opacity-60">保存后会按新版本重新安排清理。</span></label>
           </div>
         </template>
 
-        <template v-else-if="item.key === 'monitor'">
+        <template v-else-if="activeItem.key === 'monitor'">
           <div class="grid gap-4 lg:grid-cols-3">
             <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用健康监控</span><span class="mt-1 block text-xs opacity-60">关闭时不再发送健康告警。</span></span></label>
             <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.server_error_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">5xx 告警</span><span class="mt-1 block text-xs opacity-60">维护响应不会触发该告警。</span></span></label>
@@ -248,7 +249,7 @@ onMounted(loadAll)
           </div>
         </template>
 
-        <template v-else-if="item.key === 'automatic_target'">
+        <template v-else-if="activeItem.key === 'automatic_target'">
           <div class="alert alert-warning alert-soft text-sm">自动目标会创建实际扫描任务。只允许填写已获得明确授权的网段；启用前请复核范围、端口和优先级。</div>
           <div class="grid gap-4 lg:grid-cols-3">
             <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv4 自动生成</span><span class="mt-1 block text-xs opacity-60">必须配置授权 IPv4 CIDR。</span></span></label>
@@ -270,7 +271,7 @@ onMounted(loadAll)
           <label class="form-control"><span class="label-text mb-1">常用端口</span><input v-model="settings.automatic_target.common_ports" type="text" class="input input-bordered font-mono" placeholder="80,443,8080" /><span class="label-text-alt mt-1 opacity-60">以逗号分隔，可使用范围，例如 8000-8100。</span></label>
         </template>
 
-        <template v-else-if="item.key === 'dns_follow_up'">
+        <template v-else-if="activeItem.key === 'dns_follow_up'">
           <div class="alert alert-warning alert-soft text-sm">此策略允许 DNS 解析结果创建端口扫描任务。必须将范围限制在已授权的 CIDR 内，排除项优先。</div>
           <div class="grid gap-4 lg:grid-cols-3">
             <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.dns_follow_up.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 DNS 后续任务</span><span class="mt-1 block text-xs opacity-60">启用时必须配置授权 CIDR。</span></span></label>
@@ -279,11 +280,11 @@ onMounted(loadAll)
           <div class="grid gap-4 lg:grid-cols-2"><label class="form-control"><span class="label-text mb-1">授权 CIDR</span><textarea v-model="cidrText.dnsAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label><label class="form-control"><span class="label-text mb-1">排除 CIDR</span><textarea v-model="cidrText.dnsExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label></div>
         </template>
 
-        <template v-else-if="item.key === 'analytics_snapshot'">
+        <template v-else-if="activeItem.key === 'analytics_snapshot'">
           <div class="grid gap-4 md:grid-cols-2"><label class="form-control"><span class="label-text mb-1">运行模式</span><select v-model="settings.analytics_snapshot.mode" class="select select-bordered"><option value="realtime">realtime（实时聚合）</option><option value="shadow">shadow（后台构建快照）</option><option value="snapshot">snapshot（读取快照）</option></select><span class="label-text-alt mt-1 opacity-60">切换为 snapshot 前请确认历史快照已构建完成。</span></label><label class="form-control"><span class="label-text mb-1">处理间隔（分钟）</span><input v-model.number="settings.analytics_snapshot.interval_minutes" min="1" max="1440" type="number" class="input input-bordered" /></label></div>
         </template>
 
-        <label class="form-control"><span class="label-text mb-1">变更原因 <span class="opacity-60">（建议填写，最长 500 字）</span></span><input v-model="changeReasons[item.key]" maxlength="500" type="text" class="input input-bordered" placeholder="例如：调整告警阈值以适应新的性能基线" /></label>
+        <label class="form-control"><span class="label-text mb-1">变更原因 <span class="opacity-60">（建议填写，最长 500 字）</span></span><input v-model="changeReasons[activeItem.key]" maxlength="500" type="text" class="input input-bordered" placeholder="例如：调整告警阈值以适应新的性能基线" /></label>
       </fieldset>
     </section>
   </div>
