@@ -14,6 +14,7 @@ const showHistory = ref(false)
 const searchBoxRef = ref(null)
 const searchInputRef = ref(null)
 const loading = ref(false)
+const exporting = ref(false)
 const errorMessage = ref('')
 const errorSpan = ref(null)
 const searchResult = ref(null)
@@ -159,6 +160,44 @@ function formatNetworkOwner(item) {
   return [asn, item.as_org || item.isp].filter(Boolean).join(' · ') || '-'
 }
 
+function csvCell(value) {
+  const text = String(value ?? '')
+  const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text
+  return `"${safeText.replaceAll('"', '""')}"`
+}
+
+function exportCurrentPage() {
+  if (!searchResult.value?.items.length) return
+
+  exporting.value = true
+  try {
+    const header = ['IP', '端口', '协议', '服务', 'Banner', 'ASN / AS 组织', '位置', '扫描时间', '标签']
+    const rows = searchResult.value.items.map((item) => [
+      item.ip_address,
+      item.port,
+      item.protocol,
+      item.service,
+      item.banner,
+      formatNetworkOwner(item),
+      formatLocation(item),
+      formatTime(item.scan_time),
+      (item.tags || []).map((tag) => tag.name).join('、'),
+    ])
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `network-mapping-search-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+  } catch (error) {
+    console.error('export search results failed', error)
+    errorMessage.value = '导出搜索结果失败，请稍后重试。'
+  } finally {
+    exporting.value = false
+  }
+}
+
 function onDocumentClick(event) {
   if (searchBoxRef.value && !searchBoxRef.value.contains(event.target)) showHistory.value = false
 }
@@ -220,7 +259,12 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
       <section v-if="searchResult" class="mt-10 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-lg font-semibold">组合搜索结果</h2>
-          <span class="text-sm opacity-70">“{{ searchResult.query }}” · 共 {{ searchResult.total }} 条</span>
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-sm opacity-70">“{{ searchResult.query }}” · 共 {{ searchResult.total }} 条</span>
+            <button class="btn btn-outline btn-sm" :disabled="loading || exporting || searchResult.items.length === 0" @click="exportCurrentPage">
+              {{ exporting ? '导出中…' : '导出当前页 CSV' }}
+            </button>
+          </div>
         </div>
         <div v-if="searchResult.items.length === 0" class="py-12 text-center opacity-60">没有匹配的资产。</div>
         <div v-else class="overflow-x-auto">
