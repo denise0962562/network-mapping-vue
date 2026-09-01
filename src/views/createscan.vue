@@ -30,6 +30,8 @@ const scanners = ref([])
 const scannersLoading = ref(false)
 const scanProfile = ref('legacy')
 const dnsScanProfile = ref('dns_full')
+const dnsFollowUpPortScan = ref(false)
+const dnsFollowUpScanProfile = ref('port_only')
 const dnsResolverMode = ref('system')
 const dnsResolvers = ref([])
 const defaultScanProfile = ref('legacy')
@@ -41,6 +43,7 @@ const selectedScanProfileTitle = computed(() => (
 ))
 const isDnsTask = computed(() => targetType.value === 'dns')
 const dnsIncludesPortScan = computed(() => dnsScanProfile.value !== 'dns_records')
+const dnsRequiresPort = computed(() => dnsIncludesPortScan.value || dnsFollowUpPortScan.value)
 const dispatchModeSummary = computed(() => {
   if (dispatchMode.value === 'selected') {
     return scannerIds.value.length > 0 ? `已指定 ${scannerIds.value.length} 台扫描器` : '指定扫描器'
@@ -101,6 +104,8 @@ const hasUnsavedChanges = computed(() => (
   || scannerIds.value.length > 0
   || scanProfile.value !== defaultScanProfile.value
   || dnsScanProfile.value !== 'dns_full'
+  || dnsFollowUpPortScan.value
+  || dnsFollowUpScanProfile.value !== 'port_only'
   || dnsResolverMode.value !== 'system'
   || dnsResolvers.value.length > 0
 ))
@@ -115,6 +120,11 @@ function removeDnsResolver(index) {
   dnsResolvers.value.splice(index, 1)
 }
 
+function setDnsFollowUpPortScan(event) {
+  dnsFollowUpPortScan.value = event.target.checked
+  if (dnsFollowUpPortScan.value) dnsScanProfile.value = 'dns_records'
+}
+
 function resetForm() {
   ip.value = ''
   domains.value = ''
@@ -126,6 +136,8 @@ function resetForm() {
   scannerIds.value = []
   scanProfile.value = defaultScanProfile.value
   dnsScanProfile.value = 'dns_full'
+  dnsFollowUpPortScan.value = false
+  dnsFollowUpScanProfile.value = 'port_only'
   dnsResolverMode.value = 'system'
   dnsResolvers.value = []
 }
@@ -189,7 +201,7 @@ async function submitTask() {
   if (isDnsTask.value) {
     if (!domainsInputRef.value?.reportValidity()) return false
   } else if (!ipInputRef.value?.reportValidity()) return false
-  if ((!isDnsTask.value || dnsIncludesPortScan.value) && port.value && !portInputRef.value?.reportValidity()) return false
+  if ((!isDnsTask.value || dnsRequiresPort.value) && port.value && !portInputRef.value?.reportValidity()) return false
   if (targetAddressFamily.value === 'mixed') {
     showAlert('warning', '不能混合地址协议', '请将 IPv4 和 IPv6 目标拆分为两个扫描任务。')
     return false
@@ -233,7 +245,9 @@ async function submitTask() {
           level: Number(level.value),
           remark: remark.value.trim() ? remark.value.trim() : null,
           scan_profile: dnsScanProfile.value,
-          port: dnsIncludesPortScan.value ? port.value.trim() : null,
+          port: dnsRequiresPort.value ? port.value.trim() : null,
+          follow_up_port_scan: dnsFollowUpPortScan.value,
+          follow_up_scan_profile: dnsFollowUpScanProfile.value,
           dns_resolvers: dnsResolverMode.value === 'specified'
             ? dnsResolvers.value.map((item) => ({
                 id: item.id.trim(), label: item.label.trim(), ip: item.ip.trim(),
@@ -423,6 +437,28 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                   <button type="button" class="btn btn-outline btn-sm" :disabled="dnsResolvers.length >= 8" @click="addDnsResolver">添加 DNS 服务器</button>
                 </div>
               </div>
+              <div v-if="isDnsTask" class="mt-3 rounded-lg bg-base-200/50 p-3 text-sm">
+                <label class="flex cursor-pointer items-start gap-3">
+                  <input
+                    class="toggle toggle-sm mt-0.5"
+                    type="checkbox"
+                    :checked="dnsFollowUpPortScan"
+                    @change="setDnsFollowUpPortScan"
+                  />
+                  <span>
+                    <span class="block font-medium">解析后创建独立端口扫描任务</span>
+                    <span class="mt-1 block text-xs leading-5 text-base-content/60">DNS 主任务完成后，服务端会仅对授权网段内的 A / AAAA 地址创建可独立追踪的端口任务。</span>
+                  </span>
+                </label>
+                <label v-if="dnsFollowUpPortScan" class="form-control mt-3 max-w-sm">
+                  <span class="label-text text-xs">派生任务扫描模式</span>
+                  <select v-model="dnsFollowUpScanProfile" class="select select-sm w-full">
+                    <option value="port_only">仅端口扫描</option>
+                    <option value="service_inventory">服务识别</option>
+                    <option value="legacy">兼容模式</option>
+                  </select>
+                </label>
+              </div>
             </div>
           </details>
 
@@ -470,7 +506,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           </div>
         </div>
 
-        <label v-if="!isDnsTask || dnsIncludesPortScan" class="form-control w-full">
+        <label v-if="!isDnsTask || dnsRequiresPort" class="form-control w-full">
           <span class="label-text input_items_required">{{ isDnsTask ? '解析 IP 的目标端口' : '目标端口' }}</span>
           <input
             id="create_task_port"
