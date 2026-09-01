@@ -1,6 +1,6 @@
 <script setup>
 import axios from 'axios'
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { renderChartTooltip } from '@/utils/chartTooltip'
@@ -33,10 +33,15 @@ const hasLoadedDistribution = ref(false)
 const hasLoadedHeatmap = ref(false)
 const lastUpdatedAt = ref(null)
 const snapshotDataAsOf = ref(null)
+const heatmapChartContainer = ref(null)
+const heatmapChartHeight = ref(380)
+const hoveredHeatmapValue = ref(null)
 
 let analysisController = null
 let scannerController = null
 let requestVersion = 0
+let heatmapResizeObserver = null
+let heatmapResizeFrame = null
 
 const isLoading = computed(() => distributionLoading.value || heatmapLoading.value)
 
@@ -295,7 +300,19 @@ const heatmapMaximum = computed(() => Math.max(
 ))
 
 const heatmapOptions = computed(() => ({
-  chart: { type: 'heatmap', toolbar: { show: false } },
+  chart: {
+    type: 'heatmap',
+    toolbar: { show: false },
+    events: {
+      dataPointMouseEnter(_, __, config) {
+        const value = config.w.config.series[config.seriesIndex]?.data[config.dataPointIndex]?.y
+        hoveredHeatmapValue.value = Number.isFinite(value) ? value : null
+      },
+      dataPointMouseLeave() {
+        hoveredHeatmapValue.value = null
+      }
+    }
+  },
   colors: ['#008ffb'],
   dataLabels: { enabled: false },
   xaxis: { type: 'category', title: { text: `最近 ${activeFilters.value.weeks} 周（按周起始日）` } },
@@ -303,7 +320,7 @@ const heatmapOptions = computed(() => ({
   plotOptions: {
     heatmap: {
       shadeIntensity: 0.5,
-      radius: 2,
+      radius: 0,
       useFillColorAsStroke: false,
       colorScale: {
         min: 0,
@@ -334,6 +351,27 @@ const discoveredTotal = computed(() =>
   heatmapItems.value.reduce((total, item) => total + (Number(item.count) || 0), 0)
 )
 
+const hoveredHeatmapPosition = computed(() => {
+  if (!Number.isFinite(hoveredHeatmapValue.value)) return null
+  return Math.min(1, Math.max(0, hoveredHeatmapValue.value / heatmapMaximum.value))
+})
+
+function scheduleSquareHeatmapCells() {
+  if (heatmapResizeFrame) cancelAnimationFrame(heatmapResizeFrame)
+  heatmapResizeFrame = requestAnimationFrame(() => {
+    heatmapResizeFrame = requestAnimationFrame(() => {
+      heatmapResizeFrame = null
+      const cell = heatmapChartContainer.value?.querySelector('.apexcharts-heatmap-rect')
+      if (!cell) return
+
+      const { width, height } = cell.getBoundingClientRect()
+      const heightAdjustment = (width - height) * weekdayRows.length
+      if (Math.abs(heightAdjustment) < 1) return
+      heatmapChartHeight.value = Math.max(180, Math.round(heatmapChartHeight.value + heightAdjustment))
+    })
+  })
+}
+
 const lastUpdatedLabel = computed(() => {
   if (snapshotDataAsOf.value) {
     return `统计截至 ${snapshotDataAsOf.value.toLocaleString('zh-CN', { hour12: false })}`
@@ -345,12 +383,21 @@ const lastUpdatedLabel = computed(() => {
 onMounted(() => {
   loadScanners()
   loadAnalysis()
+  heatmapResizeObserver = new ResizeObserver(scheduleSquareHeatmapCells)
+  if (heatmapChartContainer.value) heatmapResizeObserver.observe(heatmapChartContainer.value)
 })
+
+watch([heatmapSeries, heatmapChartHeight, hasLoadedHeatmap], async () => {
+  await nextTick()
+  scheduleSquareHeatmapCells()
+}, { flush: 'post' })
 
 onBeforeUnmount(() => {
   requestVersion += 1
   analysisController?.abort()
   scannerController?.abort()
+  heatmapResizeObserver?.disconnect()
+  if (heatmapResizeFrame) cancelAnimationFrame(heatmapResizeFrame)
 })
 </script>
 
@@ -479,15 +526,28 @@ onBeforeUnmount(() => {
             title="热力图加载失败"
             message="无法从服务器获取统计数据，请稍后重试。"
           />
-          <div v-else class="relative mt-2">
-            <ApexChart type="heatmap" height="380" :options="heatmapOptions" :series="heatmapSeries" />
+          <div v-else ref="heatmapChartContainer" class="relative mt-2 flex items-stretch gap-3">
+            <div class="min-w-0 flex-1">
+              <ApexChart type="heatmap" :height="heatmapChartHeight" :options="heatmapOptions" :series="heatmapSeries" />
+            </div>
             <span v-if="heatmapLoading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
-          </div>
-          <div v-if="hasLoadedHeatmap" class="mt-2 flex items-center justify-end gap-2 text-xs text-base-content/60">
-            <span>发现 IP</span>
-            <span>0</span>
-            <span class="h-3 w-40 rounded-sm border border-base-300" style="background: linear-gradient(90deg, #e0f2fe 0%, #008ffb 100%)"></span>
-            <span>{{ heatmapMaximum.toLocaleString('zh-CN') }}</span>
+            <div v-if="hasLoadedHeatmap" class="flex shrink-0 flex-col items-center text-xs text-base-content/60">
+              <span>发现 IP</span>
+              <div class="relative mt-1 h-56 w-14">
+                <span class="absolute left-0 top-0">{{ heatmapMaximum.toLocaleString('zh-CN') }}</span>
+                <span class="absolute bottom-0 left-0">0</span>
+                <div class="absolute inset-y-4 left-7 w-3 rounded-sm border border-base-300" style="background: linear-gradient(to top, #e0f2fe 0%, #008ffb 100%)">
+                  <div
+                    v-if="hoveredHeatmapPosition !== null"
+                    class="absolute left-full -translate-y-1/2"
+                    :style="{ top: `${(1 - hoveredHeatmapPosition) * 100}%` }"
+                  >
+                    <span class="block h-0 w-0 border-y-4 border-r-6 border-y-transparent border-r-base-content"></span>
+                    <span class="absolute left-full top-1/2 ml-2 -translate-y-1/2 whitespace-nowrap rounded bg-base-200 px-1 py-0.5 font-medium text-base-content shadow-sm">{{ hoveredHeatmapValue.toLocaleString('zh-CN') }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
