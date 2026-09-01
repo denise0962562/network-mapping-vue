@@ -129,6 +129,10 @@ function isDirty(namespace) {
 
 const hasUnsavedChanges = computed(() => namespaces.some(({ key }) => isDirty(key)))
 
+function selectTab(namespace) {
+  activeTab.value = namespace
+}
+
 async function loadNamespace(namespace, silent = false) {
   loading[namespace] = true
   try {
@@ -198,8 +202,8 @@ onMounted(loadAll)
       <p class="text-xs opacity-60">这些策略保存在数据库中，保存后立即发布到当前服务进程。配置版本冲突时会重新加载，避免覆盖其他管理员的更新。</p>
     </div>
 
-    <div class="tabs tabs-box mb-5 w-full overflow-x-auto">
-      <button v-for="item in namespaces" :key="item.key" class="tab whitespace-nowrap" :class="{ 'tab-active': activeTab === item.key }" @click="activeTab = item.key">
+    <div class="tabs tabs-box mb-5 w-full overflow-x-auto" role="tablist" aria-label="运行时配置分类">
+      <button v-for="item in namespaces" :key="item.key" type="button" role="tab" :aria-selected="activeTab === item.key" class="tab whitespace-nowrap" :class="{ 'tab-active': activeTab === item.key }" @click="selectTab(item.key)">
         {{ item.title }}
       </button>
     </div>
@@ -212,8 +216,8 @@ onMounted(loadAll)
         </div>
         <div class="flex items-center gap-2">
           <span class="badge badge-ghost badge-sm">版本 #{{ revisions[item.key] || '—' }}</span>
-          <button class="btn btn-ghost btn-sm rounded-lg" :disabled="loading[item.key] || saving[item.key]" @click="loadNamespace(item.key)">重新加载</button>
-          <button class="btn btn-neutral btn-sm rounded-lg" :class="isDirty(item.key) ? 'visible' : 'invisible'" :disabled="!isDirty(item.key) || loading[item.key] || saving[item.key]" @click="saveNamespace(item.key)">
+          <button type="button" class="btn btn-ghost btn-sm rounded-lg" :disabled="loading[item.key] || saving[item.key]" @click="loadNamespace(item.key)">重新加载</button>
+          <button type="button" class="btn btn-neutral btn-sm rounded-lg" :class="isDirty(item.key) ? 'visible' : 'invisible'" :disabled="!isDirty(item.key) || loading[item.key] || saving[item.key]" @click="saveNamespace(item.key)">
             <span v-if="saving[item.key]" class="loading loading-spinner loading-xs"></span>{{ saving[item.key] ? '发布中' : '发布' }}
           </button>
         </div>
