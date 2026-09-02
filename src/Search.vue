@@ -26,12 +26,13 @@ const tagCatalog = ref([])
 const examples = [
   'ip IN 192.168.1.0/24 AND port IN (80, 443)',
   'service = "https" AND banner ~ "nginx"',
+  'domain = "www.example.com" AND port = 443',
   'tag = "生产环境" AND NOT tag.kind = malicious',
   'tag.category = "运行环境" AND tag = "生产环境"',
   'has_endpoint(port = 80) AND has_endpoint(port = 443)',
 ]
 
-const supportedSyntax = '支持 AND、OR、NOT、括号、IN、标签及资产服务组合条件'
+const supportedSyntax = '支持域名、AND、OR、NOT、括号、IN、标签及资产服务组合条件'
 const visibleTags = computed(() => tagCatalog.value.slice(0, 10))
 
 function openSyntaxDialog() {
@@ -281,7 +282,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
   <dialog ref="syntaxDialogRef" class="modal">
     <div class="modal-box w-[calc(100vw-2rem)] max-w-lg">
       <h3 class="text-lg font-bold">搜索语法说明</h3>
-      <p class="py-3 text-sm opacity-70">支持布尔组合、括号、精确匹配、包含匹配、集合和资产标签；旧版单条件语法仍然兼容。</p>
+      <p class="py-3 text-sm opacity-70">支持域名、布尔组合、括号、精确匹配、包含匹配、集合和资产标签；旧版单条件语法仍然兼容。</p>
 
       <div class="space-y-3 text-sm">
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
@@ -295,6 +296,11 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
           <code class="block rounded bg-base-300 px-2 py-1">asn = AS4134 AND tag = "生产环境"</code>
         </div>
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
+          <p class="font-medium">域名关联资产</p>
+          <code class="block rounded bg-base-300 px-2 py-1">domain = "www.example.com" AND port = 443</code>
+          <p class="text-xs opacity-70">域名会关联当前 A/AAAA 记录及 CNAME 链后返回对应的 IP 端点。</p>
+        </div>
+        <div class="rounded-lg bg-base-200 p-3 space-y-2">
           <p class="font-medium">端口与服务字段</p>
           <code class="block rounded bg-base-300 px-2 py-1">port IN (80, 443) AND service ~ "http"</code>
           <code class="block rounded bg-base-300 px-2 py-1">service = "https" AND banner ~ "nginx"</code>
@@ -305,7 +311,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
         </div>
         <div class="rounded-lg border border-base-300 p-3">
           <p class="font-medium">支持字段</p>
-          <p class="mt-1 break-words font-mono text-xs opacity-70">ip, asn, isp, org, country, city, tag, tag.id, tag.kind, tag.category, port, protocol, service, banner, source, scanner, first_seen, last_seen</p>
+          <p class="mt-1 break-words font-mono text-xs opacity-70">ip, domain, asn, isp, org, country, city, tag, tag.id, tag.kind, tag.category, port, protocol, service, banner, source, scanner, first_seen, last_seen</p>
         </div>
       </div>
 
