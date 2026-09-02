@@ -28,10 +28,7 @@
         <p class="text-xs opacity-60">按扫描器统计</p>
       </div>
       <div v-if="isFirstLoad" class="skeleton h-64 w-full rounded-box"></div>
-      <div v-else class="relative">
-        <ApexChart ref="maintenanceChartRef" type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" @mounted="applyMaintenanceAnnotations" />
-        <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
-      </div>
+      <ApexChart v-else type="bar" height="320" :options="scanChartOptions" :series="scanChartSeries" />
     </div>
   </div>
 
@@ -170,10 +167,8 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import SystemHistoryPanel from '@/components/SystemHistoryPanel.vue'
-import SystemMaintenanceTooltip from '@/components/SystemMaintenanceTooltip.vue'
 import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
-import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
@@ -183,7 +178,6 @@ const systemData = ref(null)
 const dashboardData = ref(null)
 const systemDataErrorVisible = ref(false)
 const isFirstLoad = ref(true)
-const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
 const percentFormatter = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 })
 let refreshTimer = null
 let dashboardTimer = null
@@ -239,15 +233,6 @@ async function fetchDashboardData() {
     const response = await http.get('/api/dashboard/overview')
     if (response.data?.success === true) {
       dashboardData.value = response.data.data
-      const trend = dashboardData.value?.trend || []
-      const lastDay = trend.at(-1)?.day
-      const history = await loadSystemMaintenanceHistory()
-      maintenanceAnnotations.value = buildSystemMaintenanceAnnotations(history, {
-        startAt: trend.at(0)?.day,
-        endAt: lastDay ? new Date(lastDay).getTime() + 24 * 60 * 60 * 1000 - 1 : null,
-        onLabelMouseEnter: showMaintenanceTooltip,
-        onLabelMouseLeave: hideMaintenanceTooltip
-      })
     }
   } catch (error) {
     console.error('fetch dashboard data failed', error)
