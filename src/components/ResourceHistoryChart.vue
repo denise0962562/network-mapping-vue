@@ -386,8 +386,12 @@ onBeforeUnmount(() => {
       </label>
     </div>
 
-    <div v-if="hasMetrics" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <div v-for="item in resourceStats" :key="item.name" class="rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
+    <div
+      v-if="hasMetrics"
+      class="flex flex-col gap-3"
+      :class="resourceStats.length === 4 ? 'min-[52rem]:flex-row' : 'min-[39rem]:flex-row'"
+    >
+      <div v-for="item in resourceStats" :key="item.name" class="flex-1 rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
         <div class="text-xs text-base-content/60">{{ item.name }} 最新平均值</div>
         <div class="mt-1 flex items-baseline justify-between gap-3">
           <span class="text-xl font-semibold" :class="item.class">{{ item.current }}</span>
