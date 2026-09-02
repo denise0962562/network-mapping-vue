@@ -1,11 +1,24 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import { feature as topojsonFeature } from 'topojson-client'
+import worldCountries from 'world-atlas/countries-110m.json'
 import AssetTags from '../components/AssetTags.vue'
 import http from '../utils/http'
 import { formatLocation } from '../utils/location'
 
 const HISTORY_PAGE_SIZE = 50
 const PORT_PAGE_SIZE = 20
+const MAP_COUNTRY_NAMES = {
+  US: 'United States of America',
+  CD: 'Dem. Rep. Congo',
+  CF: 'Central African Rep.',
+  DO: 'Dominican Rep.',
+  PS: 'Palestine',
+  TL: 'Timor-Leste',
+}
+const worldCountriesGeometry = topojsonFeature(worldCountries, worldCountries.objects.countries)
 
 const ipInput = ref('')
 const loading = ref(false)
@@ -28,6 +41,9 @@ const tagCatalogLoading = ref(false)
 const tagActionLoading = ref(false)
 const tagError = ref('')
 const selectedTagId = ref('')
+const mapContainerRef = ref(null)
+const mapError = ref('')
+let assetMap = null
 
 const assetIp = ref(new URLSearchParams(window.location.search).get('ip')?.trim() || '')
 const portsPage = computed(() => Math.floor(portsOffset.value / PORT_PAGE_SIZE) + 1)
@@ -48,10 +64,141 @@ const location = computed(() => {
   if (!summary.value) return '-'
   return formatLocation(summary.value)
 })
+const mapPoint = computed(() => {
+  if (!summary.value) return null
+  const latitude = validCoordinate(summary.value.latitude, 90)
+  const longitude = validCoordinate(summary.value.longitude, 180)
+  if (latitude !== null && longitude !== null) {
+    return {
+      lat: latitude,
+      lon: longitude,
+      name: summary.value.ip,
+      value: 1,
+      location: location.value,
+      precision: summary.value.city_name ? '城市级定位' : '坐标定位',
+    }
+  }
+
+  const countryCode = String(summary.value.country_code || '').trim().toUpperCase()
+  const country = MAP_COUNTRY_NAMES[countryCode] || String(summary.value.country_name || '').trim()
+  if (!country) return null
+  return {
+    country,
+    name: summary.value.ip,
+    value: 1,
+    location: location.value,
+    precision: '国家级定位',
+  }
+})
 
 function formatTime(timestamp) {
   if (!timestamp) return '-'
   return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
+}
+
+function validCoordinate(value, maximum) {
+  if (value === null || value === undefined || value === '') return null
+  const coordinate = Number(value)
+  return Number.isFinite(coordinate) && Math.abs(coordinate) <= maximum ? coordinate : null
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  })[character])
+}
+
+function destroyLocationMap() {
+  if (assetMap?._mapPane?.parentNode) assetMap.remove()
+  else mapContainerRef.value?.replaceChildren()
+  assetMap = null
+}
+
+function countryCenter(countryName) {
+  const country = worldCountriesGeometry.features.find((feature) => feature.properties?.name === countryName)
+  if (!country) return null
+  const bounds = L.geoJSON(country).getBounds()
+  return bounds.isValid() ? bounds.getCenter() : null
+}
+
+function pointCoordinates(point) {
+  if (Number.isFinite(point.lat) && Number.isFinite(point.lon)) return [point.lat, point.lon]
+  const center = countryCenter(point.country)
+  return center ? [center.lat, center.lng] : null
+}
+
+async function renderLocationMap() {
+  destroyLocationMap()
+  mapError.value = ''
+  await nextTick()
+  const point = mapPoint.value
+  if (!point || !mapContainerRef.value) return
+  const coordinates = pointCoordinates(point)
+  if (!coordinates) {
+    mapError.value = '地图暂时无法加载：未找到该国家的边界数据。'
+    return
+  }
+
+  let map = null
+  try {
+    map = L.map(mapContainerRef.value, {
+      crs: L.CRS.EPSG4326,
+      center: [0, 0],
+      zoom: 1,
+      zoomControl: true,
+      attributionControl: false,
+      worldCopyJump: true,
+      minZoom: 0,
+      maxZoom: 8,
+      zoomSnap: 0,
+    })
+    let correctingLatitude = false
+    map.on('moveend', () => {
+      if (correctingLatitude) return
+      const center = map.getCenter()
+      const latitude = Math.max(-135, Math.min(135, center.lat))
+      if (latitude === center.lat) return
+      correctingLatitude = true
+      map.panTo([latitude, center.lng], { animate: false })
+      correctingLatitude = false
+    })
+    L.geoJSON(worldCountriesGeometry, {
+      style: {
+        color: '#cbd5e1',
+        weight: 1,
+        fillColor: '#e8ecf2',
+        fillOpacity: 1,
+      },
+    }).addTo(map)
+    L.circleMarker(coordinates, {
+      radius: 9,
+      color: '#ffffff',
+      weight: 2,
+      fillColor: '#2563eb',
+      fillOpacity: 0.9,
+    }).bindTooltip(
+      `<div style="font-weight:600">${escapeHtml(point.name)}</div><div style="margin-top:2px">${escapeHtml(point.location)}</div><div style="margin-top:2px;opacity:.65;font-size:12px">${escapeHtml(point.precision)}</div>`,
+      { direction: 'top', offset: [0, -8], sticky: true },
+    ).addTo(map)
+    map.invalidateSize()
+    assetMap = map
+  } catch (error) {
+    console.error('资产地理位置地图加载失败', error)
+    if (map?._loaded) map.remove()
+    else {
+      mapContainerRef.value?.replaceChildren()
+      mapContainerRef.value?.classList.remove('leaflet-container', 'leaflet-touch', 'leaflet-fade-anim')
+      mapContainerRef.value?.removeAttribute('tabindex')
+      mapContainerRef.value?.style.removeProperty('position')
+    }
+    assetMap = null
+    const message = error instanceof Error && error.message ? `：${error.message}` : '。'
+    mapError.value = `地图暂时无法加载${message}`
+  }
 }
 
 function submitIp() {
@@ -61,6 +208,7 @@ function submitIp() {
 }
 
 async function loadAsset() {
+  destroyLocationMap()
   summary.value = null
   ports.value = []
   portsTotal.value = 0
@@ -87,6 +235,7 @@ async function loadAsset() {
     errorMessage.value = error.response?.data?.message || '资产聚合数据加载失败。'
   } finally {
     loading.value = false
+    if (summary.value) await renderLocationMap()
   }
 }
 
@@ -203,6 +352,8 @@ onMounted(() => {
   ipInput.value = assetIp.value
   loadAsset()
 })
+
+onBeforeUnmount(destroyLocationMap)
 </script>
 
 <template>
@@ -257,22 +408,39 @@ onMounted(() => {
           </div>
         </section>
 
-        <section class="grid gap-4 lg:grid-cols-2">
-          <div class="rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm">
-            <h2 class="font-semibold">网络与位置</h2>
-            <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
-              <dt class="opacity-60">ASN / AS 组织</dt><dd class="break-words">{{ networkOwner }}</dd>
-              <dt class="opacity-60">ISP</dt><dd class="break-words">{{ summary.isp || '-' }}</dd>
-              <dt class="opacity-60">地理位置</dt><dd>{{ location }}</dd>
-            </dl>
+        <section class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">
+          <div class="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(19rem,1fr)]">
+            <div class="p-5">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 class="font-semibold">IP 地理位置</h2>
+                  <p class="mt-1 text-sm opacity-60">{{ mapPoint?.precision || '未提供可用的地理位置' }}</p>
+                </div>
+                <span v-if="mapPoint" class="badge badge-outline">{{ location }}</span>
+              </div>
+              <div v-if="mapPoint && !mapError" ref="mapContainerRef" class="mt-4 h-[360px] cursor-grab touch-none overflow-hidden rounded-lg border border-base-300 bg-base-200/40"></div>
+              <div v-else-if="mapError" class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">{{ mapError }}</div>
+              <div v-else class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">
+                暂无该 IP 的地理位置数据。
+              </div>
+            </div>
+            <div class="border-t border-base-300 p-5 lg:border-l lg:border-t-0">
+              <h2 class="font-semibold">网络与位置</h2>
+              <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
+                <dt class="opacity-60">ASN / AS 组织</dt><dd class="break-words">{{ networkOwner }}</dd>
+                <dt class="opacity-60">ISP</dt><dd class="break-words">{{ summary.isp || '-' }}</dd>
+                <dt class="opacity-60">地理位置</dt><dd>{{ location }}</dd>
+              </dl>
+            </div>
           </div>
-          <div class="rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm">
-            <h2 class="font-semibold">发现时间</h2>
-            <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
-              <dt class="opacity-60">首次发现</dt><dd>{{ formatTime(summary.first_seen_at) }}</dd>
-              <dt class="opacity-60">最近发现</dt><dd>{{ formatTime(summary.last_seen_at) }}</dd>
-            </dl>
-          </div>
+        </section>
+
+        <section class="rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm">
+          <h2 class="font-semibold">发现时间</h2>
+          <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
+            <dt class="opacity-60">首次发现</dt><dd>{{ formatTime(summary.first_seen_at) }}</dd>
+            <dt class="opacity-60">最近发现</dt><dd>{{ formatTime(summary.last_seen_at) }}</dd>
+          </dl>
         </section>
 
         <div role="alert" class="alert alert-info alert-dash text-sm">
