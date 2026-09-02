@@ -257,10 +257,12 @@ const overviewCards = computed(() => {
 
 const resourceChartSeries = computed(() => {
   const status = systemData.value?.status_item?.[0]
+  const hasSwap = Number(status?.ram?.total_swap) > 0
+  const categories = hasSwap ? ['CPU', 'RAM', 'Swap', 'Disk'] : ['CPU', 'RAM', 'Disk']
   if (!status) {
     return [
-      { name: '使用', data: [0, 0, 0] },
-      { name: '空闲', data: [100, 100, 100] }
+      { name: '使用', data: categories.map(() => 0) },
+      { name: '空闲', data: categories.map(() => 100) }
     ]
   }
 
@@ -271,14 +273,18 @@ const resourceChartSeries = computed(() => {
   const diskUsage = status.disk?.disk_total_space
     ? Number(((status.disk.disk_total_usage / status.disk.disk_total_space) * 100).toFixed(2))
     : 0
+  const swapUsage = hasSwap
+    ? Number(((Number(status.ram?.use_swap || 0) / Number(status.ram.total_swap)) * 100).toFixed(2))
+    : null
+  const usages = hasSwap ? [cpuUsage, ramUsage, swapUsage, diskUsage] : [cpuUsage, ramUsage, diskUsage]
 
   return [
-    { name: '使用', data: [cpuUsage, ramUsage, diskUsage] },
-    { name: '空闲', data: [100 - cpuUsage, 100 - ramUsage, 100 - diskUsage] }
+    { name: '使用', data: usages },
+    { name: '空闲', data: usages.map((usage) => 100 - usage) }
   ]
 })
 
-const resourceChartOptions = ref({
+const resourceChartOptions = computed(() => ({
   chart: {
     type: 'bar',
     height: 320,
@@ -297,7 +303,9 @@ const resourceChartOptions = ref({
     }
   ],
   xaxis: {
-    categories: ['CPU', 'RAM', 'Disk']
+    categories: Number(systemData.value?.status_item?.[0]?.ram?.total_swap) > 0
+      ? ['CPU', 'RAM', 'Swap', 'Disk']
+      : ['CPU', 'RAM', 'Disk']
   },
   yaxis: {
     min: 0,
@@ -329,7 +337,7 @@ const resourceChartOptions = ref({
       })
     }
   }
-})
+}))
 
 const trendDays = computed(() => [...new Set((dashboardData.value?.trend || []).map((item) => item.day))])
 const scanChartSeries = computed(() => {

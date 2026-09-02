@@ -179,13 +179,17 @@ async function loadHistory({ silent = false } = {}) {
 }
 
 const hasMetrics = computed(() =>
-  points.value.some((point) => [point.cpu_avg, point.ram_avg, point.disk_avg].some(Number.isFinite))
+  points.value.some((point) => [point.cpu_avg, point.ram_avg, point.swap_avg, point.disk_avg].some(Number.isFinite))
+)
+
+const hasSwapMetrics = computed(() =>
+  points.value.some((point) => [point.swap_avg, point.swap_max].some(Number.isFinite))
 )
 
 const latestPoint = computed(() =>
   [...points.value]
     .reverse()
-    .find((point) => [point.cpu_avg, point.ram_avg, point.disk_avg].some(Number.isFinite)) || null
+    .find((point) => [point.cpu_avg, point.ram_avg, point.swap_avg, point.disk_avg].some(Number.isFinite)) || null
 )
 
 function peakValue(field) {
@@ -197,41 +201,61 @@ function formatPercent(value) {
   return Number.isFinite(value) ? `${Number(value).toFixed(1)}%` : '--'
 }
 
-const resourceStats = computed(() => [
-  {
-    name: 'CPU',
-    current: formatPercent(latestPoint.value?.cpu_avg),
-    peak: formatPercent(peakValue('cpu_max')),
-    class: 'text-info'
-  },
-  {
-    name: '内存',
-    current: formatPercent(latestPoint.value?.ram_avg),
-    peak: formatPercent(peakValue('ram_max')),
-    class: 'text-success'
-  },
-  {
+const resourceStats = computed(() => {
+  const stats = [
+    {
+      name: 'CPU',
+      current: formatPercent(latestPoint.value?.cpu_avg),
+      peak: formatPercent(peakValue('cpu_max')),
+      class: 'text-info'
+    },
+    {
+      name: '内存',
+      current: formatPercent(latestPoint.value?.ram_avg),
+      peak: formatPercent(peakValue('ram_max')),
+      class: 'text-success'
+    }
+  ]
+  if (hasSwapMetrics.value) {
+    stats.push({
+      name: 'Swap',
+      current: formatPercent(latestPoint.value?.swap_avg),
+      peak: formatPercent(peakValue('swap_max')),
+      class: 'text-secondary'
+    })
+  }
+  stats.push({
     name: '磁盘',
     current: formatPercent(latestPoint.value?.disk_avg),
     peak: formatPercent(peakValue('disk_max')),
     class: 'text-warning'
-  }
-])
+  })
+  return stats
+})
 
-const chartSeries = computed(() => [
-  {
-    name: 'CPU',
-    data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.cpu_avg }))
-  },
-  {
-    name: '内存',
-    data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.ram_avg }))
-  },
-  {
+const chartSeries = computed(() => {
+  const series = [
+    {
+      name: 'CPU',
+      data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.cpu_avg }))
+    },
+    {
+      name: '内存',
+      data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.ram_avg }))
+    }
+  ]
+  if (hasSwapMetrics.value) {
+    series.push({
+      name: 'Swap',
+      data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.swap_avg }))
+    })
+  }
+  series.push({
     name: '磁盘',
     data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.disk_avg }))
-  }
-])
+  })
+  return series
+})
 
 const chartOptions = computed(() => ({
   chart: {
@@ -241,7 +265,9 @@ const chartOptions = computed(() => ({
     zoom: { enabled: true, type: 'x', autoScaleYaxis: false },
     toolbar: { show: true, autoSelected: 'zoom' }
   },
-  colors: ['#008ffb', '#00a76f', '#f59e0b'],
+  colors: hasSwapMetrics.value
+    ? ['#008ffb', '#00a76f', '#775dd0', '#f59e0b']
+    : ['#008ffb', '#00a76f', '#f59e0b'],
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
   markers: { size: 0, hover: { size: 4 } },
@@ -265,9 +291,12 @@ const chartOptions = computed(() => ({
       if (!point) return ''
       const rows = [
         { label: 'CPU', value: `平均 ${formatPercent(point.cpu_avg)} · 峰值 ${formatPercent(point.cpu_max)}`, color: '#008ffb' },
-        { label: '内存', value: `平均 ${formatPercent(point.ram_avg)} · 峰值 ${formatPercent(point.ram_max)}`, color: '#00a76f' },
-        { label: '磁盘', value: `平均 ${formatPercent(point.disk_avg)} · 峰值 ${formatPercent(point.disk_max)}`, color: '#f59e0b' }
+        { label: '内存', value: `平均 ${formatPercent(point.ram_avg)} · 峰值 ${formatPercent(point.ram_max)}`, color: '#00a76f' }
       ]
+      if (hasSwapMetrics.value) {
+        rows.push({ label: 'Swap', value: `平均 ${formatPercent(point.swap_avg)} · 峰值 ${formatPercent(point.swap_max)}`, color: '#775dd0' })
+      }
+      rows.push({ label: '磁盘', value: `平均 ${formatPercent(point.disk_avg)} · 峰值 ${formatPercent(point.disk_max)}`, color: '#f59e0b' })
       return renderChartTooltip({
         title: formatChartTooltipTime(point.timestamp_ms),
         rows,
@@ -314,7 +343,7 @@ onBeforeUnmount(() => {
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 class="text-lg font-semibold">服务器资源趋势</h2>
-        <p class="mt-1 text-xs text-base-content/60">展示各时间桶内 CPU、内存和磁盘使用率的平均值，Tooltip 同时显示峰值。</p>
+        <p class="mt-1 text-xs text-base-content/60">展示各时间桶内 CPU、内存、磁盘及（配置时）Swap 使用率的平均值，Tooltip 同时显示峰值。</p>
       </div>
 
       <div class="flex flex-wrap items-end justify-end gap-2">
