@@ -234,7 +234,7 @@ async function submitTask() {
           level: Number(level.value),
           remark: remark.value.trim() ? remark.value.trim() : null,
           scan_profile: dnsScanProfile.value,
-          port: dnsRequiresPort.value ? port.value.trim() : null,
+          port: dnsRequiresPort.value && port.value.trim() ? port.value.trim() : null,
           dns_resolvers: dnsResolverMode.value === 'specified'
             ? dnsResolvers.value.map((item) => ({
                 id: item.id.trim(), label: item.label.trim(), ip: item.ip.trim(),
