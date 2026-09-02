@@ -184,6 +184,7 @@ const dashboardData = ref(null)
 const systemDataErrorVisible = ref(false)
 const isFirstLoad = ref(true)
 const { maintenanceAnnotations, maintenanceChartRef, maintenanceTooltip, showMaintenanceTooltip, hideMaintenanceTooltip, applyMaintenanceAnnotations } = useSystemMaintenanceAnnotations()
+const percentFormatter = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 })
 let refreshTimer = null
 let dashboardTimer = null
 
@@ -203,6 +204,17 @@ function closeAlert(id) {
 
 function handleResourceHistoryError(error) {
   pushAlert('error', error.title, error.description)
+}
+
+function normalizePercent(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  return Math.min(100, Math.max(0, Math.round(numeric * 100) / 100))
+}
+
+function formatPercent(value) {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? `${percentFormatter.format(numeric)}%` : '--'
 }
 
 async function fetchSystemData() {
@@ -266,21 +278,21 @@ const resourceChartSeries = computed(() => {
     ]
   }
 
-  const cpuUsage = Number(((status.cpu?.cpu_usage ?? 0)).toFixed(2))
+  const cpuUsage = normalizePercent(status.cpu?.cpu_usage)
   const ramUsage = status.ram?.total_ram
-    ? Number(((status.ram.used_ram / status.ram.total_ram) * 100).toFixed(2))
+    ? normalizePercent((Number(status.ram.used_ram) / Number(status.ram.total_ram)) * 100)
     : 0
   const diskUsage = status.disk?.disk_total_space
-    ? Number(((status.disk.disk_total_usage / status.disk.disk_total_space) * 100).toFixed(2))
+    ? normalizePercent((Number(status.disk.disk_total_usage) / Number(status.disk.disk_total_space)) * 100)
     : 0
   const swapUsage = hasSwap
-    ? Number(((Number(status.ram?.use_swap || 0) / Number(status.ram.total_swap)) * 100).toFixed(2))
+    ? normalizePercent((Number(status.ram?.use_swap || 0) / Number(status.ram.total_swap)) * 100)
     : null
   const usages = hasSwap ? [cpuUsage, ramUsage, swapUsage, diskUsage] : [cpuUsage, ramUsage, diskUsage]
 
   return [
     { name: '使用', data: usages },
-    { name: '空闲', data: usages.map((usage) => 100 - usage) }
+    { name: '空闲', data: usages.map((usage) => normalizePercent(100 - usage)) }
   ]
 })
 
@@ -312,7 +324,7 @@ const resourceChartOptions = computed(() => ({
     max: 100,
     tickAmount: 5,
     labels: {
-      formatter: (val) => val.toFixed(2) + '%'
+      formatter: formatPercent
     }
   },
   fill: {
@@ -331,7 +343,7 @@ const resourceChartOptions = computed(() => ({
         title: w.globals.labels[dataPointIndex],
         rows: series.map((values, index) => ({
           label: w.globals.seriesNames[index],
-          value: `${Number(values[dataPointIndex]).toFixed(2)}%`,
+          value: formatPercent(values[dataPointIndex]),
           color: w.globals.colors[index]
         }))
       })
