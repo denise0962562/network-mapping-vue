@@ -31,7 +31,10 @@ has_endpoint(port = 80) AND has_endpoint(port = 443)
 
 ## Nuclei 漏洞扫描界面
 
-- 创建 IP 任务时可选择“漏洞扫描”，提交 `scan_profile=vulnerability_scan`；
+- 创建页对 IP/CIDR 和域名统一提供“全部”“仅端口”“服务识别”“仅 DNS”四种模式；
+- “全部”提交 `scan_profile=vulnerability_scan`；域名目标先解析，再由服务端对授权地址生成扫描任务；
+- “仅 DNS”提交 `scan_profile=dns_records`，只在域名目标下可选且不显示端口输入；
+- 目标切换为 IP/CIDR 时会移除“仅 DNS”选择，提交函数仍会执行同样校验；
 - 指定扫描器时，只允许选择声明该 profile 且目标地址族就绪的节点；
 - 管理员可在设置页将漏洞扫描设为新任务和自动任务的默认模式；
 - 任务详情显示漏洞总数，并最多展示最近 500 条漏洞的严重级别、模板、匹配位置、说明、

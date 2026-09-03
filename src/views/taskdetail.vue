@@ -49,7 +49,24 @@ function formatNetworkOwner(item) {
 
 const taskRemark = computed(() => task.value?.remarks || '-')
 const isDnsTask = computed(() => task.value?.task_kind === 'dns')
-const isVulnerabilityTask = computed(() => task.value?.scan_profile === 'vulnerability_scan')
+const isVulnerabilityTask = computed(() => !isDnsTask.value && task.value?.scan_profile === 'vulnerability_scan')
+const scanTypeLabel = computed(() => {
+  const profile = task.value?.scan_profile
+  if (isDnsTask.value) {
+    return {
+      vulnerability_scan: '域名解析 + 全部扫描',
+      port_only: '域名解析 + 仅端口',
+      service_inventory: '域名解析 + 服务识别',
+      dns_records: '仅 DNS'
+    }[profile] || 'DNS 记录查询'
+  }
+  return {
+    vulnerability_scan: 'Nuclei 漏洞扫描',
+    service_inventory: '服务识别',
+    port_only: '仅端口',
+    legacy: '兼容模式'
+  }[profile] || '端口扫描'
+})
 const currentExecution = computed(() => task.value?.executions?.find(
   (execution) => execution.execution_id === task.value?.selected_execution_id
 ) || null)
@@ -76,7 +93,7 @@ const taskDetail = computed(() => ({
   targetLabel: isDnsTask.value ? '目标域名' : '目标 IP',
   addressFamily: isDnsTask.value ? 'DNS' : task.value?.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
   port: isDnsTask.value ? 'A / AAAA' : task.value?.task_port || '-',
-  scanType: isDnsTask.value ? 'DNS 记录查询' : isVulnerabilityTask.value ? 'Nuclei 漏洞扫描' : '端口扫描',
+  scanType: scanTypeLabel.value,
   startTime: formatTime(task.value?.task_start_time),
   endTime: formatTime(task.value?.task_end_time),
   starter: task.value?.task_initiator || '-',

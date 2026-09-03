@@ -361,8 +361,10 @@ async function fetchData() {
 各配置卡片拥有独立骨架屏和保存按钮。
 
 **扫描设置：** 通过 `GET /api/config/scan` 读取、`POST /api/config/scan` 保存
-`defaultScanProfile`。可选值与创建扫描页保持一致，包括 `vulnerability_scan`。修改只影响之后
-创建的任务和系统自动任务，不改变已经进入队列的任务。未知服务端值回退为 `legacy`。
+`defaultScanProfile`。设置页仍保留 `legacy` 兼容值；创建页只展示“全部”
+（`vulnerability_scan`）、“仅端口”（`port_only`）和“服务识别”（`service_inventory`）作为
+IP/CIDR 可选默认值。“仅 DNS”（`dns_records`）是任务级域名专用模式，不能设为系统默认。
+修改只影响之后创建的任务和系统自动任务，不改变已经进入队列的任务。
 
 **监听配置：** 主机 + 端口，保存按钮在值变更时显示
 **系统安全：** 登录错误次数限制（1-4）、锁定时间（分钟）、API/页面速率限制

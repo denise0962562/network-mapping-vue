@@ -6,15 +6,30 @@ import http from '@/utils/http'
 
 const LEGACY_DRAFT_KEY = 'createscan_draft'
 const scanProfiles = [
-  { value: 'legacy', title: '兼容模式', description: '端口发现后尝试识别服务，识别失败仍保留端口结果。' },
-  { value: 'port_only', title: '仅端口扫描', description: '只发现开放端口，不启动服务识别。' },
-  { value: 'service_inventory', title: '服务识别', description: '必须完成服务识别，识别失败会使任务失败。' },
-  { value: 'vulnerability_scan', title: '漏洞扫描', description: '发现开放端口并尝试识别服务，然后使用节点上审核过的 Nuclei 模板扫描漏洞。' }
-]
-const dnsScanProfiles = [
-  { value: 'dns_records', title: '仅 DNS 记录', description: '仅查询并归档 DNS 记录。' },
-  { value: 'dns_full', title: '全部', description: 'DNS 记录 + 解析 IP 的端口扫描；漏洞扫描后续加入。' },
-  { value: 'dns_ports', title: '端口', description: '仅扫描 DNS 解析出的 IP 端口。' }
+  {
+    value: 'vulnerability_scan',
+    title: '全部',
+    description: '依次发现端口、识别服务并使用审核过的 Nuclei 模板扫描漏洞。',
+    domainDescription: '先查询并归档 DNS 记录，再对授权范围内的解析地址执行端口、服务和漏洞扫描。'
+  },
+  {
+    value: 'port_only',
+    title: '仅端口',
+    description: '只发现开放端口，不启动服务识别或漏洞扫描。',
+    domainDescription: '先解析域名，再对授权范围内的解析地址发现开放端口。'
+  },
+  {
+    value: 'service_inventory',
+    title: '服务识别',
+    description: '发现开放端口并完成服务识别，不执行漏洞扫描。',
+    domainDescription: '先解析域名，再对授权范围内的解析地址发现端口并识别服务。'
+  },
+  {
+    value: 'dns_records',
+    title: '仅 DNS',
+    description: '只查询并归档 DNS 记录，不扫描解析地址。',
+    domainOnly: true
+  }
 ]
 
 const targetType = ref('ip')
@@ -29,20 +44,20 @@ const dispatchMode = ref('automatic')
 const scannerIds = ref([])
 const scanners = ref([])
 const scannersLoading = ref(false)
-const scanProfile = ref('legacy')
-const dnsScanProfile = ref('dns_full')
+const scanProfile = ref('vulnerability_scan')
 const dnsResolverMode = ref('system')
 const dnsResolvers = ref([])
-const defaultScanProfile = ref('legacy')
+const defaultScanProfile = ref('vulnerability_scan')
 const scanSettingsLoading = ref(true)
-const selectedScanProfileTitle = computed(() => (
-  targetType.value === 'dns'
-    ? 'DNS 记录查询'
-    : scanProfiles.find((profile) => profile.value === scanProfile.value)?.title || '未选择'
-))
 const isDnsTask = computed(() => targetType.value === 'dns')
-const dnsIncludesPortScan = computed(() => dnsScanProfile.value !== 'dns_records')
-const dnsRequiresPort = computed(() => dnsIncludesPortScan.value)
+const selectedScanProfile = computed(() => scanProfiles.find((profile) => profile.value === scanProfile.value))
+const selectedScanProfileTitle = computed(() => selectedScanProfile.value?.title || '未选择')
+const selectedScanProfileDescription = computed(() => (
+  isDnsTask.value && selectedScanProfile.value?.domainDescription
+    ? selectedScanProfile.value.domainDescription
+    : selectedScanProfile.value?.description || ''
+))
+const scanRequiresPort = computed(() => scanProfile.value !== 'dns_records')
 const dispatchModeSummary = computed(() => {
   if (dispatchMode.value === 'selected') {
     return scannerIds.value.length > 0 ? `已指定 ${scannerIds.value.length} 台扫描器` : '指定扫描器'
@@ -84,9 +99,18 @@ watch([targetAddressFamily, scanProfile, targetType], () => {
 })
 
 watch(targetType, (value) => {
-  if (value !== 'dns') return
-  dispatchMode.value = 'automatic'
-  scannerIds.value = []
+  if (value === 'dns') {
+    dispatchMode.value = 'automatic'
+    scannerIds.value = []
+    return
+  }
+  if (scanProfile.value === 'dns_records') {
+    scanProfile.value = defaultScanProfile.value
+  }
+})
+
+watch(scanProfile, (value) => {
+  if (value === 'dns_records') port.value = ''
 })
 
 const ipInputRef = ref(null)
@@ -102,7 +126,6 @@ const hasUnsavedChanges = computed(() => (
   || dispatchMode.value !== 'automatic'
   || scannerIds.value.length > 0
   || scanProfile.value !== defaultScanProfile.value
-  || dnsScanProfile.value !== 'dns_full'
   || dnsResolverMode.value !== 'system'
   || dnsResolvers.value.length > 0
 ))
@@ -127,7 +150,6 @@ function resetForm() {
   dispatchMode.value = 'automatic'
   scannerIds.value = []
   scanProfile.value = defaultScanProfile.value
-  dnsScanProfile.value = 'dns_full'
   dnsResolverMode.value = 'system'
   dnsResolvers.value = []
 }
@@ -136,13 +158,13 @@ async function loadScanSettings() {
   try {
     const response = await http.get('/api/config/scan')
     const profile = response.data?.data?.defaultScanProfile
-    if (scanProfiles.some((item) => item.value === profile)) {
+    if (scanProfiles.some((item) => item.value === profile && item.domainOnly !== true)) {
       defaultScanProfile.value = profile
       scanProfile.value = profile
     }
   } catch (error) {
     console.error('load scan settings failed', error)
-    showAlert('warning', '默认扫描模式加载失败', '本次将使用兼容模式。', 7000)
+    showAlert('warning', '默认扫描模式加载失败', '本次将使用“全部”模式。', 7000)
   } finally {
     scanSettingsLoading.value = false
   }
@@ -187,11 +209,15 @@ function showAlert(type, title, description = '', timeout = 5000) {
 
 async function submitTask() {
   if (submitting.value) return false
-  if (!isDnsTask.value && scanSettingsLoading.value) return false
+  if (scanSettingsLoading.value) return false
+  if (!isDnsTask.value && scanProfile.value === 'dns_records') {
+    showAlert('warning', '仅 DNS 模式不可用', '仅 DNS 模式只能用于域名目标，请先切换目标类型。')
+    return false
+  }
   if (isDnsTask.value) {
     if (!domainsInputRef.value?.reportValidity()) return false
   } else if (!ipInputRef.value?.reportValidity()) return false
-  if ((!isDnsTask.value || dnsRequiresPort.value) && port.value && !portInputRef.value?.reportValidity()) return false
+  if (scanRequiresPort.value && port.value && !portInputRef.value?.reportValidity()) return false
   if (targetAddressFamily.value === 'mixed') {
     showAlert('warning', '不能混合地址协议', '请将 IPv4 和 IPv6 目标拆分为两个扫描任务。')
     return false
@@ -234,8 +260,8 @@ async function submitTask() {
           domains: dnsTargets,
           level: Number(level.value),
           remark: remark.value.trim() ? remark.value.trim() : null,
-          scan_profile: dnsScanProfile.value,
-          port: dnsRequiresPort.value && port.value.trim() ? port.value.trim() : null,
+          scan_profile: scanProfile.value,
+          port: scanRequiresPort.value && port.value.trim() ? port.value.trim() : null,
           dns_resolvers: dnsResolverMode.value === 'specified'
             ? dnsResolvers.value.map((item) => ({
                 id: item.id.trim(), label: item.label.trim(), ip: item.ip.trim(),
@@ -307,7 +333,6 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
         <div role="tablist" class="tabs tabs-box w-fit" aria-label="任务类型">
           <button
             type="button"
-            role="tab"
             class="tab task-type-tab"
             :class="{ 'tab-active': !isDnsTask }"
             :aria-selected="!isDnsTask"
@@ -366,42 +391,37 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
               </span>
             </summary>
             <div class="collapse-content">
-              <fieldset v-if="!isDnsTask" class="pt-1" :disabled="scanSettingsLoading">
-                <div class="grid gap-2 md:grid-cols-3">
+              <fieldset class="pt-1" :disabled="scanSettingsLoading">
+                <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                   <label
                     v-for="profile in scanProfiles"
                     :key="profile.value"
-                    class="flex cursor-pointer items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
-                    :class="scanProfile === profile.value ? 'border-neutral' : ''"
+                    class="flex items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
+                    :class="[
+                      scanProfile === profile.value ? 'border-neutral' : '',
+                      profile.domainOnly && !isDnsTask ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'
+                    ]"
                   >
-                    <input v-model="scanProfile" class="radio radio-sm mt-0.5" type="radio" :value="profile.value" />
+                    <input
+                      v-model="scanProfile"
+                      class="radio radio-sm mt-0.5"
+                      type="radio"
+                      :value="profile.value"
+                      :disabled="profile.domainOnly && !isDnsTask"
+                    />
                     <span>
                       <span class="block font-medium">{{ profile.title }}</span>
-                      <span class="mt-1 block text-xs leading-5 opacity-60">{{ profile.description }}</span>
+                      <span class="mt-1 block text-xs leading-5 opacity-60">
+                        {{ isDnsTask && profile.domainDescription ? profile.domainDescription : profile.description }}
+                      </span>
+                      <span v-if="profile.domainOnly && !isDnsTask" class="mt-1 block text-xs text-warning">仅域名目标可选</span>
                     </span>
                   </label>
                 </div>
-                <p class="mt-2 text-xs opacity-60">{{ scanSettingsLoading ? '正在读取系统默认模式...' : '默认值来自系统扫描设置，可为当前任务单独调整。' }}</p>
-              </fieldset>
-              <div v-else class="rounded-lg bg-base-200/50 p-3 text-sm">
-                <div role="tablist" class="tabs tabs-box w-fit" aria-label="域名扫描模式">
-                  <button
-                    v-for="profile in dnsScanProfiles"
-                    :key="profile.value"
-                    type="button"
-                    role="tab"
-                    class="tab task-type-tab"
-                    :class="{ 'tab-active': dnsScanProfile === profile.value }"
-                    :aria-selected="dnsScanProfile === profile.value"
-                    @click="dnsScanProfile = profile.value"
-                  >
-                    {{ profile.title }}
-                  </button>
-                </div>
-                <p class="mt-3 text-xs leading-5 text-base-content/60">
-                  {{ dnsScanProfiles.find((profile) => profile.value === dnsScanProfile)?.description }}
+                <p class="mt-2 text-xs opacity-60">
+                  {{ scanSettingsLoading ? '正在读取系统默认模式...' : selectedScanProfileDescription }}
                 </p>
-              </div>
+              </fieldset>
               <div v-if="isDnsTask" class="mt-3 rounded-lg bg-base-200/50 p-3 text-sm">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -472,7 +492,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           </div>
         </div>
 
-        <label v-if="!isDnsTask || dnsRequiresPort" class="form-control w-full">
+        <label v-if="scanRequiresPort" class="form-control w-full">
           <span class="label-text input_items_required">{{ isDnsTask ? '解析 IP 的目标端口' : '目标端口' }}</span>
           <input
             id="create_task_port"
@@ -512,7 +532,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
       </div>
 
       <div class="flex justify-end mt-3">
-        <button id="task_submit" class="btn rounded-lg btn-neutral w-full md:w-auto" :disabled="submitting || (!isDnsTask && scanSettingsLoading)" @click="submitTask">
+        <button id="task_submit" class="btn rounded-lg btn-neutral w-full md:w-auto" :disabled="submitting || scanSettingsLoading" @click="submitTask">
           {{ submitting ? '提交中...' : '提交' }}
         </button>
       </div>
