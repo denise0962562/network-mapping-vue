@@ -19,6 +19,16 @@ const MAP_COUNTRY_NAMES = {
   TL: 'Timor-Leste',
 }
 const worldCountriesGeometry = markRaw(topojsonFeature(worldCountries, worldCountries.objects.countries))
+const countryTooltipSeries = {
+  type: 'choropleth',
+  name: '国家和地区',
+  joinBy: 'name',
+  data: worldCountriesGeometry.features
+    .filter((feature) => feature.properties?.name)
+    .map((feature) => ({ name: feature.properties.name, value: 1, kind: 'country' })),
+  scale: { type: 'ordinal', palette: ['#e8ecf2'] },
+  stroke: { color: '#cbd5e1', width: 1 },
+}
 
 const ipInput = ref('')
 const loading = ref(false)
@@ -98,8 +108,8 @@ const mapCanRender = computed(() => Boolean(mapCoordinates.value))
 const mapSeries = computed(() => {
   const point = mapPoint.value
   const coordinates = mapCoordinates.value
-  if (!point || !coordinates) return []
-  return [{
+  if (!point || !coordinates) return [countryTooltipSeries]
+  return [countryTooltipSeries, {
     type: 'marker',
     name: '资产位置',
     shape: 'pin',
@@ -110,6 +120,7 @@ const mapSeries = computed(() => {
       lat: coordinates[1],
       name: point.name,
       value: point.value,
+      kind: 'asset',
       location: point.location,
       precision: point.precision,
     }],
@@ -131,13 +142,16 @@ const mapOptions = {
   tooltip: {
     enabled: true,
     followCursor: true,
-    formatter({ datum }) {
+    formatter({ name, datum }) {
+      if (datum?.kind === 'country') {
+        return `<div style="font-weight:600">${escapeHtml(name || datum.name)}</div>`
+      }
       const point = datum || {}
       return `<div style="font-weight:600">${escapeHtml(point.name)}</div><div style="margin-top:2px">${escapeHtml(point.location)}</div><div style="margin-top:2px;opacity:.65;font-size:12px">${escapeHtml(point.precision)}</div>`
     },
   },
   interaction: {
-    zoom: { enabled: true, min: 1, max: 8, controls: { show: true, reset: true } },
+    zoom: { enabled: true, min: 1, max: 16, controls: { show: true, reset: true } },
     pan: { enabled: true, inertia: false },
     selection: { enabled: false },
   },
@@ -466,16 +480,14 @@ onMounted(() => {
                 <dt class="opacity-60">ISP</dt><dd class="break-words">{{ summary.isp || '-' }}</dd>
                 <dt class="opacity-60">地理位置</dt><dd>{{ location }}</dd>
               </dl>
+              <div class="my-5 border-t border-base-300"></div>
+              <h3 class="font-semibold">发现时间</h3>
+              <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
+                <dt class="opacity-60">首次发现</dt><dd>{{ formatTime(summary.first_seen_at) }}</dd>
+                <dt class="opacity-60">最近发现</dt><dd>{{ formatTime(summary.last_seen_at) }}</dd>
+              </dl>
             </div>
           </div>
-        </section>
-
-        <section class="rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm">
-          <h2 class="font-semibold">发现时间</h2>
-          <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
-            <dt class="opacity-60">首次发现</dt><dd>{{ formatTime(summary.first_seen_at) }}</dd>
-            <dt class="opacity-60">最近发现</dt><dd>{{ formatTime(summary.last_seen_at) }}</dd>
-          </dl>
         </section>
 
         <div role="alert" class="alert alert-info alert-dash text-sm">
