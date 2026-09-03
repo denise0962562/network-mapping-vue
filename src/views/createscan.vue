@@ -87,13 +87,17 @@ const targetAddressFamily = computed(() => {
 })
 
 function scannerSupportsProfile(scanner) {
-  if (scanProfile.value === 'legacy') return true
+  const requiredProfile = isDnsTask.value ? 'dns_records' : scanProfile.value
+  if (requiredProfile === 'legacy') return true
   const profiles = scanner.scan_capabilities?.profiles
-  return Array.isArray(profiles) && profiles.includes(scanProfile.value)
+  return Array.isArray(profiles) && profiles.includes(requiredProfile)
 }
 
 function scannerSupportsTarget(scanner) {
   if (!scannerSupportsProfile(scanner)) return false
+  if (isDnsTask.value
+    && dnsResolverMode.value === 'specified'
+    && scanner.scan_capabilities?.explicit_dns_resolvers !== true) return false
   if (targetAddressFamily.value === 'ipv6') {
     return scanner.supports_ipv6 === true && scanner.ipv6_ready === true
   }
@@ -103,18 +107,13 @@ function scannerSupportsTarget(scanner) {
   return targetAddressFamily.value !== 'mixed'
 }
 
-watch([targetAddressFamily, scanProfile], () => {
+watch([targetAddressFamily, scanProfile, dnsResolverMode], () => {
   const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
   scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
 })
 
 watch(targetType, (value) => {
-  if (value === 'domain') {
-    dispatchMode.value = 'automatic'
-    scannerIds.value = []
-    return
-  }
-  if (scanProfile.value === 'dns_records') {
+  if (value !== 'domain' && scanProfile.value === 'dns_records') {
     scanProfile.value = defaultScanProfile.value
   }
 })
@@ -228,7 +227,7 @@ async function submitTask() {
     return false
   }
   if (scanRequiresPort.value && port.value && !portInputRef.value?.reportValidity()) return false
-  if (!isDnsTask.value && dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
+  if (dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
     showAlert('warning', '请选择扫描器', '指定扫描器模式至少需要选择一台扫描器。')
     return false
   }
@@ -262,6 +261,8 @@ async function submitTask() {
           level: Number(level.value),
           remark: remark.value.trim() ? remark.value.trim() : null,
           scan_profile: scanProfile.value,
+          dispatch_mode: dispatchMode.value,
+          scanner_ids: dispatchMode.value === 'selected' ? scannerIds.value : [],
           port: scanRequiresPort.value && port.value.trim() ? port.value.trim() : null,
           dns_resolvers: dnsResolverMode.value === 'specified'
             ? dnsResolvers.value.map((item) => ({
@@ -423,13 +424,16 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
             </div>
           </details>
 
-          <details v-if="!isDnsTask" name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100">
+          <details name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100">
             <summary class="collapse-title min-h-0 py-3 pr-12">
               <span class="block font-medium">执行扫描器</span>
               <span class="mt-0.5 block text-xs text-base-content/60">当前：{{ dispatchModeSummary }}</span>
             </summary>
             <div class="collapse-content">
               <fieldset class="pt-1">
+                <p v-if="isDnsTask" class="mb-2 text-xs text-base-content/60">
+                  所选扫描器执行域名 DNS 阶段；解析地址生成的 IP 子任务继续按地址族和扫描能力调度。
+                </p>
                 <div class="grid gap-2 md:grid-cols-3">
                   <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
                     <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="automatic" />
@@ -452,7 +456,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                       <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" :disabled="!scannerSupportsTarget(scanner)" />
                       <span class="min-w-0">
                         <span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span>
-                        <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }} · {{ scannerSupportsProfile(scanner) ? '支持当前模式' : '不支持当前模式' }}</span>
+                        <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }} · {{ scannerSupportsProfile(scanner) ? (isDnsTask ? '支持 DNS 阶段' : '支持当前模式') : (isDnsTask ? '不支持 DNS 阶段' : '不支持当前模式') }}</span>
                       </span>
                     </label>
                   </div>
@@ -461,10 +465,6 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
             </div>
           </details>
 
-          <div v-else class="rounded-lg border border-base-300 bg-base-100 p-3 text-sm">
-            <p class="font-medium">执行方式：自动分配</p>
-            <p class="mt-1 text-xs text-base-content/60">DNS 任务由支持 DNS 查询阶段的可用扫描器自动领取。</p>
-          </div>
         </div>
 
         <label v-if="scanRequiresPort" class="form-control w-full">
