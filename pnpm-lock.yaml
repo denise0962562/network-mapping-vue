@@ -25,6 +25,9 @@ importers:
       apexcharts:
         specifier: ^5.6.0
         version: 5.6.0
+      apexmaps:
+        specifier: ^0.3.0
+        version: 0.3.0
       axios:
         specifier: ^1.19.0
         version: 1.19.0(debug@4.4.3)
@@ -34,9 +37,6 @@ importers:
       dompurify:
         specifier: ^3.4.13
         version: 3.4.13
-      leaflet:
-        specifier: ^1.9.4
-        version: 1.9.4
       pnpm:
         specifier: ^11.9.0
         version: 11.9.0
@@ -46,6 +46,9 @@ importers:
       vue:
         specifier: ^3.5.35
         version: 3.5.35
+      vue-apexmaps:
+        specifier: ^0.3.0
+        version: 0.3.0(apexmaps@0.3.0)(vue@3.5.35)
       vue-codemirror:
         specifier: ^6.1.1
         version: 6.1.1(codemirror@6.0.2)(vue@3.5.35)
@@ -818,8 +821,14 @@ packages:
     resolution: {integrity: sha512-44mvgtPvohuU/70DdY5Oz2AIrLJ9k6/5x4KmoSvPwO+5Moijo0+N9D0fKbbYZQWP1hNm5CpOf+E01jhxG/r8xg==}
     engines: {node: '>=14'}
 
+  apex-commons@0.2.0:
+    resolution: {integrity: sha512-GnAit7Ae5ORnbsFPsLP34ldA1wVaF2aYRAYuwCKiuwIOEA2mI3d+8NGQgzr6HNF7jyJkEtUIf4kxym8ukCY0gA==}
+
   apexcharts@5.6.0:
     resolution: {integrity: sha512-BZua59yedRsaDfnxkzNrkyLCvluq2c3ZDBIz4joxSKtgr0xDQXQ5dzceMhf/TpTbAjaF+2NYIpLP3BEEIG2s/w==}
+
+  apexmaps@0.3.0:
+    resolution: {integrity: sha512-oUQX6h/TMhv2GtWr/xfWHpNebLTyNTfwfklqMDwgoq9WlAoIgqKsUaaiKIEytkrJuGXMEE5urhZXyM5Wi+Q2Bw==}
 
   ast-kit@2.2.0:
     resolution: {integrity: sha512-m1Q/RaVOnTp9JxPX+F+Zn7IcLYMzM8kZofDImfsKZd8MbR+ikdOzTeztStWqfrqIxZnYWryyI9ePm3NGjnZgGw==}
@@ -904,6 +913,14 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  d3-array@3.2.4:
+    resolution: {integrity: sha512-tdQAmyA18i4J7wprpYq8ClcxZy3SC31QMeByyCFyRt7BVHdREQZ5lpzoe5mFEYZUWe+oq8HBvk9JjpibyEV4Jg==}
+    engines: {node: '>=12'}
+
+  d3-geo@3.1.1:
+    resolution: {integrity: sha512-637ln3gXKXOwhalDzinUgY83KzNWZRKbYubaG+fGVuc/dxO64RRljtCTnf5ecMyE1RIdtqpkVcq0IbtU2S8j2Q==}
+    engines: {node: '>=12'}
 
   daisyui@5.5.20:
     resolution: {integrity: sha512-HemJcjl0Gk9rQ8BcgofN6p+EURrqftQG9wK1Hkxs98i49xe68+QxpNvry+PyxwkIUgrbMpNmZ5ZWjmtffAjfhQ==}
@@ -1075,6 +1092,10 @@ packages:
     resolution: {integrity: sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==}
     engines: {node: '>= 6'}
 
+  internmap@2.0.3:
+    resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
+    engines: {node: '>=12'}
+
   is-docker@3.0.0:
     resolution: {integrity: sha512-eljcgEDlEns/7AXFosB5K/2nCM4P7FQPkGc/DWLy5rmFEWvZayGrik1d9/QIY5nJ4f9YsVvBkA6kJpHn9rISdQ==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -1116,9 +1137,6 @@ packages:
 
   kolorist@1.8.0:
     resolution: {integrity: sha512-Y+60/zizpJ3HRH8DCss+q95yr6145JXZo46OTpFvDZWLfRCE4qChOyk1b26nMaNpfHHgxagk9dXT5OP0Tfe+dQ==}
-
-  leaflet@1.9.4:
-    resolution: {integrity: sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==}
 
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
@@ -1479,6 +1497,12 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  vue-apexmaps@0.3.0:
+    resolution: {integrity: sha512-EVzbwUyEK6YYv7c1xWzbJ4GpcMse2AuUzk77Tc83zYlY+K91VxUR7bX1GHrRFUZI1+OF8CM94ga8Y2eL/WFCeA==}
+    peerDependencies:
+      apexmaps: ^0.3.0
+      vue: '>=3.3.0'
 
   vue-codemirror@6.1.1:
     resolution: {integrity: sha512-rTAYo44owd282yVxKtJtnOi7ERAcXTeviwoPXjIc6K/IQYUsoDkzPvw/JDFtSP6T7Cz/2g3EHaEyeyaQCKoDMg==}
@@ -2275,9 +2299,17 @@ snapshots:
 
   ansis@4.3.0: {}
 
+  apex-commons@0.2.0: {}
+
   apexcharts@5.6.0:
     dependencies:
       '@yr/monotone-cubic-spline': 1.0.3
+
+  apexmaps@0.3.0:
+    dependencies:
+      apex-commons: 0.2.0
+      d3-geo: 3.1.1
+      topojson-client: 3.1.0
 
   ast-kit@2.2.0:
     dependencies:
@@ -2370,6 +2402,14 @@ snapshots:
   crelt@1.0.7: {}
 
   csstype@3.2.3: {}
+
+  d3-array@3.2.4:
+    dependencies:
+      internmap: 2.0.3
+
+  d3-geo@3.1.1:
+    dependencies:
+      d3-array: 3.2.4
 
   daisyui@5.5.20: {}
 
@@ -2538,6 +2578,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  internmap@2.0.3: {}
+
   is-docker@3.0.0: {}
 
   is-fullwidth-code-point@3.0.0: {}
@@ -2561,8 +2603,6 @@ snapshots:
   json5@2.2.3: {}
 
   kolorist@1.8.0: {}
-
-  leaflet@1.9.4: {}
 
   lightningcss-android-arm64@1.32.0:
     optional: true
@@ -2893,6 +2933,11 @@ snapshots:
       jiti: 2.7.0
       lightningcss: 1.32.0
       yaml: 2.9.0
+
+  vue-apexmaps@0.3.0(apexmaps@0.3.0)(vue@3.5.35):
+    dependencies:
+      apexmaps: 0.3.0
+      vue: 3.5.35
 
   vue-codemirror@6.1.1(codemirror@6.0.2)(vue@3.5.35):
     dependencies:

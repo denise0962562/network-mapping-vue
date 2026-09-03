@@ -1,7 +1,7 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { computed, markRaw, onMounted, ref } from 'vue'
+import ApexMaps from 'vue-apexmaps'
+import 'apexmaps/apexmaps.css'
 import { feature as topojsonFeature } from 'topojson-client'
 import worldCountries from 'world-atlas/countries-110m.json'
 import AssetTags from '../components/AssetTags.vue'
@@ -18,7 +18,7 @@ const MAP_COUNTRY_NAMES = {
   PS: 'Palestine',
   TL: 'Timor-Leste',
 }
-const worldCountriesGeometry = topojsonFeature(worldCountries, worldCountries.objects.countries)
+const worldCountriesGeometry = markRaw(topojsonFeature(worldCountries, worldCountries.objects.countries))
 
 const ipInput = ref('')
 const loading = ref(false)
@@ -41,9 +41,9 @@ const tagCatalogLoading = ref(false)
 const tagActionLoading = ref(false)
 const tagError = ref('')
 const selectedTagId = ref('')
-const mapContainerRef = ref(null)
 const mapError = ref('')
-let assetMap = null
+const assetMapRef = ref(null)
+const mapRenderKey = ref(0)
 
 const assetIp = ref(new URLSearchParams(window.location.search).get('ip')?.trim() || '')
 const portsPage = computed(() => Math.floor(portsOffset.value / PORT_PAGE_SIZE) + 1)
@@ -90,6 +90,59 @@ const mapPoint = computed(() => {
     precision: '国家级定位',
   }
 })
+const mapCoordinates = computed(() => {
+  const point = mapPoint.value
+  return point ? pointCoordinates(point) : null
+})
+const mapCanRender = computed(() => Boolean(mapCoordinates.value))
+const mapSeries = computed(() => {
+  const point = mapPoint.value
+  const coordinates = mapCoordinates.value
+  if (!point || !coordinates) return []
+  return [{
+    type: 'marker',
+    name: '资产位置',
+    shape: 'pin',
+    size: 18,
+    color: '#2563eb',
+    data: [{
+      lon: coordinates[0],
+      lat: coordinates[1],
+      name: point.name,
+      value: point.value,
+      location: point.location,
+      precision: point.precision,
+    }],
+  }]
+})
+
+const mapOptions = {
+  chart: {
+    context: 'dashboard',
+    animations: { enabled: false },
+  },
+  geo: {
+    map: worldCountriesGeometry,
+    projection: 'plateCarree',
+    view: { fit: 'world', padding: 24 },
+    fill: '#e8ecf2',
+  },
+  legend: { show: false },
+  tooltip: {
+    enabled: true,
+    followCursor: true,
+    formatter({ datum }) {
+      const point = datum || {}
+      return `<div style="font-weight:600">${escapeHtml(point.name)}</div><div style="margin-top:2px">${escapeHtml(point.location)}</div><div style="margin-top:2px;opacity:.65;font-size:12px">${escapeHtml(point.precision)}</div>`
+    },
+  },
+  interaction: {
+    zoom: { enabled: true, min: 1, max: 8, controls: { show: true, reset: true } },
+    pan: { enabled: true, inertia: false },
+    selection: { enabled: false },
+  },
+  states: { hover: { enabled: false } },
+}
 
 function formatTime(timestamp) {
   if (!timestamp) return '-'
@@ -112,92 +165,63 @@ function escapeHtml(value) {
   })[character])
 }
 
-function destroyLocationMap() {
-  if (assetMap?._mapPane?.parentNode) assetMap.remove()
-  else mapContainerRef.value?.replaceChildren()
-  assetMap = null
-}
-
 function countryCenter(countryName) {
   const country = worldCountriesGeometry.features.find((feature) => feature.properties?.name === countryName)
   if (!country) return null
-  const bounds = L.geoJSON(country).getBounds()
-  return bounds.isValid() ? bounds.getCenter() : null
+  const bounds = geometryBounds(country.geometry)
+  if (!bounds) return null
+  return [(bounds.west + bounds.east) / 2, (bounds.south + bounds.north) / 2]
 }
 
 function pointCoordinates(point) {
-  if (Number.isFinite(point.lat) && Number.isFinite(point.lon)) return [point.lat, point.lon]
+  if (Number.isFinite(point.lat) && Number.isFinite(point.lon)) return [point.lon, point.lat]
   const center = countryCenter(point.country)
-  return center ? [center.lat, center.lng] : null
+  return center || null
 }
 
-async function renderLocationMap() {
-  destroyLocationMap()
-  mapError.value = ''
-  await nextTick()
-  const point = mapPoint.value
-  if (!point || !mapContainerRef.value) return
-  const coordinates = pointCoordinates(point)
-  if (!coordinates) {
-    mapError.value = '地图暂时无法加载：未找到该国家的边界数据。'
-    return
+function geometryBounds(geometry) {
+  let west = Infinity
+  let east = -Infinity
+  let south = Infinity
+  let north = -Infinity
+
+  function visit(coordinates) {
+    if (!Array.isArray(coordinates)) return
+    if (Number.isFinite(coordinates[0]) && Number.isFinite(coordinates[1])) {
+      west = Math.min(west, coordinates[0])
+      east = Math.max(east, coordinates[0])
+      south = Math.min(south, coordinates[1])
+      north = Math.max(north, coordinates[1])
+      return
+    }
+    coordinates.forEach(visit)
   }
 
-  let map = null
-  try {
-    map = L.map(mapContainerRef.value, {
-      crs: L.CRS.EPSG4326,
-      center: [0, 0],
-      zoom: 1,
-      zoomControl: true,
-      attributionControl: false,
-      worldCopyJump: true,
-      minZoom: 0,
-      maxZoom: 8,
-      zoomSnap: 0,
-    })
-    let correctingLatitude = false
-    map.on('moveend', () => {
-      if (correctingLatitude) return
-      const center = map.getCenter()
-      const latitude = Math.max(-135, Math.min(135, center.lat))
-      if (latitude === center.lat) return
-      correctingLatitude = true
-      map.panTo([latitude, center.lng], { animate: false })
-      correctingLatitude = false
-    })
-    L.geoJSON(worldCountriesGeometry, {
-      style: {
-        color: '#cbd5e1',
-        weight: 1,
-        fillColor: '#e8ecf2',
-        fillOpacity: 1,
-      },
-    }).addTo(map)
-    L.circleMarker(coordinates, {
-      radius: 9,
-      color: '#ffffff',
-      weight: 2,
-      fillColor: '#2563eb',
-      fillOpacity: 0.9,
-    }).bindTooltip(
-      `<div style="font-weight:600">${escapeHtml(point.name)}</div><div style="margin-top:2px">${escapeHtml(point.location)}</div><div style="margin-top:2px;opacity:.65;font-size:12px">${escapeHtml(point.precision)}</div>`,
-      { direction: 'top', offset: [0, -8], sticky: true },
-    ).addTo(map)
-    map.invalidateSize()
-    assetMap = map
-  } catch (error) {
-    console.error('资产地理位置地图加载失败', error)
-    if (map?._loaded) map.remove()
-    else {
-      mapContainerRef.value?.replaceChildren()
-      mapContainerRef.value?.classList.remove('leaflet-container', 'leaflet-touch', 'leaflet-fade-anim')
-      mapContainerRef.value?.removeAttribute('tabindex')
-      mapContainerRef.value?.style.removeProperty('position')
-    }
-    assetMap = null
-    const message = error instanceof Error && error.message ? `：${error.message}` : '。'
-    mapError.value = `地图暂时无法加载${message}`
+  visit(geometry?.coordinates)
+  return Number.isFinite(west) ? { west, east, south, north } : null
+}
+
+function clampCameraOffset(offset, start, end, viewportSize) {
+  const visibleEdge = Math.min(64, viewportSize / 3)
+  const minimum = visibleEdge - end
+  const maximum = viewportSize - visibleEdge - start
+  if (minimum > maximum) return (viewportSize - start - end) / 2
+  return Math.min(maximum, Math.max(minimum, offset))
+}
+
+function constrainLocationMapPan() {
+  const map = assetMapRef.value?.map
+  const viewport = map?.viewport
+  const camera = map?.camera
+  const bounds = viewport?.worldBounds
+  if (!camera || !bounds) return
+
+  const { k, x, y } = viewport.camera
+  const [[left, top], [right, bottom]] = bounds
+  const constrainedX = clampCameraOffset(x, k * left, k * right, viewport.width)
+  const constrainedY = clampCameraOffset(y, k * top, k * bottom, viewport.height)
+  if (Math.abs(constrainedX - x) > 0.5 || Math.abs(constrainedY - y) > 0.5) {
+    camera.jumpTo({ k, x: constrainedX, y: constrainedY })
   }
 }
 
@@ -208,7 +232,8 @@ function submitIp() {
 }
 
 async function loadAsset() {
-  destroyLocationMap()
+  mapRenderKey.value += 1
+  mapError.value = ''
   summary.value = null
   ports.value = []
   portsTotal.value = 0
@@ -235,7 +260,6 @@ async function loadAsset() {
     errorMessage.value = error.response?.data?.message || '资产聚合数据加载失败。'
   } finally {
     loading.value = false
-    if (summary.value) await renderLocationMap()
   }
 }
 
@@ -353,7 +377,6 @@ onMounted(() => {
   loadAsset()
 })
 
-onBeforeUnmount(destroyLocationMap)
 </script>
 
 <template>
@@ -418,8 +441,20 @@ onBeforeUnmount(destroyLocationMap)
                 </div>
                 <span v-if="mapPoint" class="badge badge-outline">{{ location }}</span>
               </div>
-              <div v-if="mapPoint && !mapError" ref="mapContainerRef" class="mt-4 h-[360px] cursor-grab touch-none overflow-hidden rounded-lg border border-base-300 bg-base-200/40"></div>
+              <ApexMaps
+                v-if="mapCanRender && !mapError"
+                :key="mapRenderKey"
+                ref="assetMapRef"
+                class="mt-4 h-[360px] touch-none overflow-hidden rounded-lg border border-base-300 bg-base-200/40"
+                :options="mapOptions"
+                :series="mapSeries"
+                :height="360"
+                @pan-end="constrainLocationMapPan"
+                @zoom="constrainLocationMapPan"
+                @resized="constrainLocationMapPan"
+              />
               <div v-else-if="mapError" class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">{{ mapError }}</div>
+              <div v-else-if="mapPoint" class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">地图暂时无法加载：未找到该国家的边界数据。</div>
               <div v-else class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">
                 暂无该 IP 的地理位置数据。
               </div>
