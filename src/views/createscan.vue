@@ -353,7 +353,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           >
             {{ targetValidationVisible
               ? targetSummary
-              : '逗号和换行均可作为分隔符，但一次只能使用一种；同一任务不能混合 IPv4、IPv6 和域名。' }}
+              : '逗号和换行均可作为分隔符，但一次只能使用一种；域名至少包含一个点，标签限 63 字节、总长限 253 字节。' }}
           </span>
         </label>
 

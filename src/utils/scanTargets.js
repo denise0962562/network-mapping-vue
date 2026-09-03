@@ -59,15 +59,21 @@ export function isIpv6Target(value) {
 
 export function isDomainTarget(value) {
   const domain = value.trim().replace(/\.$/, '').toLowerCase()
-  if (!domain || domain.length > 253 || domain.includes('/') || domain.includes(':')) return false
+  if (!domain || domain.includes('/') || domain.includes(':')) return false
   if (/^\d+(?:\.\d+)*$/.test(domain)) return false
-  return domain.split('.').every((label) => (
-    label.length >= 1
-    && label.length <= 63
-    && !label.startsWith('-')
-    && !label.endsWith('-')
-    && /^[a-z0-9-]+$/.test(label)
-  ))
+  const labels = domain.split('.')
+  if (labels.length < 2) return false
+  const octetLength = (text) => new TextEncoder().encode(text).length
+  const wireLength = labels.reduce((length, label) => length + 1 + octetLength(label), 1)
+  return octetLength(domain) <= 253
+    && wireLength <= 255
+    && labels.every((label) => (
+      octetLength(label) >= 1
+      && octetLength(label) <= 63
+      && !label.startsWith('-')
+      && !label.endsWith('-')
+      && /^[a-z0-9-]+$/.test(label)
+    ))
 }
 
 function classifyTarget(value) {

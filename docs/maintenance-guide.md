@@ -304,6 +304,8 @@ async function fetchData() {
 - 支持自动分配、指定扫描器和全部扫描器三种调度模式
 - 单一目标输入框自动识别 IPv4/CIDR、IPv6/CIDR 或域名，并拒绝混合目标类型
 - 多目标可使用逗号或换行分隔，但同一次输入不能混用两种分隔符
+- 域名扫描目标至少包含两个由 `.` 分隔的标签；每个标签最多 63 octets，完整 wire name
+  最多 255 octets（不含末尾根点的点分形式最多 253 octets）
 - 指定扫描器模式会同时根据 `scan_capabilities.profiles`、`supports_ipv4/6` 和
   `ipv4/6_ready` 禁用不兼容设备
 - IP/CIDR 提交到 `POST /api/task/create`，域名提交到 `POST /api/task/create-dns`，成功后清空表单
