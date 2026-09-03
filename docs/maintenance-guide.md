@@ -299,13 +299,14 @@ async function fetchData() {
 ### 7.4 创建扫描 (`createscan.vue`)
 
 **功能：**
-- 表单字段：目标 IP（必填，支持 IPv4/IPv6 和 CIDR）、端口（可选，逗号分隔）、扫描等级（1-5）、备注
-- IP 扫描 profile：兼容模式、仅端口扫描、服务识别、Nuclei 漏洞扫描
+- 表单字段：扫描目标（必填，支持 IPv4/CIDR、IPv6/CIDR 和域名）、端口（可选）、扫描等级、备注
+- 扫描模式：全部、仅端口、服务识别和仅 DNS；仅 DNS 只允许域名目标
 - 支持自动分配、指定扫描器和全部扫描器三种调度模式
-- 根据目标自动识别地址族；混合 IPv4/IPv6 时要求拆分任务
+- 单一目标输入框自动识别 IPv4/CIDR、IPv6/CIDR 或域名，并拒绝混合目标类型
+- 多目标可使用逗号或换行分隔，但同一次输入不能混用两种分隔符
 - 指定扫描器模式会同时根据 `scan_capabilities.profiles`、`supports_ipv4/6` 和
   `ipv4/6_ready` 禁用不兼容设备
-- 提交：`POST /api/task/create`，成功后清空表单
+- IP/CIDR 提交到 `POST /api/task/create`，域名提交到 `POST /api/task/create-dns`，成功后清空表单
 - 提交期间按钮显示 loading 状态（`submitting`）
 - 通知使用 `AppAlert`
 

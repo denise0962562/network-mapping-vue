@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
+import { parseScanTargets, targetTypeLabel } from '@/utils/scanTargets'
 
 const LEGACY_DRAFT_KEY = 'createscan_draft'
 const scanProfiles = [
@@ -32,9 +33,8 @@ const scanProfiles = [
   }
 ]
 
-const targetType = ref('ip')
-const ip = ref('')
-const domains = ref('')
+const targetInput = ref('')
+const targetTouched = ref(false)
 const port = ref('')
 const level = ref(1)
 const remark = ref('')
@@ -49,7 +49,20 @@ const dnsResolverMode = ref('system')
 const dnsResolvers = ref([])
 const defaultScanProfile = ref('vulnerability_scan')
 const scanSettingsLoading = ref(true)
-const isDnsTask = computed(() => targetType.value === 'dns')
+const targetValidation = computed(() => parseScanTargets(targetInput.value))
+const targetType = computed(() => targetValidation.value.valid ? targetValidation.value.type : null)
+const isDnsTask = computed(() => targetType.value === 'domain')
+const targetValidationVisible = computed(() => targetTouched.value || targetInput.value.trim() !== '')
+const targetSummary = computed(() => {
+  const result = targetValidation.value
+  if (!result.valid) return result.message
+  const separator = {
+    comma: '逗号分隔',
+    newline: '换行分隔',
+    single: '单个目标'
+  }[result.separator]
+  return `已识别 ${targetTypeLabel(result.type)}，共 ${result.targets.length} 个目标，${separator}`
+})
 const selectedScanProfile = computed(() => scanProfiles.find((profile) => profile.value === scanProfile.value))
 const selectedScanProfileTitle = computed(() => selectedScanProfile.value?.title || '未选择')
 const selectedScanProfileDescription = computed(() => (
@@ -67,13 +80,10 @@ const dispatchModeSummary = computed(() => {
 })
 
 const targetAddressFamily = computed(() => {
-  if (isDnsTask.value) return 'ipv4'
-  const targets = ip.value.split(',').map((item) => item.trim()).filter(Boolean)
-  if (targets.length === 0) return null
-  const hasIpv4 = targets.some((target) => !target.includes(':'))
-  const hasIpv6 = targets.some((target) => target.includes(':'))
-  if (hasIpv4 && hasIpv6) return 'mixed'
-  return hasIpv6 ? 'ipv6' : 'ipv4'
+  if (targetType.value === 'ipv4') return 'ipv4'
+  if (targetType.value === 'ipv6') return 'ipv6'
+  if (targetType.value === 'domain') return 'ipv4'
+  return null
 })
 
 function scannerSupportsProfile(scanner) {
@@ -93,13 +103,13 @@ function scannerSupportsTarget(scanner) {
   return targetAddressFamily.value !== 'mixed'
 }
 
-watch([targetAddressFamily, scanProfile, targetType], () => {
+watch([targetAddressFamily, scanProfile], () => {
   const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
   scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
 })
 
 watch(targetType, (value) => {
-  if (value === 'dns') {
+  if (value === 'domain') {
     dispatchMode.value = 'automatic'
     scannerIds.value = []
     return
@@ -113,13 +123,10 @@ watch(scanProfile, (value) => {
   if (value === 'dns_records') port.value = ''
 })
 
-const ipInputRef = ref(null)
-const domainsInputRef = ref(null)
+const targetInputRef = ref(null)
 const portInputRef = ref(null)
 const hasUnsavedChanges = computed(() => (
-  ip.value.trim() !== ''
-  || domains.value.trim() !== ''
-  || targetType.value !== 'ip'
+  targetInput.value.trim() !== ''
   || port.value.trim() !== ''
   || level.value !== 1
   || remark.value.trim() !== ''
@@ -141,9 +148,8 @@ function removeDnsResolver(index) {
 }
 
 function resetForm() {
-  ip.value = ''
-  domains.value = ''
-  targetType.value = 'ip'
+  targetInput.value = ''
+  targetTouched.value = false
   port.value = ''
   level.value = 1
   remark.value = ''
@@ -210,18 +216,18 @@ function showAlert(type, title, description = '', timeout = 5000) {
 async function submitTask() {
   if (submitting.value) return false
   if (scanSettingsLoading.value) return false
+  targetTouched.value = true
+  if (!targetInputRef.value?.reportValidity()) return false
+  const validatedTargets = targetValidation.value
+  if (!validatedTargets.valid) {
+    showAlert('warning', '目标格式不正确', validatedTargets.message)
+    return false
+  }
   if (!isDnsTask.value && scanProfile.value === 'dns_records') {
-    showAlert('warning', '仅 DNS 模式不可用', '仅 DNS 模式只能用于域名目标，请先切换目标类型。')
+    showAlert('warning', '仅 DNS 模式不可用', '仅 DNS 模式只能用于域名目标。')
     return false
   }
-  if (isDnsTask.value) {
-    if (!domainsInputRef.value?.reportValidity()) return false
-  } else if (!ipInputRef.value?.reportValidity()) return false
   if (scanRequiresPort.value && port.value && !portInputRef.value?.reportValidity()) return false
-  if (targetAddressFamily.value === 'mixed') {
-    showAlert('warning', '不能混合地址协议', '请将 IPv4 和 IPv6 目标拆分为两个扫描任务。')
-    return false
-  }
   if (!isDnsTask.value && dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
     showAlert('warning', '请选择扫描器', '指定扫描器模式至少需要选择一台扫描器。')
     return false
@@ -229,12 +235,7 @@ async function submitTask() {
 
   try {
     submitting.value = true
-
-    const dnsTargets = domains.value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)
-    if (isDnsTask.value && (dnsTargets.length === 0 || dnsTargets.length > 500)) {
-      showAlert('warning', '请输入有效域名', '一次 DNS 任务最多可包含 500 个域名。')
-      return false
-    }
+    const submittingDnsTask = validatedTargets.type === 'domain'
     if (isDnsTask.value && dnsResolverMode.value === 'specified') {
       if (dnsResolvers.value.length === 0) {
         showAlert('warning', '请添加 DNS 服务器', '指定 DNS 服务器模式至少需要添加一台服务器。')
@@ -255,9 +256,9 @@ async function submitTask() {
         resolverIds.add(id.toLowerCase())
       }
     }
-    const payload = isDnsTask.value
+    const payload = submittingDnsTask
       ? {
-          domains: dnsTargets,
+          domains: validatedTargets.targets,
           level: Number(level.value),
           remark: remark.value.trim() ? remark.value.trim() : null,
           scan_profile: scanProfile.value,
@@ -270,7 +271,7 @@ async function submitTask() {
             : []
         }
       : {
-          ip: ip.value.trim(),
+          ip: validatedTargets.targets.join(','),
           port: port.value.trim(),
           level: Number(level.value),
           remark: remark.value.trim() ? remark.value.trim() : null,
@@ -279,7 +280,7 @@ async function submitTask() {
           scan_profile: scanProfile.value,
         }
 
-    const response = await http.post(isDnsTask.value ? '/api/task/create-dns' : '/api/task/create', payload, {
+    const response = await http.post(submittingDnsTask ? '/api/task/create-dns' : '/api/task/create', payload, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -287,7 +288,7 @@ async function submitTask() {
 
     if (response.status === 200) {
       resetForm()
-      showAlert('success', isDnsTask.value ? '创建 DNS 任务成功' : '创建扫描任务成功', '任务已提交到扫描队列。', 5000)
+      showAlert('success', submittingDnsTask ? '创建 DNS 任务成功' : '创建扫描任务成功', '任务已提交到扫描队列。', 5000)
       return true
     } else {
       showAlert('error', '创建扫描失败', '服务器未接受本次创建请求。', 7000)
@@ -330,56 +331,30 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
   <div class="flex justify-center">
     <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
       <div class="grid grid-cols-1 gap-4">
-        <div role="tablist" class="tabs tabs-box w-fit" aria-label="任务类型">
-          <button
-            type="button"
-            class="tab task-type-tab"
-            :class="{ 'tab-active': !isDnsTask }"
-            :aria-selected="!isDnsTask"
-            @click="targetType = 'ip'"
-          >
-            IP / CIDR
-          </button>
-          <button
-            type="button"
-            role="tab"
-            class="tab task-type-tab"
-            :class="{ 'tab-active': isDnsTask }"
-            :aria-selected="isDnsTask"
-            @click="targetType = 'dns'"
-          >
-            域名
-          </button>
-        </div>
-
-        <label v-if="!isDnsTask" class="form-control w-full">
-          <span class="label-text input_items_required">目标 IP</span>
-          <input
-            id="create_task_ip"
-            ref="ipInputRef"
-            v-model="ip"
-            class="task_input_items peer"
-            type="text"
-            required
-            placeholder="请输入目标 IP 或 CIDR，多个目标请使用 , 隔开"
-            pattern="^[0-9A-Fa-f:.,/]+$"
-          />
-          <div class="max-h-0 overflow-hidden opacity-0 transition-all duration-200 ease-in-out peer-[&:not(:placeholder-shown):invalid]:mt-1 peer-[&:not(:placeholder-shown):invalid]:max-h-10 peer-[&:not(:placeholder-shown):invalid]:opacity-100 text-error text-xs">
-            请输入正确的目标地址
-          </div>
-        </label>
-
-        <label v-else class="form-control w-full">
-          <span class="label-text input_items_required">目标域名</span>
+        <label class="form-control w-full">
+          <span class="label-text input_items_required">扫描目标</span>
           <textarea
-            id="create_task_domains"
-            ref="domainsInputRef"
-            v-model="domains"
+            id="create_task_targets"
+            ref="targetInputRef"
+            v-model="targetInput"
             class="textarea w-full min-h-32"
+            :class="targetValidationVisible && !targetValidation.valid ? 'textarea-error' : ''"
             required
-            placeholder="每行一个域名，也可使用英文逗号分隔"
+            spellcheck="false"
+            placeholder="输入 IPv4/CIDR、IPv6/CIDR 或域名；多个目标使用逗号或换行分隔"
+            :aria-invalid="targetValidationVisible && !targetValidation.valid"
+            aria-describedby="create_task_targets_help"
+            @blur="targetTouched = true"
           ></textarea>
-          <span class="label-text-alt mt-1 text-base-content/60">最多 500 个域名；仅查询已获得授权的资产。</span>
+          <span
+            id="create_task_targets_help"
+            class="label-text-alt mt-1"
+            :class="targetValidationVisible && !targetValidation.valid ? 'text-error' : 'text-base-content/60'"
+          >
+            {{ targetValidationVisible
+              ? targetSummary
+              : '逗号和换行均可作为分隔符，但一次只能使用一种；同一任务不能混合 IPv4、IPv6 和域名。' }}
+          </span>
         </label>
 
         <div class="space-y-3">
@@ -571,21 +546,4 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
   background-color: color-mix(in oklab, var(--color-base-content) 5%, transparent);
 }
 
-.task-type-tab {
-  transition:
-    color 180ms ease,
-    background-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
-}
-
-.task-type-tab.tab-active {
-  transform: translateY(-1px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .task-type-tab {
-    transition: none;
-  }
-}
 </style>
