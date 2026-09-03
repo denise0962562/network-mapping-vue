@@ -584,18 +584,22 @@ onMounted(() => {
                   <span v-else>-</span>
                 </td>
               </tr>
-              <tr v-if="expandedHistoryItemId === item.id">
+              <tr>
                 <td :id="`history-data-${item.id}`" colspan="8" class="bg-base-200/60 p-0">
-                  <div class="max-h-72 overflow-auto p-4 text-xs">
-                    <section v-if="item.banner">
-                      <h4 class="font-semibold">Banner</h4>
-                      <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ item.banner }}</pre>
-                    </section>
-                    <section v-if="item.data" :class="item.banner ? 'mt-4 border-t border-base-300 pt-4' : ''">
-                      <h4 class="font-semibold">原始数据</h4>
-                      <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ JSON.stringify(item.data, null, 2) }}</pre>
-                    </section>
-                  </div>
+                  <Transition name="history-detail">
+                    <div v-show="expandedHistoryItemId === item.id" class="history-detail-transition">
+                      <div class="max-h-72 overflow-auto p-4 text-xs">
+                        <section v-if="item.banner">
+                          <h4 class="font-semibold">Banner</h4>
+                          <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ item.banner }}</pre>
+                        </section>
+                        <section v-if="item.data" :class="item.banner ? 'mt-4 border-t border-base-300 pt-4' : ''">
+                          <h4 class="font-semibold">原始数据</h4>
+                          <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ JSON.stringify(item.data, null, 2) }}</pre>
+                        </section>
+                      </div>
+                    </div>
+                  </Transition>
                 </td>
               </tr>
             </template>
@@ -665,3 +669,30 @@ onMounted(() => {
     <form method="dialog" class="modal-backdrop"><button>关闭</button></form>
   </dialog>
 </template>
+
+<style>
+.history-detail-enter-active,
+.history-detail-leave-active {
+  overflow: hidden;
+  transition: max-height 180ms ease, opacity 180ms ease;
+}
+
+.history-detail-enter-from,
+.history-detail-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.history-detail-enter-to,
+.history-detail-leave-from {
+  max-height: 18rem;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-detail-enter-active,
+  .history-detail-leave-active {
+    transition: none;
+  }
+}
+</style>
