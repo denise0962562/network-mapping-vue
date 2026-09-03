@@ -409,6 +409,11 @@ async function handleLogout() {
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/scan">
+                    <span class="whitespace-nowrap">扫描设置</span>
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/admin/tags">
                     <span class="whitespace-nowrap">标签</span>
                   </router-link>
