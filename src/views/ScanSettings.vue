@@ -19,6 +19,11 @@ const scanProfiles = [
     value: 'service_inventory',
     title: '服务识别',
     description: '发现开放端口后必须完成 zgrab2 服务识别，识别阶段失败会使任务失败。'
+  },
+  {
+    value: 'vulnerability_scan',
+    title: '漏洞扫描',
+    description: '发现开放端口并尝试识别服务，然后使用扫描节点配置的安全 Nuclei 模板集检查漏洞。'
   }
 ]
 

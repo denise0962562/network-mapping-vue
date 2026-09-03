@@ -8,7 +8,8 @@ const LEGACY_DRAFT_KEY = 'createscan_draft'
 const scanProfiles = [
   { value: 'legacy', title: '兼容模式', description: '端口发现后尝试识别服务，识别失败仍保留端口结果。' },
   { value: 'port_only', title: '仅端口扫描', description: '只发现开放端口，不启动服务识别。' },
-  { value: 'service_inventory', title: '服务识别', description: '必须完成服务识别，识别失败会使任务失败。' }
+  { value: 'service_inventory', title: '服务识别', description: '必须完成服务识别，识别失败会使任务失败。' },
+  { value: 'vulnerability_scan', title: '漏洞扫描', description: '发现开放端口并尝试识别服务，然后使用节点上审核过的 Nuclei 模板扫描漏洞。' }
 ]
 const dnsScanProfiles = [
   { value: 'dns_records', title: '仅 DNS 记录', description: '仅查询并归档 DNS 记录。' },

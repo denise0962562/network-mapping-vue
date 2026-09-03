@@ -49,6 +49,7 @@ function formatNetworkOwner(item) {
 
 const taskRemark = computed(() => task.value?.remarks || '-')
 const isDnsTask = computed(() => task.value?.task_kind === 'dns')
+const isVulnerabilityTask = computed(() => task.value?.scan_profile === 'vulnerability_scan')
 const currentExecution = computed(() => task.value?.executions?.find(
   (execution) => execution.execution_id === task.value?.selected_execution_id
 ) || null)
@@ -58,18 +59,24 @@ const taskMeta = computed(() => ({
   attemptCount: task.value?.attempt_count ?? 0,
   failureReason: task.value?.failure_reason || ''
 }))
-const summaryStats = computed(() => [
-  { title: isDnsTask.value ? '目标域名数' : '发现 IP 数', value: isDnsTask.value ? task.value?.task_target?.length ?? 0 : task.value?.summary?.ip_count ?? 0, desc: '' },
-  { title: isDnsTask.value ? '查询类型' : '开放端口数', value: isDnsTask.value ? 'A / AAAA' : task.value?.summary?.port_count ?? 0, desc: '' },
-  { title: '观察记录数', value: task.value?.summary?.result_count ?? 0, desc: isDnsTask.value ? 'DNS 查询观察' : '包含端口与服务观察' },
-  { title: '扫描耗时', value: formatDuration(task.value?.task_start_time, task.value?.task_end_time), desc: '总耗时' }
-])
+const summaryStats = computed(() => {
+  const stats = [
+    { title: isDnsTask.value ? '目标域名数' : '发现 IP 数', value: isDnsTask.value ? task.value?.task_target?.length ?? 0 : task.value?.summary?.ip_count ?? 0, desc: '' },
+    { title: isDnsTask.value ? '查询类型' : '开放端口数', value: isDnsTask.value ? 'A / AAAA' : task.value?.summary?.port_count ?? 0, desc: '' }
+  ]
+  if (isVulnerabilityTask.value) stats.push({ title: '漏洞数', value: task.value?.summary?.vulnerability_count ?? 0, desc: 'Nuclei 有效匹配' })
+  stats.push(
+    { title: '观察记录数', value: task.value?.summary?.result_count ?? 0, desc: isDnsTask.value ? 'DNS 查询观察' : '端口、服务与漏洞观察' },
+    { title: '扫描耗时', value: formatDuration(task.value?.task_start_time, task.value?.task_end_time), desc: '总耗时' }
+  )
+  return stats
+})
 const taskDetail = computed(() => ({
   target: task.value?.task_target?.join(', ') || '-',
   targetLabel: isDnsTask.value ? '目标域名' : '目标 IP',
   addressFamily: isDnsTask.value ? 'DNS' : task.value?.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
   port: isDnsTask.value ? 'A / AAAA' : task.value?.task_port || '-',
-  scanType: isDnsTask.value ? 'DNS 记录查询' : '端口扫描',
+  scanType: isDnsTask.value ? 'DNS 记录查询' : isVulnerabilityTask.value ? 'Nuclei 漏洞扫描' : '端口扫描',
   startTime: formatTime(task.value?.task_start_time),
   endTime: formatTime(task.value?.task_end_time),
   starter: task.value?.task_initiator || '-',
@@ -104,6 +111,16 @@ const ipIntelRows = computed(() => (task.value?.results || []).map((item, index)
   asOrg: item.as_org || item.isp || '-',
   location: formatLocation(item)
 })))
+
+function severityBadge(severity) {
+  return {
+    critical: 'badge-error',
+    high: 'badge-error badge-outline',
+    medium: 'badge-warning',
+    low: 'badge-info',
+    info: 'badge-ghost'
+  }[String(severity || '').toLowerCase()] || 'badge-ghost'
+}
 
 function scheduleRefresh() {
   window.clearTimeout(refreshTimer)
@@ -321,13 +338,46 @@ onBeforeUnmount(() => {
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
       <div class="xl:col-span-2 flex flex-col gap-5">
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
           <div v-for="item in summaryStats" :key="item.title" class="stats shadow border border-base-300 bg-base-100">
             <div class="stat">
               <div class="stat-title">{{ item.title }}</div>
               <div class="stat-value text-2xl">{{ item.value }}</div>
               <div class="stat-desc">{{ item.desc }}</div>
             </div>
+          </div>
+        </div>
+
+        <div v-if="isVulnerabilityTask" class="card bg-base-100 card-border border-base-300 p-4">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 class="font-semibold">漏洞结果</h3>
+            <span class="text-xs opacity-60">最多展示最近 500 条，共 {{ task.summary?.vulnerability_count || 0 }} 条</span>
+          </div>
+          <div v-if="!task.vulnerabilities?.length" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">
+            暂未发现符合当前 Nuclei 策略的漏洞。
+          </div>
+          <div v-else class="flex flex-col gap-3">
+            <details v-for="finding in task.vulnerabilities" :key="`${finding.template_id}-${finding.matched_at}-${finding.matcher_name || ''}`" class="collapse collapse-arrow border border-base-300 bg-base-100">
+              <summary class="collapse-title min-h-0 py-3">
+                <div class="flex flex-wrap items-center gap-2 pr-6">
+                  <span class="badge badge-sm uppercase" :class="severityBadge(finding.severity)">{{ finding.severity || 'unknown' }}</span>
+                  <span class="font-medium">{{ finding.name || finding.template_id }}</span>
+                  <span class="text-xs opacity-60">{{ finding.ip }}:{{ finding.port }}</span>
+                </div>
+              </summary>
+              <div class="collapse-content grid gap-2 text-sm">
+                <div><span class="opacity-60">模板：</span><code>{{ finding.template_id }}</code><span v-if="finding.matcher_name"> / {{ finding.matcher_name }}</span></div>
+                <div class="break-all"><span class="opacity-60">匹配位置：</span>{{ finding.matched_at }}</div>
+                <div v-if="finding.description" class="whitespace-pre-wrap"><span class="opacity-60">说明：</span>{{ finding.description }}</div>
+                <div v-if="finding.remediation" class="whitespace-pre-wrap"><span class="opacity-60">修复建议：</span>{{ finding.remediation }}</div>
+                <div v-if="finding.tags?.length" class="flex flex-wrap gap-1"><span v-for="tag in finding.tags" :key="tag" class="badge badge-ghost badge-sm">{{ tag }}</span></div>
+                <div v-if="finding.extracted_results?.length"><span class="opacity-60">提取结果：</span><span class="break-all">{{ finding.extracted_results.join('；') }}</span></div>
+                <div v-if="finding.references?.length" class="flex flex-col gap-1">
+                  <a v-for="reference in finding.references" :key="reference" class="link link-primary break-all" :href="reference" target="_blank" rel="noopener noreferrer">{{ reference }}</a>
+                </div>
+                <div class="text-xs opacity-60">发现时间：{{ formatTime(finding.observed_at) }}</div>
+              </div>
+            </details>
           </div>
         </div>
 
