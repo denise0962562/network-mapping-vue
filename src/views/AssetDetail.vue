@@ -2,8 +2,6 @@
 import { computed, markRaw, onMounted, ref } from 'vue'
 import ApexMaps from 'vue-apexmaps'
 import 'apexmaps/apexmaps.css'
-import { feature as topojsonFeature } from 'topojson-client'
-import worldCountries from 'world-atlas/countries-110m.json'
 import AssetTags from '../components/AssetTags.vue'
 import http from '../utils/http'
 import { formatLocation } from '../utils/location'
@@ -17,17 +15,15 @@ const MAP_COUNTRY_NAMES = {
   DO: 'Dominican Rep.',
   PS: 'Palestine',
   TL: 'Timor-Leste',
+  HK: 'Hong Kong（China）',
+  MO: 'Macao（China）',
+  TW: 'Taiwan（China）',
 }
-const worldCountriesGeometry = markRaw(topojsonFeature(worldCountries, worldCountries.objects.countries))
-const countryTooltipSeries = {
-  type: 'choropleth',
-  name: '国家和地区',
-  joinBy: 'name',
-  data: worldCountriesGeometry.features
-    .filter((feature) => feature.properties?.name)
-    .map((feature) => ({ name: feature.properties.name, value: 1, kind: 'country' })),
-  scale: { type: 'ordinal', palette: ['#e8ecf2'] },
-  stroke: { color: '#cbd5e1', width: 1 },
+const MAP_UNIT_DISPLAY_NAMES = {
+  'Hong Kong': 'Hong Kong（China）',
+  Macao: 'Macao（China）',
+  Macau: 'Macao（China）',
+  Taiwan: 'Taiwan（China）',
 }
 
 const ipInput = ref('')
@@ -53,6 +49,7 @@ const tagActionLoading = ref(false)
 const tagError = ref('')
 const selectedTagId = ref('')
 const mapError = ref('')
+const worldCountriesGeometry = ref(null)
 const assetMapRef = ref(null)
 const mapRenderKey = ref(0)
 
@@ -91,26 +88,37 @@ const mapPoint = computed(() => {
   }
 
   const countryCode = String(summary.value.country_code || '').trim().toUpperCase()
-  const country = MAP_COUNTRY_NAMES[countryCode] || String(summary.value.country_name || '').trim()
+  const countryName = String(summary.value.country_name || '').trim()
+  const country = MAP_COUNTRY_NAMES[countryCode] || MAP_UNIT_DISPLAY_NAMES[countryName] || countryName
   if (!country) return null
   return {
     country,
     name: summary.value.ip,
     value: 1,
     location: location.value,
-    precision: '国家级定位',
+    precision: '国家/地区级定位',
   }
 })
 const mapCoordinates = computed(() => {
   const point = mapPoint.value
   return point ? pointCoordinates(point) : null
 })
-const mapCanRender = computed(() => Boolean(mapCoordinates.value))
+const countryTooltipSeries = computed(() => ({
+  type: 'choropleth',
+  name: '国家和地区',
+  joinBy: 'name',
+  data: (worldCountriesGeometry.value?.features || [])
+    .filter((feature) => feature.properties?.name)
+    .map((feature) => ({ name: feature.properties.name, value: 1, kind: 'country' })),
+  scale: { type: 'ordinal', palette: ['#e8ecf2'] },
+  stroke: { color: '#cbd5e1', width: 1 },
+}))
+const mapCanRender = computed(() => Boolean(worldCountriesGeometry.value && mapCoordinates.value))
 const mapSeries = computed(() => {
   const point = mapPoint.value
   const coordinates = mapCoordinates.value
-  if (!point || !coordinates) return [countryTooltipSeries]
-  return [countryTooltipSeries, {
+  if (!point || !coordinates) return [countryTooltipSeries.value]
+  return [countryTooltipSeries.value, {
     type: 'marker',
     name: '资产位置',
     shape: 'pin',
@@ -128,13 +136,13 @@ const mapSeries = computed(() => {
   }]
 })
 
-const mapOptions = {
+const mapOptions = computed(() => ({
   chart: {
     context: 'dashboard',
-    animations: { enabled: false },
+    animations: { enabled: true },
   },
   geo: {
-    map: worldCountriesGeometry,
+    map: worldCountriesGeometry.value,
     projection: 'plateCarree',
     view: { fit: 'world', padding: 24 },
     fill: '#e8ecf2',
@@ -152,12 +160,19 @@ const mapOptions = {
     },
   },
   interaction: {
-    zoom: { enabled: true, min: 1, max: 16, controls: { show: true, reset: true } },
+    zoom: { enabled: true, min: 1, max: 30, controls: { show: true, reset: true } },
     pan: { enabled: true, inertia: false },
     selection: { enabled: false },
   },
-  states: { hover: { enabled: false } },
-}
+  states: {
+    hover: {
+      enabled: true,
+      brightness: 0.08,
+      stroke: '#2563eb',
+      strokeWidth: 1.5,
+    },
+  },
+}))
 
 function formatTime(timestamp) {
   if (!timestamp) return '-'
@@ -181,11 +196,45 @@ function escapeHtml(value) {
 }
 
 function countryCenter(countryName) {
-  const country = worldCountriesGeometry.features.find((feature) => feature.properties?.name === countryName)
-  if (!country) return null
-  const bounds = geometryBounds(country.geometry)
-  if (!bounds) return null
-  return [(bounds.west + bounds.east) / 2, (bounds.south + bounds.north) / 2]
+  const countries = worldCountriesGeometry.value?.features.filter((feature) => (
+    feature.properties?.name === countryName || feature.properties?.ADMIN === countryName
+  )) || []
+  const bounds = countries.map((country) => geometryBounds(country.geometry)).filter(Boolean)
+  if (!bounds.length) return null
+  const west = Math.min(...bounds.map((item) => item.west))
+  const east = Math.max(...bounds.map((item) => item.east))
+  const south = Math.min(...bounds.map((item) => item.south))
+  const north = Math.max(...bounds.map((item) => item.north))
+  return [(west + east) / 2, (south + north) / 2]
+}
+
+function normalizeWorldMap(geoJson) {
+  if (geoJson?.type !== 'FeatureCollection' || !Array.isArray(geoJson.features)) {
+    throw new Error('invalid GeoJSON feature collection')
+  }
+
+  return markRaw({
+    ...geoJson,
+    features: geoJson.features.map((feature) => {
+      const sourceName = String(feature.properties?.NAME || feature.properties?.NAME_EN || '').trim()
+      const name = MAP_UNIT_DISPLAY_NAMES[sourceName] || sourceName
+      return {
+        ...feature,
+        properties: { ...feature.properties, name },
+      }
+    }),
+  })
+}
+
+async function loadWorldMap() {
+  try {
+    const response = await fetch(`${import.meta.env.BASE_URL}maps/ne_50m_admin_0_map_units.geojson`)
+    if (!response.ok) throw new Error(`map data request failed with status ${response.status}`)
+    worldCountriesGeometry.value = normalizeWorldMap(await response.json())
+  } catch (error) {
+    console.error('load detailed world map failed', error)
+    mapError.value = '地图边界数据加载失败，请稍后重试。'
+  }
 }
 
 function pointCoordinates(point) {
@@ -248,7 +297,6 @@ function submitIp() {
 
 async function loadAsset() {
   mapRenderKey.value += 1
-  mapError.value = ''
   summary.value = null
   ports.value = []
   portsTotal.value = 0
@@ -397,6 +445,7 @@ async function removeTag(tag) {
 
 onMounted(() => {
   ipInput.value = assetIp.value
+  loadWorldMap()
   loadAsset()
 })
 
