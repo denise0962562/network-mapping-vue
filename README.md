@@ -29,6 +29,19 @@ has_endpoint(port = 80) AND has_endpoint(port = 443)
 协议能力来自 `GET /api/scanner/list` 和 `GET /api/scanner/{id}`。前端只用于提前提示，
 服务端仍会重新解析目标并执行最终兼容性校验。
 
+## Nuclei 漏洞扫描界面
+
+- 创建 IP 任务时可选择“漏洞扫描”，提交 `scan_profile=vulnerability_scan`；
+- 指定扫描器时，只允许选择声明该 profile 且目标地址族就绪的节点；
+- 管理员可在设置页将漏洞扫描设为新任务和自动任务的默认模式；
+- 任务详情显示漏洞总数，并最多展示最近 500 条漏洞的严重级别、模板、匹配位置、说明、
+  修复建议、标签、提取结果和 HTTP(S) 引用；
+- 漏洞详情来自服务端结构化结果，不渲染 Nuclei 原始请求或响应。
+
+前端选择项不会远程启用 Nuclei，也不能指定模板或 CLI 参数。扫描节点必须提前安装并启用
+Nuclei，且使用经过审核的本地签名模板目录。协议、上线顺序和存储语义参见服务端仓库的
+[扫描计划与结果协议](https://github.com/wshijiang/network-mapping/blob/dev/docs/SCAN_PIPELINE.md)。
+
 ## Recommended IDE Setup
 
 [VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).

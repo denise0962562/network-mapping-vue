@@ -1,6 +1,6 @@
 # network-mapping-vue 维护与扩展指南
 
-> 更新日期：2026-08-16
+> 更新日期：2026-09-03
 
 ## 目录
 
@@ -284,19 +284,27 @@ async function fetchData() {
 
 **区域：**
 - 任务 UUID（可复制）+ 操作按钮（重新打开 / 导出 / 删除）
-- 摘要统计卡片（存活IP、端口、漏洞数、扫描耗时）
+- 摘要统计卡片（发现 IP、开放端口、观察记录、扫描耗时；漏洞任务额外显示漏洞数）
 - 任务细节（目标IP、IPv4/IPv6 地址族、端口、扫描类型、时间、发起人、扫描器）
-- 结果展示（按 IP 展示端口和漏洞）
+- 端点结果（按 IP 展示端口与服务）
+- 漏洞任务独立展示最近 500 条结构化 Nuclei 结果；按严重级别显示 badge，支持展开模板、
+  matcher、匹配位置、说明、修复建议、标签、提取结果和 HTTP(S) 引用
 - 执行状态 Timeline（竖向时间线）
 - ASN & ISP 表格
+
+漏洞列表使用 `task.summary.vulnerability_count` 显示总数，使用 `task.vulnerabilities` 渲染明细。
+引用链接必须保留 `target="_blank" rel="noopener noreferrer"`。不要新增原始请求/响应渲染，
+服务端和扫描器会有意丢弃这些敏感字段。
 
 ### 7.4 创建扫描 (`createscan.vue`)
 
 **功能：**
 - 表单字段：目标 IP（必填，支持 IPv4/IPv6 和 CIDR）、端口（可选，逗号分隔）、扫描等级（1-5）、备注
+- IP 扫描 profile：兼容模式、仅端口扫描、服务识别、Nuclei 漏洞扫描
 - 支持自动分配、指定扫描器和全部扫描器三种调度模式
 - 根据目标自动识别地址族；混合 IPv4/IPv6 时要求拆分任务
-- 指定扫描器模式会根据 `supports_ipv4/6` 和 `ipv4/6_ready` 禁用不兼容设备
+- 指定扫描器模式会同时根据 `scan_capabilities.profiles`、`supports_ipv4/6` 和
+  `ipv4/6_ready` 禁用不兼容设备
 - 提交：`POST /api/task/create`，成功后清空表单
 - 提交期间按钮显示 loading 状态（`submitting`）
 - 通知使用 `AppAlert`
@@ -350,7 +358,11 @@ async function fetchData() {
 
 ### 7.9 设置页 (`setting.vue`)
 
-三张卡片，各有独立骨架屏和保存按钮。
+各配置卡片拥有独立骨架屏和保存按钮。
+
+**扫描设置：** 通过 `GET /api/config/scan` 读取、`POST /api/config/scan` 保存
+`defaultScanProfile`。可选值与创建扫描页保持一致，包括 `vulnerability_scan`。修改只影响之后
+创建的任务和系统自动任务，不改变已经进入队列的任务。未知服务端值回退为 `legacy`。
 
 **监听配置：** 主机 + 端口，保存按钮在值变更时显示
 **系统安全：** 登录错误次数限制（1-4）、锁定时间（分钟）、API/页面速率限制
