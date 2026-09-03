@@ -44,6 +44,7 @@ const historyError = ref('')
 const historyItems = ref([])
 const historyTotal = ref(0)
 const historyOffset = ref(0)
+const expandedHistoryItemId = ref(null)
 const historyDialogRef = ref(null)
 const tagDialogRef = ref(null)
 const tagCatalog = ref([])
@@ -297,6 +298,7 @@ async function loadPorts(offset) {
 
 async function loadHistory(offset = 0) {
   if (!selectedPort.value) return
+  expandedHistoryItemId.value = null
   historyLoading.value = true
   historyError.value = ''
   try {
@@ -325,11 +327,18 @@ function openHistory(port) {
   selectedPort.value = port
   historyItems.value = []
   historyOffset.value = 0
+  expandedHistoryItemId.value = null
   historyDialogRef.value?.showModal()
   loadHistory(0)
 }
 
+function toggleHistoryData(item) {
+  if (!item.banner && !item.data) return
+  expandedHistoryItemId.value = expandedHistoryItemId.value === item.id ? null : item.id
+}
+
 function closeHistory() {
+  expandedHistoryItemId.value = null
   historyDialogRef.value?.close()
 }
 
@@ -552,25 +561,44 @@ onMounted(() => {
         <table class="table table-sm table-zebra">
           <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>协议 / 服务</th><th>来源</th><th>扫描器</th><th>任务</th><th>数据</th></tr></thead>
           <tbody>
-            <tr v-for="item in historyItems" :key="item.id">
-              <td class="whitespace-nowrap">{{ formatTime(item.observed_at) }}</td>
-              <td><span class="badge badge-outline">{{ item.kind === 'service' ? '服务' : '端口' }}</span></td>
-              <td>{{ item.state }}</td>
-              <td>{{ item.protocol || '-' }}<span v-if="item.service"> · {{ item.service }}</span></td>
-              <td>{{ item.source }}</td>
-              <td>{{ item.scanner_name || '-' }}</td>
-              <td><a class="link font-mono text-xs" :href="`/task/${item.task_id}`">{{ item.task_id.slice(0, 8) }}</a></td>
-              <td>
-                <details v-if="item.banner || item.data" class="dropdown dropdown-end">
-                  <summary class="btn btn-ghost btn-xs">查看</summary>
-                  <div class="dropdown-content z-20 mt-1 max-h-72 w-96 overflow-auto rounded-box border border-base-300 bg-base-100 p-3 shadow">
-                    <p v-if="item.banner" class="mb-2 whitespace-pre-wrap break-all text-xs">{{ item.banner }}</p>
-                    <pre v-if="item.data" class="whitespace-pre-wrap break-all text-xs">{{ JSON.stringify(item.data, null, 2) }}</pre>
+            <template v-for="item in historyItems" :key="item.id">
+              <tr>
+                <td class="whitespace-nowrap">{{ formatTime(item.observed_at) }}</td>
+                <td><span class="badge badge-outline">{{ item.kind === 'service' ? '服务' : '端口' }}</span></td>
+                <td>{{ item.state }}</td>
+                <td>{{ item.protocol || '-' }}<span v-if="item.service"> · {{ item.service }}</span></td>
+                <td>{{ item.source }}</td>
+                <td>{{ item.scanner_name || '-' }}</td>
+                <td><a class="link font-mono text-xs" :href="`/task/${item.task_id}`">{{ item.task_id.slice(0, 8) }}</a></td>
+                <td>
+                  <button
+                    v-if="item.banner || item.data"
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    :aria-expanded="expandedHistoryItemId === item.id"
+                    :aria-controls="`history-data-${item.id}`"
+                    @click="toggleHistoryData(item)"
+                  >
+                    {{ expandedHistoryItemId === item.id ? '收起' : '查看' }}
+                  </button>
+                  <span v-else>-</span>
+                </td>
+              </tr>
+              <tr v-if="expandedHistoryItemId === item.id">
+                <td :id="`history-data-${item.id}`" colspan="8" class="bg-base-200/60 p-0">
+                  <div class="max-h-72 overflow-auto p-4 text-xs">
+                    <section v-if="item.banner">
+                      <h4 class="font-semibold">Banner</h4>
+                      <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ item.banner }}</pre>
+                    </section>
+                    <section v-if="item.data" :class="item.banner ? 'mt-4 border-t border-base-300 pt-4' : ''">
+                      <h4 class="font-semibold">原始数据</h4>
+                      <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ JSON.stringify(item.data, null, 2) }}</pre>
+                    </section>
                   </div>
-                </details>
-                <span v-else>-</span>
-              </td>
-            </tr>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
