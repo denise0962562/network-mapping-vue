@@ -202,20 +202,18 @@ onMounted(loadConfiguration)
           <div><h3 class="font-semibold">服务识别（zgrab2）</h3><p class="mt-1 text-xs opacity-60">远程开启不能突破节点本地的服务识别授权。</p></div>
           <input v-model="form.service_detection.enabled" type="checkbox" class="toggle toggle-success" />
         </div>
-        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)_1px_minmax(0,1fr)] lg:gap-0">
-          <div class="space-y-4 lg:pr-4">
+        <div class="mt-4 grid gap-4 lg:grid-cols-3">
+          <div class="space-y-4">
             <label class="form-control"><span class="label-text mb-1 block">扫描模式</span><select v-model="form.service_detection.strategy" class="select select-bordered"><option value="standard">standard</option><option value="adaptive">adaptive</option><option value="exhaustive">exhaustive</option></select></label>
             <label class="form-control"><span class="label-text mb-1 block">每端点最大探针数</span><input v-model.number="form.service_detection.max_probes_per_endpoint" type="number" min="1" max="32" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1 block">置信度阈值</span><input v-model.number="form.service_detection.confidence_threshold" type="number" min="1" max="100" class="input input-bordered" /></label>
           </div>
-          <div class="hidden border-l border-base-300 lg:block" aria-hidden="true"></div>
-          <div class="space-y-4 lg:px-4">
+          <div class="space-y-4">
             <label class="form-control"><span class="label-text mb-1 block">并发发送协程</span><input v-model.number="form.service_detection.senders" type="number" min="1" max="10000" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1 block">单目标连接速率</span><input v-model.number="form.service_detection.server_rate_limit" type="number" min="1" max="10000" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1 block">连接超时（秒）</span><input v-model.number="form.service_detection.connect_timeout_seconds" type="number" min="1" max="60" class="input input-bordered" /></label>
           </div>
-          <div class="hidden border-l border-base-300 lg:block" aria-hidden="true"></div>
-          <div class="space-y-4 lg:pl-4">
+          <div class="space-y-4">
             <label class="form-control"><span class="label-text mb-1 block">目标超时（秒）</span><input v-model.number="form.service_detection.target_timeout_seconds" type="number" min="1" max="300" class="input input-bordered" /></label>
             <label class="form-control"><span class="label-text mb-1 block">单结果上限（字节）</span><input v-model.number="form.service_detection.max_result_bytes" type="number" min="1024" max="1048576" class="input input-bordered" /></label>
           </div>
