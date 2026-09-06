@@ -314,6 +314,9 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           <div class="card bg-base-100 card-border border-base-300 p-4">
             <h3 class="font-semibold mb-3">扫描器管理</h3>
             <div class="grid gap-3">
+              <router-link :to="{ name: 'scanner-configuration', params: { id: scannerId } }" class="btn btn-outline">
+                扫描配置
+              </router-link>
               <input v-model="editForm.name" class="input input-bordered w-full" placeholder="名称" :disabled="actionLoading" />
               <input v-model="editForm.location" class="input input-bordered w-full" placeholder="位置" :disabled="actionLoading" />
               <input v-model="editForm.tag" class="input input-bordered w-full" placeholder="标签" :disabled="actionLoading" />
