@@ -29,6 +29,8 @@ const distributionLoading = ref(false)
 const heatmapLoading = ref(false)
 const distributionFailed = ref(false)
 const heatmapFailed = ref(false)
+const distributionError = ref('')
+const heatmapError = ref('')
 const hasLoadedDistribution = ref(false)
 const hasLoadedHeatmap = ref(false)
 const lastUpdatedAt = ref(null)
@@ -115,6 +117,16 @@ function parseHeatmap(response) {
   return items
 }
 
+function analysisErrorMessage(error) {
+  const body = error?.response?.data
+  const message = typeof body?.message === 'string' ? body.message : '无法从服务器获取统计数据，请稍后重试。'
+  const progress = body?.progress
+  if (progress?.last_error) {
+    return `${message}\n失败执行：${progress.failed_execution_id ?? '未知'}；最近原因：${progress.last_error}`
+  }
+  return message
+}
+
 async function loadScanners() {
   scannerController?.abort()
   scannerController = new AbortController()
@@ -174,15 +186,18 @@ async function loadAnalysis() {
       const dataAsOf = distributionResult.value.data?.meta?.data_as_of
       snapshotDataAsOf.value = dataAsOf ? new Date(dataAsOf) : null
       distributionFailed.value = false
+      distributionError.value = ''
       hasLoadedDistribution.value = true
     } catch (error) {
       console.error('parse distribution failed', error)
       distributionFailed.value = true
+      distributionError.value = analysisErrorMessage(error)
       failedSections.push('服务分布')
     }
   } else if (!axios.isCancel(distributionResult.reason)) {
     console.error('load distribution failed', distributionResult.reason)
     distributionFailed.value = true
+    distributionError.value = analysisErrorMessage(distributionResult.reason)
     failedSections.push('服务分布')
   }
 
@@ -190,20 +205,24 @@ async function loadAnalysis() {
     try {
       heatmapItems.value = parseHeatmap(heatmapResult.value)
       heatmapFailed.value = false
+      heatmapError.value = ''
       hasLoadedHeatmap.value = true
     } catch (error) {
       console.error('parse heatmap failed', error)
       heatmapFailed.value = true
+      heatmapError.value = analysisErrorMessage(error)
       failedSections.push('发现 IP 热力图')
     }
   } else if (!axios.isCancel(heatmapResult.reason)) {
     console.error('load heatmap failed', heatmapResult.reason)
     heatmapFailed.value = true
+    heatmapError.value = analysisErrorMessage(heatmapResult.reason)
     failedSections.push('发现 IP 热力图')
   }
 
   if (failedSections.length > 0) {
-    pushAlert('error', '分析数据加载失败', `${failedSections.join('、')}暂时不可用，已保留上一次成功数据。`)
+    const reasons = [...new Set([distributionError.value, heatmapError.value].filter(Boolean))]
+    pushAlert('error', '分析数据加载失败', reasons.join('\n'))
   } else {
     lastUpdatedAt.value = new Date()
   }
@@ -493,7 +512,7 @@ onBeforeUnmount(() => {
             class="mt-4"
             type="error"
             title="服务分布加载失败"
-            message="无法从服务器获取统计数据，请稍后重试。"
+            :message="distributionError"
           />
           <EmptyState
             v-else-if="distributionData.total === 0"
@@ -524,7 +543,7 @@ onBeforeUnmount(() => {
             class="mt-4"
             type="error"
             title="热力图加载失败"
-            message="无法从服务器获取统计数据，请稍后重试。"
+            :message="heatmapError"
           />
           <div v-else ref="heatmapChartContainer" class="relative mt-2 flex items-stretch gap-3">
             <div class="min-w-0 flex-1">
