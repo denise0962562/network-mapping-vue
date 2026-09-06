@@ -200,7 +200,7 @@ onMounted(loadConfiguration)
       <section class="card bg-base-100 card-border border-base-300 p-4">
         <div class="flex items-start justify-between gap-3">
           <div><h3 class="font-semibold">服务识别（zgrab2）</h3><p class="mt-1 text-xs opacity-60">远程开启不能突破节点本地的服务识别授权。</p></div>
-          <input v-model="form.service_detection.enabled" type="checkbox" class="toggle toggle-success" />
+          <input v-model="form.service_detection.enabled" type="checkbox" class="toggle" />
         </div>
         <div class="mt-4 grid gap-4 lg:grid-cols-3">
           <div class="space-y-4">
@@ -222,7 +222,7 @@ onMounted(loadConfiguration)
 
       <section class="grid gap-5 xl:grid-cols-2">
         <div class="card bg-base-100 card-border border-base-300 p-4">
-          <div class="flex items-center justify-between"><h3 class="font-semibold">DNS 查询</h3><input v-model="form.dns.enabled" type="checkbox" class="toggle toggle-success" /></div>
+          <div class="flex items-center justify-between"><h3 class="font-semibold">DNS 查询</h3><input v-model="form.dns.enabled" type="checkbox" class="toggle" /></div>
           <div class="mt-4 space-y-4">
             <div><span class="label-text">记录类型</span><div class="mt-2 flex gap-5"><label v-for="type in ['A', 'AAAA']" :key="type" class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" :checked="form.dns.record_types.includes(type)" @change="toggleList(form.dns.record_types, type, $event.target.checked)" /><span>{{ type }}</span></label></div></div>
             <label class="form-control"><span class="label-text mb-1">查询超时（秒）</span><input v-model.number="form.dns.query_timeout_seconds" type="number" min="1" max="60" class="input input-bordered" /></label>
@@ -230,7 +230,7 @@ onMounted(loadConfiguration)
         </div>
 
         <div class="card bg-base-100 card-border border-base-300 p-4">
-          <div class="flex items-center justify-between"><div><h3 class="font-semibold">漏洞扫描（Nuclei）</h3><p class="mt-1 text-xs opacity-60">本机未授权时远程开启不会生效。</p></div><input v-model="form.nuclei.enabled" type="checkbox" class="toggle toggle-success" /></div>
+          <div class="flex items-center justify-between"><div><h3 class="font-semibold">漏洞扫描（Nuclei）</h3><p class="mt-1 text-xs opacity-60">本机未授权时远程开启不会生效。</p></div><input v-model="form.nuclei.enabled" type="checkbox" class="toggle" /></div>
           <label class="label mt-3 cursor-pointer justify-start gap-2"><input v-model="form.nuclei.port_fallback" type="checkbox" class="checkbox checkbox-sm" /><span>未知服务按端口回退选择模板</span></label>
           <div class="mt-3"><span class="label-text">严重级别</span><div class="mt-2 flex flex-wrap gap-x-4"><label v-for="severity in ['info', 'low', 'medium', 'high', 'critical']" :key="severity" class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" :checked="form.nuclei.severities.includes(severity)" @change="toggleList(form.nuclei.severities, severity, $event.target.checked)" /><span>{{ severity }}</span></label></div></div>
           <div class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -244,7 +244,7 @@ onMounted(loadConfiguration)
       </section>
 
       <section class="card bg-base-100 card-border border-base-300 p-4">
-        <label class="form-control"><span class="label-text mb-1">变更原因</span><textarea v-model="changeReason" maxlength="500" class="textarea textarea-bordered" placeholder="说明本次调整目的；该内容会写入版本历史和审计日志。"></textarea></label>
+        <label class="form-control"><span class="label-text mb-1 block">变更原因</span><textarea v-model="changeReason" maxlength="500" class="textarea textarea-bordered" placeholder="说明本次调整目的；该内容会写入版本历史和审计日志。"></textarea></label>
         <div class="mt-4 flex flex-wrap justify-end gap-2"><button class="btn btn-ghost" :disabled="saving || !isDirty" @click="loadConfiguration()">放弃修改</button><button class="btn btn-neutral" :disabled="saving || !isDirty" @click="saveConfiguration"><span v-if="saving" class="loading loading-spinner loading-sm"></span>发布配置</button></div>
       </section>
     </div>
