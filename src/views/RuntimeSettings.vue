@@ -9,6 +9,7 @@ const namespaces = [
   { key: 'monitor', title: '健康监控', description: '控制慢请求、5xx、慢 SQL 与 Elasticsearch 告警阈值。' },
   { key: 'automatic_target', title: '自动目标', description: '控制系统自动生成的 IPv4/IPv6 扫描任务。' },
   { key: 'dns_follow_up', title: 'DNS 后续任务', description: '控制 DNS 解析结果自动创建端口扫描任务的范围。' },
+  { key: 'dns_resolvers', title: 'DNS 服务器', description: '维护创建域名扫描任务时可选择的常用 DNS 服务器。' },
   { key: 'analytics_snapshot', title: '分析快照', description: '控制离线分析快照的模式与处理频率。' },
 ]
 
@@ -46,6 +47,7 @@ const defaults = {
     repeat_after_seconds: 604800,
   },
   dns_follow_up: { enabled: false, authorized_cidrs: [], excluded_cidrs: [], max_targets_per_task: 100 },
+  dns_resolvers: { resolvers: [] },
   analytics_snapshot: { mode: 'realtime', interval_minutes: 30 },
 }
 
@@ -84,6 +86,16 @@ function linesToList(value) {
 
 function listToLines(value) {
   return Array.isArray(value) ? value.join('\n') : ''
+}
+
+function addDnsResolverPreset() {
+  if (settings.dns_resolvers.resolvers.length >= 32) return
+  const index = settings.dns_resolvers.resolvers.length + 1
+  settings.dns_resolvers.resolvers.push({ id: `dns-${index}`, label: `DNS 服务器 ${index}`, ip: '', port: 53, transport: 'udp', enabled: true })
+}
+
+function removeDnsResolverPreset(index) {
+  settings.dns_resolvers.resolvers.splice(index, 1)
 }
 
 function documentFor(namespace) {
@@ -278,6 +290,22 @@ onMounted(loadAll)
             <label class="form-control"><span class="label-text mb-1">单任务最大目标数</span><input v-model.number="settings.dns_follow_up.max_targets_per_task" min="1" max="500" type="number" class="input input-bordered" /></label>
           </div>
           <div class="grid gap-3 lg:grid-cols-2"><label class="form-control"><span class="label-text mb-1">授权 CIDR</span><textarea v-model="cidrText.dnsAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label><label class="form-control"><span class="label-text mb-1">排除 CIDR</span><textarea v-model="cidrText.dnsExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label></div>
+        </template>
+
+        <template v-else-if="activeItem.key === 'dns_resolvers'">
+          <div class="alert alert-info alert-soft text-sm">系统 DNS 始终可用。这里只维护额外的常用服务器；任务会保存所选服务器的配置快照。</div>
+          <div class="space-y-2">
+            <div v-for="(resolver, index) in settings.dns_resolvers.resolvers" :key="index" class="grid gap-2 rounded-lg border border-base-300 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_6rem_6rem_auto_auto]">
+              <input v-model="resolver.id" class="input input-sm w-full" maxlength="64" placeholder="ID" />
+              <input v-model="resolver.label" class="input input-sm w-full" maxlength="128" placeholder="名称" />
+              <input v-model="resolver.ip" class="input input-sm w-full font-mono" placeholder="IP 地址" />
+              <input v-model.number="resolver.port" class="input input-sm w-full" type="number" min="1" max="65535" aria-label="DNS 端口" />
+              <select v-model="resolver.transport" class="select select-sm w-full" aria-label="DNS 传输协议"><option value="udp">UDP</option><option value="tcp">TCP</option></select>
+              <label class="label cursor-pointer justify-start gap-2"><input v-model="resolver.enabled" type="checkbox" class="checkbox checkbox-sm" /><span>启用</span></label>
+              <button type="button" class="btn btn-ghost btn-sm text-error" @click="removeDnsResolverPreset(index)">删除</button>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" :disabled="settings.dns_resolvers.resolvers.length >= 32" @click="addDnsResolverPreset">添加 DNS 服务器</button>
+          </div>
         </template>
 
         <template v-else-if="activeItem.key === 'analytics_snapshot'">

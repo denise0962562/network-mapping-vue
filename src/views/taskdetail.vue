@@ -47,6 +47,15 @@ function formatNetworkOwner(item) {
   return [asn, item.as_org || item.isp].filter(Boolean).join(' · ') || '-'
 }
 
+function formatDnsAnswer(answer) {
+  const fields = [`${answer.type} ${answer.value}`]
+  if (answer.priority != null) fields.push(`优先级 ${answer.priority}`)
+  if (answer.weight != null) fields.push(`权重 ${answer.weight}`)
+  if (answer.port != null) fields.push(`端口 ${answer.port}`)
+  fields.push(`TTL ${answer.ttl}`)
+  return fields.join(' · ')
+}
+
 const taskRemark = computed(() => task.value?.remarks || '-')
 const isDnsTask = computed(() => task.value?.task_kind === 'dns')
 const isVulnerabilityTask = computed(() => !isDnsTask.value && task.value?.scan_profile === 'vulnerability_scan')
@@ -79,7 +88,7 @@ const taskMeta = computed(() => ({
 const summaryStats = computed(() => {
   const stats = [
     { title: isDnsTask.value ? '目标域名数' : '发现 IP 数', value: isDnsTask.value ? task.value?.task_target?.length ?? 0 : task.value?.summary?.ip_count ?? 0, desc: '' },
-    { title: isDnsTask.value ? '查询类型' : '开放端口数', value: isDnsTask.value ? 'A / AAAA' : task.value?.summary?.port_count ?? 0, desc: '' }
+    { title: isDnsTask.value ? '查询内容' : '开放端口数', value: isDnsTask.value ? 'DNS 记录' : task.value?.summary?.port_count ?? 0, desc: '' }
   ]
   if (isVulnerabilityTask.value) stats.push({ title: '漏洞数', value: task.value?.summary?.vulnerability_count ?? 0, desc: 'Nuclei 有效匹配' })
   stats.push(
@@ -92,7 +101,7 @@ const taskDetail = computed(() => ({
   target: task.value?.task_target?.join(', ') || '-',
   targetLabel: isDnsTask.value ? '目标域名' : '目标 IP',
   addressFamily: isDnsTask.value ? 'DNS' : task.value?.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
-  port: isDnsTask.value ? 'A / AAAA' : task.value?.task_port || '-',
+  port: isDnsTask.value ? '扫描器配置的记录类型' : task.value?.task_port || '-',
   scanType: scanTypeLabel.value,
   startTime: formatTime(task.value?.task_start_time),
   endTime: formatTime(task.value?.task_end_time),
@@ -425,7 +434,7 @@ onBeforeUnmount(() => {
               <div class="overflow-x-auto">
                 <table class="table table-sm">
                   <thead><tr><th>DNS 服务器</th><th>响应</th><th>延迟</th><th>返回记录</th></tr></thead>
-                  <tbody><tr v-for="resolver in record.resolvers" :key="resolver.id"><td>{{ resolver.label }}<div class="text-xs opacity-60">{{ resolver.ip || '系统 DNS' }}{{ resolver.port ? `:${resolver.port}` : '' }} · {{ resolver.transport || '-' }}</div></td><td><span class="badge badge-sm" :class="resolver.response_code === 'NOERROR' ? 'badge-success' : 'badge-warning'">{{ resolver.response_code }}</span></td><td>{{ resolver.latency_ms == null ? '-' : `${resolver.latency_ms} ms` }}</td><td class="max-w-xl break-all">{{ resolver.answers?.map((answer) => `${answer.type} ${answer.value} (TTL ${answer.ttl})`).join('；') || '-' }}</td></tr></tbody>
+                  <tbody><tr v-for="resolver in record.resolvers" :key="resolver.id"><td>{{ resolver.label }}<div class="text-xs opacity-60">{{ resolver.ip || '系统 DNS' }}{{ resolver.port ? `:${resolver.port}` : '' }} · {{ resolver.transport || '-' }}</div></td><td><span class="badge badge-sm" :class="resolver.response_code === 'NOERROR' ? 'badge-success' : 'badge-warning'">{{ resolver.response_code }}</span></td><td>{{ resolver.latency_ms == null ? '-' : `${resolver.latency_ms} ms` }}</td><td class="max-w-xl break-all">{{ resolver.answers?.map(formatDnsAnswer).join('；') || '-' }}</td></tr></tbody>
                 </table>
               </div>
               <div v-if="record.differences?.length || record.response_code_difference" class="border-t border-warning/20 bg-warning/10 px-3 py-2 text-xs text-warning">差异：<span v-if="record.response_code_difference" class="mr-2">响应码不同；</span><span v-for="(difference, index) in record.differences" :key="index" class="mr-2">{{ difference.answer?.type }} {{ difference.answer?.value }}（{{ difference.resolver_ids?.join('、') }}）</span></div>

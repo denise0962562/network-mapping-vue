@@ -47,6 +47,8 @@ const scannersLoading = ref(false)
 const scanProfile = ref('vulnerability_scan')
 const dnsResolverMode = ref('system')
 const dnsResolvers = ref([])
+const dnsResolverPresets = ref([])
+const selectedDnsResolverIds = ref([])
 const defaultScanProfile = ref('vulnerability_scan')
 const scanSettingsLoading = ref(true)
 const targetValidation = computed(() => parseScanTargets(targetInput.value))
@@ -71,6 +73,13 @@ const selectedScanProfileDescription = computed(() => (
     : selectedScanProfile.value?.description || ''
 ))
 const scanRequiresPort = computed(() => scanProfile.value !== 'dns_records')
+const selectedDnsResolvers = computed(() => {
+  if (dnsResolverMode.value === 'preset') {
+    const selected = new Set(selectedDnsResolverIds.value)
+    return dnsResolverPresets.value.filter((resolver) => selected.has(resolver.id))
+  }
+  return dnsResolverMode.value === 'specified' ? dnsResolvers.value : []
+})
 const dispatchModeSummary = computed(() => {
   if (dispatchMode.value === 'selected') {
     return scannerIds.value.length > 0 ? `已指定 ${scannerIds.value.length} 台扫描器` : '指定扫描器'
@@ -96,8 +105,11 @@ function scannerSupportsProfile(scanner) {
 function scannerSupportsTarget(scanner) {
   if (!scannerSupportsProfile(scanner)) return false
   if (isDnsTask.value
-    && dnsResolverMode.value === 'specified'
+    && dnsResolverMode.value !== 'system'
     && scanner.scan_capabilities?.explicit_dns_resolvers !== true) return false
+  if (isDnsTask.value
+    && selectedDnsResolvers.value.some((resolver) => resolver.ip?.includes(':'))
+    && !(scanner.supports_ipv6 === true && scanner.ipv6_ready === true)) return false
   if (targetAddressFamily.value === 'ipv6') {
     return scanner.supports_ipv6 === true && scanner.ipv6_ready === true
   }
@@ -107,7 +119,7 @@ function scannerSupportsTarget(scanner) {
   return targetAddressFamily.value !== 'mixed'
 }
 
-watch([targetAddressFamily, scanProfile, dnsResolverMode], () => {
+watch([targetAddressFamily, scanProfile, dnsResolverMode, selectedDnsResolvers], () => {
   const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
   scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
 })
@@ -134,6 +146,7 @@ const hasUnsavedChanges = computed(() => (
   || scanProfile.value !== defaultScanProfile.value
   || dnsResolverMode.value !== 'system'
   || dnsResolvers.value.length > 0
+  || selectedDnsResolverIds.value.length > 0
 ))
 
 function addDnsResolver() {
@@ -157,6 +170,7 @@ function resetForm() {
   scanProfile.value = defaultScanProfile.value
   dnsResolverMode.value = 'system'
   dnsResolvers.value = []
+  selectedDnsResolverIds.value = []
 }
 
 async function loadScanSettings() {
@@ -192,10 +206,21 @@ async function loadScanners() {
   }
 }
 
+async function loadDnsResolverPresets() {
+  try {
+    const response = await http.get('/api/dns/resolvers')
+    dnsResolverPresets.value = Array.isArray(response.data?.data) ? response.data.data : []
+  } catch (error) {
+    console.error('load DNS resolver presets failed', error)
+    dnsResolverPresets.value = []
+  }
+}
+
 onMounted(() => {
   localStorage.removeItem(LEGACY_DRAFT_KEY)
   loadScanners()
   loadScanSettings()
+  loadDnsResolverPresets()
 })
 
 function closeAlertById(id) {
@@ -235,13 +260,18 @@ async function submitTask() {
   try {
     submitting.value = true
     const submittingDnsTask = validatedTargets.type === 'domain'
-    if (isDnsTask.value && dnsResolverMode.value === 'specified') {
-      if (dnsResolvers.value.length === 0) {
+    if (isDnsTask.value && dnsResolverMode.value !== 'system') {
+      const taskResolvers = selectedDnsResolvers.value
+      if (taskResolvers.length === 0) {
         showAlert('warning', '请添加 DNS 服务器', '指定 DNS 服务器模式至少需要添加一台服务器。')
         return false
       }
+      if (taskResolvers.length > 8) {
+        showAlert('warning', 'DNS 服务器过多', '单次任务最多可选择 8 台 DNS 服务器。')
+        return false
+      }
       const resolverIds = new Set()
-      for (const resolver of dnsResolvers.value) {
+      for (const resolver of taskResolvers) {
         const id = resolver.id.trim()
         const ip = resolver.ip.trim()
         if (!/^[A-Za-z0-9_-]{1,64}$/.test(id) || !resolver.label.trim() || !ip || !['udp', 'tcp'].includes(resolver.transport)) {
@@ -264,8 +294,8 @@ async function submitTask() {
           dispatch_mode: dispatchMode.value,
           scanner_ids: dispatchMode.value === 'selected' ? scannerIds.value : [],
           port: scanRequiresPort.value && port.value.trim() ? port.value.trim() : null,
-          dns_resolvers: dnsResolverMode.value === 'specified'
-            ? dnsResolvers.value.map((item) => ({
+          dns_resolvers: dnsResolverMode.value !== 'system'
+            ? selectedDnsResolvers.value.map((item) => ({
                 id: item.id.trim(), label: item.label.trim(), ip: item.ip.trim(),
                 port: Number(item.port) || 53, transport: item.transport
               }))
@@ -406,8 +436,15 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                   </div>
                   <select v-model="dnsResolverMode" class="select select-sm w-full sm:w-auto">
                     <option value="system">使用扫描器系统 DNS</option>
-                    <option value="specified">指定 DNS 服务器</option>
+                    <option v-if="dnsResolverPresets.length" value="preset">选择常用 DNS 服务器</option>
+                    <option value="specified">临时指定 DNS 服务器</option>
                   </select>
+                </div>
+                <div v-if="dnsResolverMode === 'preset'" class="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label v-for="resolver in dnsResolverPresets" :key="resolver.id" class="label cursor-pointer justify-start gap-3 rounded-lg border border-base-300 bg-base-100 px-3">
+                    <input v-model="selectedDnsResolverIds" type="checkbox" class="checkbox checkbox-sm" :value="resolver.id" :disabled="!selectedDnsResolverIds.includes(resolver.id) && selectedDnsResolverIds.length >= 8" />
+                    <span><span class="block font-medium">{{ resolver.label }}</span><span class="text-xs opacity-60">{{ resolver.ip }}:{{ resolver.port }}/{{ resolver.transport }}</span></span>
+                  </label>
                 </div>
                 <div v-if="dnsResolverMode === 'specified'" class="mt-3 space-y-2">
                   <div v-for="(resolver, index) in dnsResolvers" :key="index" class="grid gap-2 rounded-lg border border-base-300 bg-base-100 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_6rem_6rem_auto]">

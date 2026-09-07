@@ -70,7 +70,7 @@ function normalizeTask(item) {
     target: targets,
     taskKind: isDnsTask ? 'dns' : 'ip',
     addressFamily: isDnsTask ? 'DNS' : item.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
-    port: isDnsTask ? 'A / AAAA' : item.task_port || '-',
+    port: isDnsTask ? 'DNS 记录' : item.task_port || '-',
     operator: item.task_initiator || '-',
     createTimeMs: Number.isFinite(createTimeMs) ? createTimeMs : null,
     createTime: formatUnixMs(item.task_create_time),

@@ -20,6 +20,7 @@ const reportedAt = ref(null)
 const changeReason = ref('')
 const alerts = ref([])
 const savedDocument = ref(null)
+const dnsRecordTypes = ['A', 'AAAA', 'CNAME', 'NS', 'MX', 'PTR', 'SRV', 'TXT', 'CAA', 'SOA', 'SVCB', 'HTTPS']
 
 const form = reactive({
   masscan: { rate: 100000 },
@@ -34,7 +35,7 @@ const form = reactive({
     target_timeout_seconds: 15,
     max_result_bytes: 65536,
   },
-  dns: { enabled: true, record_types: ['A', 'AAAA'], query_timeout_seconds: 5 },
+  dns: { enabled: true, record_types: [...dnsRecordTypes], query_timeout_seconds: 5 },
   nuclei: {
     enabled: false,
     port_fallback: true,
@@ -224,7 +225,7 @@ onMounted(loadConfiguration)
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <div class="flex items-center justify-between"><h3 class="font-semibold">DNS 查询</h3><input v-model="form.dns.enabled" type="checkbox" class="toggle" /></div>
           <div class="mt-4 space-y-4">
-            <div><span class="label-text">记录类型</span><div class="mt-2 flex gap-5"><label v-for="type in ['A', 'AAAA']" :key="type" class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" :checked="form.dns.record_types.includes(type)" @change="toggleList(form.dns.record_types, type, $event.target.checked)" /><span>{{ type }}</span></label></div></div>
+            <div><span class="label-text">记录类型</span><div class="mt-2 flex flex-wrap gap-x-5 gap-y-1"><label v-for="type in dnsRecordTypes" :key="type" class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" :checked="form.dns.record_types.includes(type)" @change="toggleList(form.dns.record_types, type, $event.target.checked)" /><span>{{ type }}</span></label></div></div>
             <label class="form-control"><span class="label-text mb-1">查询超时（秒）</span><input v-model.number="form.dns.query_timeout_seconds" type="number" min="1" max="60" class="input input-bordered" /></label>
           </div>
         </div>
