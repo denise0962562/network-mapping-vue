@@ -59,6 +59,9 @@ function formatDnsAnswer(answer) {
 const taskRemark = computed(() => task.value?.remarks || '-')
 const isDnsTask = computed(() => task.value?.task_kind === 'dns')
 const isVulnerabilityTask = computed(() => !isDnsTask.value && task.value?.scan_profile === 'vulnerability_scan')
+const endpointResultsAvailable = computed(() => task.value?.result_availability?.endpoints !== false)
+const vulnerabilitiesAvailable = computed(() => task.value?.result_availability?.vulnerabilities !== false)
+const hasUnavailableResults = computed(() => !endpointResultsAvailable.value || !vulnerabilitiesAvailable.value)
 const scanTypeLabel = computed(() => {
   const profile = task.value?.scan_profile
   if (isDnsTask.value) {
@@ -90,7 +93,7 @@ const summaryStats = computed(() => {
     { title: isDnsTask.value ? '目标域名数' : '发现 IP 数', value: isDnsTask.value ? task.value?.task_target?.length ?? 0 : task.value?.summary?.ip_count ?? 0, desc: '' },
     { title: isDnsTask.value ? '查询内容' : '开放端口数', value: isDnsTask.value ? 'DNS 记录' : task.value?.summary?.port_count ?? 0, desc: '' }
   ]
-  if (isVulnerabilityTask.value) stats.push({ title: '漏洞数', value: task.value?.summary?.vulnerability_count ?? 0, desc: 'Nuclei 有效匹配' })
+  if (isVulnerabilityTask.value) stats.push({ title: '漏洞数', value: vulnerabilitiesAvailable.value ? task.value?.summary?.vulnerability_count ?? 0 : '-', desc: 'Nuclei 有效匹配' })
   stats.push(
     { title: '观察记录数', value: task.value?.summary?.result_count ?? 0, desc: isDnsTask.value ? 'DNS 查询观察' : '端口、服务与漏洞观察' },
     { title: '扫描耗时', value: formatDuration(task.value?.task_start_time, task.value?.task_end_time), desc: '总耗时' }
@@ -336,6 +339,9 @@ onBeforeUnmount(() => {
     <div v-else-if="errorMessage" role="alert" class="alert alert-error"><span>{{ errorMessage }}</span></div>
     <template v-else-if="task">
     <div v-if="actionMessage" role="alert" class="alert alert-info mb-4"><span>{{ actionMessage }}</span></div>
+    <div v-if="hasUnavailableResults" role="alert" class="alert alert-warning mb-4">
+      <span>任务信息已加载，但部分扫描结果索引暂不可用，请稍后刷新。</span>
+    </div>
     <p class="text-sm opacity-70 mb-4 break-words">备注：{{ taskRemark }}</p>
 
     <div class="card mb-5 border border-base-300 bg-base-100 p-4">
@@ -377,9 +383,12 @@ onBeforeUnmount(() => {
         <div v-if="isVulnerabilityTask" class="card bg-base-100 card-border border-base-300 p-4">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 class="font-semibold">漏洞结果</h3>
-            <span class="text-xs opacity-60">最多展示最近 500 条，共 {{ task.summary?.vulnerability_count || 0 }} 条</span>
+            <span class="text-xs opacity-60">最多展示最近 500 条，共 {{ vulnerabilitiesAvailable ? task.summary?.vulnerability_count || 0 : '-' }} 条</span>
           </div>
-          <div v-if="!task.vulnerabilities?.length" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">
+          <div v-if="!vulnerabilitiesAvailable" class="rounded-lg bg-warning/10 p-4 text-sm text-warning">
+            漏洞结果索引暂不可用，请稍后刷新。
+          </div>
+          <div v-else-if="!task.vulnerabilities?.length" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">
             暂未发现符合当前 Nuclei 策略的漏洞。
           </div>
           <div v-else class="flex flex-col gap-3">
@@ -443,7 +452,8 @@ onBeforeUnmount(() => {
             </template>
           </div>
           <div v-else class="flex flex-col gap-2">
-            <div v-if="resultByIp.length === 0" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">暂无扫描结果</div>
+            <div v-if="!endpointResultsAvailable" class="rounded-lg bg-warning/10 p-4 text-sm text-warning">扫描结果索引暂不可用，请稍后刷新。</div>
+            <div v-else-if="resultByIp.length === 0" class="rounded-lg bg-base-200/60 p-6 text-center text-sm opacity-70">暂无扫描结果</div>
             <div v-for="row in resultByIp" :key="row.ip" class="overflow-hidden rounded-lg border border-base-300 bg-base-100 text-sm">
               <div class="flex flex-wrap items-center justify-between gap-2 bg-base-200/60 px-3 py-2">
                 <span class="font-medium">{{ row.ip }}</span>
@@ -468,7 +478,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-          <div v-if="!isDnsTask && task.pagination.total_pages > 1" class="mt-4 flex items-center justify-between">
+          <div v-if="!isDnsTask && endpointResultsAvailable && task.pagination.total_pages > 1" class="mt-4 flex items-center justify-between">
             <span class="text-sm opacity-70">第 {{ task.pagination.page }} / {{ task.pagination.total_pages }} 页</span>
             <div class="join">
               <button class="join-item btn btn-sm" :disabled="page <= 1 || loading" @click="changePage(page - 1)">上一页</button>
@@ -520,7 +530,8 @@ onBeforeUnmount(() => {
 
         <div v-if="!isDnsTask" class="card bg-base-100 card-border border-base-300 p-4">
           <h3 class="font-semibold mb-3">IP 情报</h3>
-          <div class="overflow-x-auto rounded-box border border-base-300">
+          <div v-if="!endpointResultsAvailable" class="rounded-lg bg-warning/10 p-4 text-sm text-warning">IP 情报依赖扫描结果索引，暂时无法显示。</div>
+          <div v-else class="overflow-x-auto rounded-box border border-base-300">
             <table class="table table-sm">
               <thead>
                 <tr>
