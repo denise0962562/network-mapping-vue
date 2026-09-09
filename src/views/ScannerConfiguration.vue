@@ -102,10 +102,6 @@ async function loadConfiguration({ silent = false } = {}) {
 
 async function saveConfiguration() {
   if (saving.value || !isDirty.value) return true
-  if (!changeReason.value.trim()) {
-    pushAlert('warning', '请填写变更原因', '变更原因将进入配置版本历史和审计日志。')
-    return false
-  }
   saving.value = true
   try {
     const response = await http.put(`/api/scanner/${scannerId.value}/configuration`, {
@@ -245,7 +241,7 @@ onMounted(loadConfiguration)
       </section>
 
       <section class="card bg-base-100 card-border border-base-300 p-4">
-        <label class="form-control"><span class="label-text mb-1 block">变更原因</span><textarea v-model="changeReason" maxlength="500" class="textarea textarea-bordered" placeholder="说明本次调整目的；该内容会写入版本历史和审计日志。"></textarea></label>
+        <label class="form-control"><span class="label-text mb-1 block">变更原因（可选）</span><textarea v-model="changeReason" maxlength="500" class="textarea textarea-bordered" placeholder="可选：说明本次调整目的；该内容会写入版本历史和审计日志。"></textarea></label>
         <div class="mt-4 flex flex-wrap justify-end gap-2"><button class="btn btn-ghost" :disabled="saving || !isDirty" @click="loadConfiguration()">放弃修改</button><button class="btn btn-neutral" :disabled="saving || !isDirty" @click="saveConfiguration"><span v-if="saving" class="loading loading-spinner loading-sm"></span>发布配置</button></div>
       </section>
     </div>
