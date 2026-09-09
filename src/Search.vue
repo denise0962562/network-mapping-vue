@@ -26,6 +26,8 @@ const tagCatalog = ref([])
 const examples = [
   'ip IN 192.168.1.0/24 AND port IN (80, 443)',
   'service = "https" AND banner ~ "nginx"',
+  'service = "smtps" AND tls.self_signed = true',
+  'tls.not_after < "2026-10-01T00:00:00Z"',
   'domain = "www.example.com" AND port = 443',
   'tag = "生产环境" AND NOT tag.kind = malicious',
   'tag.category = "运行环境" AND tag = "生产环境"',
@@ -161,6 +163,15 @@ function formatNetworkOwner(item) {
   return [asn, item.as_org || item.isp].filter(Boolean).join(' · ') || '-'
 }
 
+function certificateStatus(item) {
+  if (!item.tls_subject && !item.tls_not_after && !item.tls_version) return null
+  if (item.tls_not_after && Number(item.tls_not_after) <= Date.now()) {
+    return { text: '证书已过期', class: 'badge-error' }
+  }
+  if (item.tls_self_signed === true) return { text: '自签名', class: 'badge-warning' }
+  return { text: item.tls_version || 'TLS', class: 'badge-success' }
+}
+
 function csvCell(value) {
   const text = String(value ?? '')
   const safeText = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text
@@ -172,13 +183,30 @@ function exportCurrentPage() {
 
   exporting.value = true
   try {
-    const header = ['IP', '端口', '协议', '服务', 'Banner', 'ASN / AS 组织', '位置', '扫描时间', '标签']
+    const header = [
+      'IP', '端口', '协议', '服务', 'Banner', '网页标题', 'TLS 模式', 'TLS 版本',
+      'TLS 密码套件', '证书主体', '证书签发者', '证书名称', '证书序列号',
+      '证书生效时间', '证书失效时间', '证书 SHA-256 指纹', '是否自签名',
+      'ASN / AS 组织', '位置', '扫描时间', '标签',
+    ]
     const rows = searchResult.value.items.map((item) => [
       item.ip_address,
       item.port,
       item.protocol,
       item.service,
       item.banner,
+      item.title,
+      item.tls_mode,
+      item.tls_version,
+      item.tls_cipher_suite,
+      item.tls_subject,
+      item.tls_issuer,
+      (item.tls_names || []).join('、'),
+      item.tls_serial_number,
+      formatTime(item.tls_not_before),
+      formatTime(item.tls_not_after),
+      item.tls_fingerprint_sha256,
+      item.tls_self_signed == null ? '' : item.tls_self_signed ? '是' : '否',
       formatNetworkOwner(item),
       formatLocation(item),
       formatTime(item.scan_time),
@@ -270,8 +298,30 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
         <div v-if="searchResult.items.length === 0" class="py-12 text-center opacity-60">没有匹配的资产。</div>
         <div v-else class="overflow-x-auto">
           <table class="table table-zebra table-sm">
-            <thead><tr><th>IP</th><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>ASN / AS 组织</th><th>位置</th><th>扫描时间</th></tr></thead>
-            <tbody><tr v-for="(item, index) in searchResult.items" :key="`${item.ip_address}-${item.port}-${item.scan_time}-${index}`"><td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /></div></td><td>{{ item.port ?? '-' }}</td><td>{{ item.protocol ?? '-' }}</td><td>{{ item.service ?? '-' }}</td><td class="max-w-xs truncate" :title="item.banner">{{ item.banner ?? '-' }}</td><td>{{ formatNetworkOwner(item) }}</td><td>{{ formatLocation(item) }}</td><td class="whitespace-nowrap">{{ formatTime(item.scan_time) }}</td></tr></tbody>
+            <thead><tr><th>IP</th><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>网页 / TLS</th><th>ASN / AS 组织</th><th>位置</th><th>扫描时间</th></tr></thead>
+            <tbody>
+              <tr v-for="(item, index) in searchResult.items" :key="`${item.ip_address}-${item.port}-${item.scan_time}-${index}`">
+                <td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /></div></td>
+                <td>{{ item.port ?? '-' }}</td>
+                <td>{{ item.protocol ?? '-' }}</td>
+                <td>{{ item.service ?? '-' }}</td>
+                <td class="max-w-xs truncate" :title="item.banner">{{ item.banner ?? '-' }}</td>
+                <td class="min-w-64 max-w-sm">
+                  <div v-if="item.title || item.tls_subject || item.tls_version" class="space-y-1">
+                    <div v-if="item.title" class="truncate font-medium" :title="item.title">{{ item.title }}</div>
+                    <div v-if="certificateStatus(item)" class="flex flex-wrap items-center gap-1">
+                      <span class="badge badge-sm" :class="certificateStatus(item).class">{{ certificateStatus(item).text }}</span>
+                      <span v-if="item.tls_mode" class="badge badge-ghost badge-sm">{{ item.tls_mode }}</span>
+                    </div>
+                    <div v-if="item.tls_subject" class="truncate font-mono text-xs opacity-70" :title="item.tls_subject">{{ item.tls_subject }}</div>
+                  </div>
+                  <span v-else>-</span>
+                </td>
+                <td>{{ formatNetworkOwner(item) }}</td>
+                <td>{{ formatLocation(item) }}</td>
+                <td class="whitespace-nowrap">{{ formatTime(item.scan_time) }}</td>
+              </tr>
+            </tbody>
           </table>
         </div>
         <div v-if="searchResult.total > PAGE_SIZE" class="mt-5 flex justify-end gap-2"><button class="btn btn-sm" :disabled="loading || offset === 0" @click="previousPage">上一页</button><button class="btn btn-sm" :disabled="loading || offset + PAGE_SIZE >= searchResult.total" @click="nextPage">下一页</button></div>
@@ -306,12 +356,18 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
           <code class="block rounded bg-base-300 px-2 py-1">service = "https" AND banner ~ "nginx"</code>
         </div>
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
+          <p class="font-medium">TLS 与证书字段</p>
+          <code class="block rounded bg-base-300 px-2 py-1">service = "smtps" AND tls.self_signed = true</code>
+          <code class="block rounded bg-base-300 px-2 py-1">tls.not_after &lt; "2026-10-01T00:00:00Z"</code>
+          <code class="block rounded bg-base-300 px-2 py-1">tls.san = "mail.example.com"</code>
+        </div>
+        <div class="rounded-lg bg-base-200 p-3 space-y-2">
           <p class="font-medium">同一资产的多个端点</p>
           <code class="block rounded bg-base-300 px-2 py-1">has_endpoint(port = 80) AND has_endpoint(port = 443)</code>
         </div>
         <div class="rounded-lg border border-base-300 p-3">
           <p class="font-medium">支持字段</p>
-          <p class="mt-1 break-words font-mono text-xs opacity-70">ip, domain, asn, isp, org, country, city, tag, tag.id, tag.kind, tag.category, port, protocol, service, banner, source, scanner, first_seen, last_seen</p>
+          <p class="mt-1 break-words font-mono text-xs opacity-70">ip, domain, asn, isp, org, country, city, tag, tag.id, tag.kind, tag.category, port, protocol, service, banner, title, http.body, tls.mode, tls.version, tls.cipher, tls.subject, tls.issuer, tls.san, tls.serial, tls.not_before, tls.not_after, tls.fingerprint, tls.self_signed, source, scanner, first_seen, last_seen</p>
         </div>
       </div>
 
