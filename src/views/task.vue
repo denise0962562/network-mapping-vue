@@ -66,6 +66,7 @@ function normalizeTask(item) {
   const isDnsTask = item.task_kind === 'dns'
   return {
     taskId: item.task_id || '-',
+    source: item.task_source,
     scannerId: item.scanner_id || '-',
     target: targets,
     taskKind: isDnsTask ? 'dns' : 'ip',
@@ -404,6 +405,7 @@ onMounted(async () => {
                       <router-link class="link block truncate font-mono text-xs" :to="`/task/${taskItem.taskId}`" :title="taskItem.taskId" @click.stop>
                         {{ taskItem.taskId }}
                       </router-link>
+                      <span v-if="taskItem.source === 'search'" class="badge badge-info badge-soft badge-xs mt-1">搜索生成</span>
                     </td>
                     <td class="max-w-32 truncate font-mono text-xs" :title="taskItem.scannerId">{{ taskItem.scannerId }}</td>
                     <td class="max-w-60 truncate" :title="taskItem.target">

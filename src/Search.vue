@@ -22,6 +22,18 @@ const activeSearch = ref(null)
 const offset = ref(0)
 const syntaxDialogRef = ref(null)
 const tagCatalog = ref([])
+const autoGeneration = ref(null)
+let searchSequence = 0
+const generationMessage = computed(() => ({
+  created: '已创建目标更新任务，扫描完成后可重新搜索。',
+  existing: '该目标已有任务正在排队或执行。',
+  cooldown: '该目标近期已由搜索生成任务，冷却期间不会重复创建。',
+  fresh: '该目标数据仍在有效期内，无需创建更新任务。',
+  queue_full: '搜索更新队列已满，请稍后重新搜索。',
+  rate_limited: '本小时搜索生成任务已达上限。',
+  out_of_scope: '该目标不在已启用的搜索扫描范围内。',
+  unavailable: '自动更新暂不可用，请稍后重新搜索确认任务状态。',
+}[autoGeneration.value?.status] || ''))
 
 const examples = [
   'ip IN 192.168.1.0/24 AND port IN (80, 443)',
@@ -76,8 +88,9 @@ function pickHistory(item) {
   doSearch()
 }
 
-async function runSearch(nextOffset = 0) {
+async function runSearch(nextOffset = 0, generateIfNeeded = false) {
   if (!activeSearch.value) return
+  const sequence = ++searchSequence
   loading.value = true
   errorMessage.value = ''
   errorSpan.value = null
@@ -87,10 +100,14 @@ async function runSearch(nextOffset = 0) {
       query,
       limit: PAGE_SIZE,
       offset: nextOffset,
+      generate_if_needed: generateIfNeeded,
     })
+    if (sequence !== searchSequence) return
+    if (generateIfNeeded) autoGeneration.value = response.data.auto_generation || null
     searchResult.value = response.data
     offset.value = nextOffset
   } catch (error) {
+    if (sequence !== searchSequence) return
     searchResult.value = null
     errorMessage.value = error.response?.data?.message || '搜索失败，请稍后重试。'
     errorSpan.value = error.response?.data?.span || null
@@ -100,13 +117,17 @@ async function runSearch(nextOffset = 0) {
       searchInputRef.value?.setSelectionRange(errorSpan.value.start, errorSpan.value.end)
     }
   } finally {
-    loading.value = false
+    if (sequence === searchSequence) loading.value = false
   }
 }
 
 function doSearch() {
   const query = searchInput.value.trim()
   if (!query) {
+    ++searchSequence
+    loading.value = false
+    activeSearch.value = null
+    autoGeneration.value = null
     searchResult.value = null
     errorMessage.value = '请输入搜索内容'
     errorSpan.value = null
@@ -115,7 +136,8 @@ function doSearch() {
   activeSearch.value = { type: 'advanced', query }
   pushHistory(query, 'advanced')
   showHistory.value = false
-  runSearch(0)
+  autoGeneration.value = null
+  runSearch(0, true)
 }
 
 function useExample(query) {
@@ -283,6 +305,14 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
 
       <div v-if="errorMessage" role="alert" class="alert alert-error mx-auto mt-6 max-w-2xl">
         <span>{{ errorMessage }}<span v-if="errorSpan">（位置 {{ errorSpan.start + 1 }}）</span></span>
+      </div>
+
+      <div v-if="generationMessage" role="status" class="alert alert-info alert-soft mx-auto mt-6 max-w-2xl text-sm">
+        <span>
+          {{ generationMessage }}
+          <span v-if="autoGeneration.status === 'cooldown' && autoGeneration.next_eligible_at">冷却至 {{ formatTime(autoGeneration.next_eligible_at) }}。</span>
+        </span>
+        <a v-if="autoGeneration.task_id" :href="`/task/${autoGeneration.task_id}`" class="link whitespace-nowrap" target="_blank" rel="noopener">查看任务</a>
       </div>
 
       <section v-if="searchResult" class="mt-10 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">

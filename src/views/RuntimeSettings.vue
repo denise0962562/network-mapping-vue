@@ -28,6 +28,11 @@ const defaults = {
     alert_cooldown_seconds: 300,
   },
   automatic_target: {
+    search_generation: {
+      enabled: false, stale_after_days: 7, cooldown_minutes: 1440,
+      max_pending_tasks: 100, per_user_hourly_limit: 20,
+      domain_enabled: false, authorized_domains: [],
+    },
     enabled: false,
     strategy: 'sequential_subnet',
     interval_seconds: 30,
@@ -60,6 +65,7 @@ const settings = reactive(structuredClone(defaults))
 const savedDocuments = reactive({})
 const changeReasons = reactive(Object.fromEntries(namespaces.map(({ key }) => [key, ''])))
 const cidrText = reactive({
+  searchDomains: '',
   automaticAuthorized: '',
   automaticExcluded: '',
   automaticIpv6Authorized: '',
@@ -102,6 +108,7 @@ function documentFor(namespace) {
   if (namespace === 'automatic_target') {
     return {
       ...settings.automatic_target,
+      search_generation: { ...settings.automatic_target.search_generation, authorized_domains: linesToList(cidrText.searchDomains) },
       authorized_cidrs: linesToList(cidrText.automaticAuthorized),
       excluded_cidrs: linesToList(cidrText.automaticExcluded),
       ipv6_authorized_cidrs: linesToList(cidrText.automaticIpv6Authorized),
@@ -122,6 +129,8 @@ function applyDocument(namespace, document, revision) {
   settings[namespace] = { ...clone(defaults[namespace]), ...clone(document) }
   revisions[namespace] = revision
   if (namespace === 'automatic_target') {
+    settings.automatic_target.search_generation = { ...clone(defaults.automatic_target.search_generation), ...clone(document.search_generation || {}) }
+    cidrText.searchDomains = listToLines(settings.automatic_target.search_generation.authorized_domains)
     cidrText.automaticAuthorized = listToLines(document.authorized_cidrs)
     cidrText.automaticExcluded = listToLines(document.excluded_cidrs)
     cidrText.automaticIpv6Authorized = listToLines(document.ipv6_authorized_cidrs)
@@ -262,6 +271,19 @@ onMounted(loadAll)
         </template>
 
         <template v-else-if="activeItem.key === 'automatic_target'">
+          <div class="rounded-lg border border-base-300 p-4 space-y-3">
+            <h3 class="font-semibold">搜索触发更新</h3>
+            <p class="text-xs opacity-60">主动搜索单个明确 IP 或域名时，数据缺失或过期则创建任务；翻页不触发。IP 使用下方授权范围、排除范围、端口和优先级，开关独立于周期生成。</p>
+            <label class="flex items-center gap-3"><input v-model="settings.automatic_target.search_generation.enabled" type="checkbox" class="toggle" /><span>启用搜索生成</span></label>
+            <div class="grid gap-3 md:grid-cols-2">
+              <label class="form-control"><span class="label-text mb-1">数据有效期（天）</span><input v-model.number="settings.automatic_target.search_generation.stale_after_days" type="number" min="1" max="3650" class="input input-bordered" /></label>
+              <label class="form-control"><span class="label-text mb-1">同一用户、目标的冷却期（分钟）</span><input v-model.number="settings.automatic_target.search_generation.cooldown_minutes" type="number" min="1" max="525600" class="input input-bordered" /></label>
+              <label class="form-control"><span class="label-text mb-1">搜索待执行任务上限</span><input v-model.number="settings.automatic_target.search_generation.max_pending_tasks" type="number" min="1" max="10000" class="input input-bordered" /></label>
+              <label class="form-control"><span class="label-text mb-1">每用户每小时创建上限</span><input v-model.number="settings.automatic_target.search_generation.per_user_hourly_limit" type="number" min="1" max="10000" class="input input-bordered" /></label>
+            </div>
+            <label class="flex items-center gap-3"><input v-model="settings.automatic_target.search_generation.domain_enabled" type="checkbox" class="toggle" /><span>允许域名搜索生成</span></label>
+            <label class="form-control"><span class="label-text mb-1">授权域名（每行一个，包含其子域名）</span><textarea v-model="cidrText.searchDomains" class="textarea textarea-bordered font-mono" rows="3" placeholder="example.com"></textarea><span class="label-text-alt mt-1 opacity-60">域名生成还需启用 DNS 后续扫描；解析出的地址按 DNS 后续扫描授权范围过滤。</span></label>
+          </div>
           <div class="alert alert-warning alert-soft text-sm">自动目标会创建实际扫描任务。只允许填写已获得明确授权的网段；启用前请复核范围、端口和优先级。</div>
           <div class="grid gap-3 lg:grid-cols-2">
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv4 自动生成</span><span class="mt-1 block text-xs opacity-60">必须配置授权 IPv4 CIDR。</span></span></label>

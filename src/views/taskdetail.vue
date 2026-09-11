@@ -342,7 +342,7 @@ onBeforeUnmount(() => {
     <div v-if="hasUnavailableResults" role="alert" class="alert alert-warning mb-4">
       <span>任务信息已加载，但部分扫描结果索引暂不可用，请稍后刷新。</span>
     </div>
-    <p class="text-sm opacity-70 mb-4 break-words">备注：{{ taskRemark }}</p>
+    <p class="text-sm opacity-70 mb-4 break-words"><span v-if="task.task_source === 'search'" class="badge badge-info badge-soft badge-sm mr-2">搜索生成</span>备注：{{ taskRemark }}</p>
 
     <div class="card mb-5 border border-base-300 bg-base-100 p-4">
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">

@@ -467,6 +467,7 @@ onBeforeUnmount(() => {
               <option value="">全部来源</option>
               <option value="manual">手动任务</option>
               <option value="automatic">自动任务</option>
+              <option value="search">搜索生成</option>
             </select>
           </label>
 
