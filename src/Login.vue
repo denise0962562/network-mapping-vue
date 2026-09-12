@@ -112,6 +112,12 @@ async function handleTotpVerify() {
       return
     }
 
+    if (response.status === 403 && response.data?.code === 'login_ip_not_allowlisted') {
+      isTotpRequired.value = false
+      totpToken.value = ''
+      expireCookie('csrf_token')
+    }
+
     openLoginError(response.data?.message || '验证码验证失败', response.data?.description)
   } catch (error) {
     openLoginError('验证码验证失败', '请检查网络连接后重试。')

@@ -16,6 +16,7 @@ const creating = ref(false)
 const createDialog = ref(null)
 const deleteDialog = ref(null)
 const loginDialog = ref(null)
+const allowlistDialog = ref(null)
 const deleteTarget = ref(null)
 const deleteConfirmation = ref('')
 const showPassword = ref(false)
@@ -26,6 +27,15 @@ const loginRecordsLoading = ref(false)
 const loginRecordsFailed = ref(false)
 const loginOutcome = ref('')
 const loginPagination = ref({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
+const allowlistTarget = ref(null)
+const allowlistText = ref('')
+const allowlistLoading = ref(false)
+const allowlistSaving = ref(false)
+const maximumAllowlistEntries = ref(64)
+
+const allowlistEntries = computed(() => (
+  [...new Set(allowlistText.value.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean))]
+))
 
 function emptyCreateForm() {
   return { username: '', email: '', password: '', role: 2 }
@@ -69,6 +79,7 @@ function loginReasonLabel(value) {
   return {
     invalid_credentials: '用户名或密码错误',
     invalid_totp: '2FA 验证码错误',
+    ip_not_allowlisted: '登录 IP 不在白名单中',
     legacy_login_failure: '旧版登录失败'
   }[value] || '--'
 }
@@ -258,6 +269,60 @@ function closeLoginDialog() {
   loginRecords.value = []
 }
 
+async function openAllowlistDialog(user) {
+  allowlistTarget.value = user
+  allowlistText.value = ''
+  allowlistLoading.value = true
+  allowlistDialog.value?.showModal()
+  try {
+    const response = await http.get(`/api/admin/users/${user.id}/login-ip-allowlist`)
+    allowlistText.value = Array.isArray(response.data?.data?.entries)
+      ? response.data.data.entries.join('\n')
+      : ''
+    maximumAllowlistEntries.value = Number(response.data?.limits?.maximumEntries) || 64
+  } catch (error) {
+    console.error('load managed user login IP allowlist failed', error)
+    pushAlert('error', '登录白名单加载失败', apiMessage(error, '请稍后重试。'))
+    allowlistDialog.value?.close()
+  } finally {
+    allowlistLoading.value = false
+  }
+}
+
+function closeAllowlistDialog() {
+  if (!allowlistSaving.value) allowlistDialog.value?.close()
+}
+
+async function saveManagedAllowlist() {
+  if (!allowlistTarget.value || allowlistSaving.value) return
+  if (allowlistEntries.value.length > maximumAllowlistEntries.value) {
+    pushAlert('warning', '登录白名单条目过多', `最多允许 ${maximumAllowlistEntries.value} 条地址。`)
+    return
+  }
+  allowlistSaving.value = true
+  try {
+    const response = await http.put(
+      `/api/admin/users/${allowlistTarget.value.id}/login-ip-allowlist`,
+      { entries: allowlistEntries.value },
+      { validateStatus: () => true }
+    )
+    if (response.status !== 200 || response.data?.success !== true) {
+      pushAlert('error', '登录白名单保存失败', response.data?.message || '请检查 IP 和 CIDR 格式后重试。')
+      return
+    }
+    const count = response.data?.data?.entries?.length || 0
+    const managedUser = users.value.find((value) => value.id === allowlistTarget.value.id)
+    if (managedUser) managedUser.loginIpAllowlistCount = count
+    allowlistDialog.value?.close()
+    pushAlert('success', '登录白名单已保存', count ? `已配置 ${count} 条允许地址。` : '登录来源限制已清空。', 5000)
+  } catch (error) {
+    console.error('save managed user login IP allowlist failed', error)
+    pushAlert('error', '登录白名单保存失败', apiMessage(error, '请稍后重试。'))
+  } finally {
+    allowlistSaving.value = false
+  }
+}
+
 onMounted(() => loadUsers({ page: 1 }))
 </script>
 
@@ -339,6 +404,9 @@ onMounted(() => loadUsers({ page: 1 }))
                 <div class="flex flex-wrap justify-end gap-1">
                   <button class="btn btn-ghost btn-xs" @click="openLoginDialog(managedUser)">登录记录</button>
                   <template v-if="managedUser.status !== 'deleted'">
+                    <button class="btn btn-ghost btn-xs" @click="openAllowlistDialog(managedUser)">
+                      白名单<span v-if="managedUser.loginIpAllowlistCount" class="badge badge-xs">{{ managedUser.loginIpAllowlistCount }}</span>
+                    </button>
                     <button class="btn btn-ghost btn-xs" :disabled="managedUser.isSelf || actionUserId !== null || managedUser.activeSessionCount === 0" @click="kickUser(managedUser)">踢出</button>
                     <button class="btn btn-outline btn-xs" :class="managedUser.status === 'disabled' ? 'btn-success' : 'btn-warning'" :disabled="managedUser.isSelf || actionUserId !== null" @click="toggleUser(managedUser)">{{ managedUser.status === 'disabled' ? '启用' : '禁用' }}</button>
                     <button class="btn btn-error btn-outline btn-xs" :disabled="managedUser.isSelf || actionUserId !== null" @click="openDeleteDialog(managedUser)">删除</button>
@@ -425,5 +493,32 @@ onMounted(() => loadUsers({ page: 1 }))
       <div class="modal-action"><button class="btn" :disabled="actionUserId !== null" @click="closeDeleteDialog">取消</button><button class="btn btn-error" :disabled="!canDelete || actionUserId !== null" @click="deleteUser"><span v-if="actionUserId === deleteTarget.id" class="loading loading-spinner loading-xs"></span>确认删除</button></div>
     </div>
     <form method="dialog" class="modal-backdrop"><button :disabled="actionUserId !== null">关闭</button></form>
+  </dialog>
+
+  <dialog ref="allowlistDialog" class="modal" @close="allowlistTarget = null; allowlistText = ''">
+    <form v-if="allowlistTarget" class="modal-box w-[calc(100vw-2rem)] max-w-xl" @submit.prevent="saveManagedAllowlist">
+      <h3 class="text-lg font-semibold">{{ allowlistTarget.username }} 的登录 IP 白名单</h3>
+      <p class="mt-1 text-xs opacity-60">每行填写一个 IPv4、IPv6 或 CIDR。留空保存可解除因误配置造成的登录限制。</p>
+      <div v-if="allowlistLoading" class="skeleton mt-5 h-44 w-full rounded-box"></div>
+      <template v-else>
+        <textarea
+          v-model="allowlistText"
+          class="textarea textarea-bordered mt-5 min-h-44 w-full font-mono text-sm"
+          placeholder="192.0.2.10&#10;10.0.0.0/8&#10;2001:db8::/48"
+          :disabled="allowlistSaving"
+        ></textarea>
+        <div class="mt-2 flex justify-between gap-2 text-xs">
+          <span class="opacity-60">回环地址和内网地址也必须显式配置。</span>
+          <span :class="allowlistEntries.length > maximumAllowlistEntries ? 'text-error' : 'opacity-60'">{{ allowlistEntries.length }} / {{ maximumAllowlistEntries }} 条</span>
+        </div>
+      </template>
+      <div class="modal-action">
+        <button type="button" class="btn" :disabled="allowlistSaving" @click="closeAllowlistDialog">取消</button>
+        <button type="submit" class="btn btn-neutral" :disabled="allowlistLoading || allowlistSaving || allowlistEntries.length > maximumAllowlistEntries">
+          <span v-if="allowlistSaving" class="loading loading-spinner loading-xs"></span>保存
+        </button>
+      </div>
+    </form>
+    <form method="dialog" class="modal-backdrop"><button :disabled="allowlistSaving">关闭</button></form>
   </dialog>
 </template>

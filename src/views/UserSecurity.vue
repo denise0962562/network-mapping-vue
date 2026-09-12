@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import VueQrcode from 'vue-qrcode'
 import AppAlert from '@/components/AppAlert.vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 import { expireCookie } from '@/utils/csrf'
 
@@ -18,6 +19,18 @@ const newPassword = ref('')
 const confirmPassword = ref('')
 const passwordSaving = ref(false)
 const passwordDialogRef = ref(null)
+const allowlistLoading = ref(true)
+const allowlistSaving = ref(false)
+const allowlistText = ref('')
+const savedAllowlistText = ref('')
+const currentIp = ref('')
+const maximumAllowlistEntries = ref(64)
+
+const allowlistEntries = computed(() => (
+  [...new Set(allowlistText.value.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean))]
+))
+const allowlistDirty = computed(() => allowlistText.value !== savedAllowlistText.value)
+const allowlistTooLarge = computed(() => allowlistEntries.value.length > maximumAllowlistEntries.value)
 
 const twoFactorStatus = computed(() => {
   if (!twoFactorEnabled.value) return '关闭'
@@ -124,6 +137,68 @@ async function fetchTotpStatus() {
   }
 }
 
+function applyAllowlistResponse(response) {
+  const entries = Array.isArray(response.data?.data?.entries) ? response.data.data.entries : []
+  const text = entries.join('\n')
+  allowlistText.value = text
+  savedAllowlistText.value = text
+  currentIp.value = response.data?.data?.currentIp || ''
+  maximumAllowlistEntries.value = Number(response.data?.limits?.maximumEntries) || 64
+}
+
+async function fetchLoginAllowlist() {
+  allowlistLoading.value = true
+  try {
+    const response = await http.get('/api/user/security/login-ip-allowlist')
+    if (response.data?.success !== true || !response.data?.data) {
+      throw new Error('服务器未返回有效登录白名单')
+    }
+    applyAllowlistResponse(response)
+  } catch (error) {
+    console.error('fetch login IP allowlist failed', error)
+    pushAlert('error', '登录白名单加载失败', error.response?.data?.message || '请稍后刷新页面重试。')
+  } finally {
+    allowlistLoading.value = false
+  }
+}
+
+function addCurrentIp() {
+  if (!currentIp.value || allowlistEntries.value.includes(currentIp.value)) return
+  allowlistText.value = [...allowlistEntries.value, currentIp.value].join('\n')
+}
+
+async function saveLoginAllowlist() {
+  if (allowlistSaving.value || allowlistTooLarge.value) return false
+  allowlistSaving.value = true
+  try {
+    const response = await http.put('/api/user/security/login-ip-allowlist', {
+      entries: allowlistEntries.value,
+    }, {
+      validateStatus: () => true,
+    })
+    if (response.status !== 200 || response.data?.success !== true) {
+      pushAlert('error', '登录白名单保存失败', response.data?.message || '请检查 IP 和 CIDR 格式后重试。')
+      return false
+    }
+    applyAllowlistResponse(response)
+    pushAlert(
+      'success',
+      '登录白名单已保存',
+      allowlistEntries.value.length > 0 ? '后续登录仅允许白名单内的来源 IP。' : '登录来源限制已关闭。',
+      5000
+    )
+    return true
+  } catch (error) {
+    console.error('save login IP allowlist failed', error)
+    pushAlert('error', '登录白名单保存失败', '请检查网络连接后重试。')
+    return false
+  } finally {
+    allowlistSaving.value = false
+  }
+}
+
+useUnsavedChanges(allowlistDirty, saveLoginAllowlist)
+
 async function onToggleTwoFactor(event) {
   const checked = event.target.checked
 
@@ -226,6 +301,7 @@ async function confirmTwoFactorBinding() {
 
 onMounted(() => {
   fetchTotpStatus()
+  fetchLoginAllowlist()
 })
 </script>
 
@@ -258,6 +334,57 @@ onMounted(() => {
         <button type="button" class="btn btn-neutral btn-sm" @click="openPasswordDialog">修改密码</button>
       </div>
     </div>
+    <div class="card bg-base-100 card-border border-base-300 mb-5 p-4">
+      <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-semibold">登录 IP 白名单</h3>
+            <span class="badge badge-sm" :class="allowlistEntries.length ? 'badge-success' : 'badge-ghost'">
+              {{ allowlistEntries.length ? '已启用' : '未启用' }}
+            </span>
+          </div>
+          <p class="mt-1 text-xs opacity-60">设置后，仅允许匹配的 IPv4、IPv6 或 CIDR 地址登录。回环地址和内网地址不会自动放行。</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn-neutral btn-sm"
+          :disabled="allowlistLoading || allowlistSaving || !allowlistDirty || allowlistTooLarge"
+          @click="saveLoginAllowlist"
+        >
+          {{ allowlistSaving ? '保存中...' : '保存白名单' }}
+        </button>
+      </div>
+
+      <div v-if="allowlistLoading" class="skeleton h-44 w-full rounded-box"></div>
+      <div v-else class="space-y-3">
+        <div class="flex flex-wrap items-center gap-2 rounded-box bg-base-200 px-3 py-2 text-sm">
+          <span class="opacity-60">当前识别 IP</span>
+          <code class="font-medium">{{ currentIp || '无法识别' }}</code>
+          <button v-if="currentIp" type="button" class="btn btn-ghost btn-xs ml-auto" @click="addCurrentIp">添加当前 IP</button>
+        </div>
+
+        <label class="form-control">
+          <span class="label-text mb-1 text-sm">允许登录的地址</span>
+          <textarea
+            v-model="allowlistText"
+            class="textarea textarea-bordered min-h-36 w-full font-mono text-sm"
+            :disabled="allowlistSaving"
+            placeholder="192.0.2.10&#10;10.0.0.0/8&#10;2001:db8::/48"
+          ></textarea>
+        </label>
+
+        <div class="flex flex-wrap justify-between gap-2 text-xs">
+          <p class="opacity-60">每行填写一个地址；留空并保存表示关闭限制。当前会话不会因修改立即失效。</p>
+          <p :class="allowlistTooLarge ? 'text-error' : 'opacity-60'">
+            {{ allowlistEntries.length }} / {{ maximumAllowlistEntries }} 条
+          </p>
+        </div>
+        <div v-if="allowlistEntries.length && currentIp" class="alert alert-warning py-2 text-sm">
+          保存前请确认白名单覆盖当前及后续登录所使用的网络；错误设置可能导致账号无法再次登录。
+        </div>
+      </div>
+    </div>
+
     <div class="card bg-base-100 card-border border-base-300 p-4">
       <div class="mb-4">
         <h3 class="font-semibold">2FA 设置</h3>

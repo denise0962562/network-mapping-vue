@@ -80,6 +80,7 @@ function loginReasonLabel(value) {
   return {
     invalid_credentials: '用户名或密码错误',
     invalid_totp: '2FA 验证码错误',
+    ip_not_allowlisted: '登录 IP 不在白名单中',
     legacy_login_failure: '旧版登录失败'
   }[value] || '--'
 }
