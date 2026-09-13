@@ -75,6 +75,11 @@ export default defineConfig({
         target: 'https://localhost:9999',
         changeOrigin: true,
         secure: false,
+      },
+      '/logout': {
+        target: 'https://localhost:9999',
+        changeOrigin: true,
+        secure: false,
       }
     }
   }
