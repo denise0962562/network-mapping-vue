@@ -102,6 +102,7 @@ const filters = ref({
   path: queryString(route.query.path),
   status: '',
   error_type: '',
+  reason_code: '',
   only_errors: false,
   request_id: ''
 })
@@ -171,7 +172,7 @@ function ensureValidGranularity() {
 
 function buildParams(includePagination = true, includeWindow = false) {
   const params = {}
-  for (const key of ['method', 'path', 'status', 'error_type', 'request_id']) {
+  for (const key of ['method', 'path', 'status', 'error_type', 'reason_code', 'request_id']) {
     if (filters.value[key]) params[key] = filters.value[key]
   }
   if (filters.value.only_errors) params.only_errors = true
@@ -249,7 +250,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  filters.value = { window: '24h', method: '', path: '', status: '', error_type: '', only_errors: false, request_id: '' }
+  filters.value = { window: '24h', method: '', path: '', status: '', error_type: '', reason_code: '', only_errors: false, request_id: '' }
   granularity.value = 'auto'
   page.value = 1
   loadAll()
@@ -436,6 +437,7 @@ onMounted(loadAll)
               <option v-for="(label, value) in errorTypeLabels" :key="value" :value="value">{{ label }}</option>
             </select>
           </label>
+          <input v-model.trim="filters.reason_code" class="input input-bordered w-full self-end" placeholder="具体原因代码" @keyup.enter="applyFilters" />
           <input v-model.trim="filters.request_id" class="input input-bordered w-full self-end" placeholder="请求 ID (UUID)" @keyup.enter="applyFilters" />
           <label class="flex cursor-pointer items-center gap-2 self-end pb-3">
             <input v-model="filters.only_errors" type="checkbox" class="checkbox checkbox-sm" />
@@ -492,6 +494,7 @@ onMounted(loadAll)
               <th>操作者</th>
               <th>请求 ID</th>
               <th>错误类型</th>
+              <th>具体原因</th>
             </tr>
           </thead>
           <tbody>
@@ -510,6 +513,10 @@ onMounted(loadAll)
                 <span v-if="item.error_type" class="badge badge-sm" :class="{ 'badge-error': item.error_level === 'server_error', 'badge-warning': item.error_level === 'client_error' }">
                   {{ errorTypeLabel(item.error_type) }}
                 </span>
+                <span v-else class="text-base-content/40">--</span>
+              </td>
+              <td class="max-w-64">
+                <span v-if="item.reason_code" class="block truncate font-mono text-xs" :title="item.reason_code">{{ item.reason_code }}</span>
                 <span v-else class="text-base-content/40">--</span>
               </td>
             </tr>
