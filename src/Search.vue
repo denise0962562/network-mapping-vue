@@ -7,6 +7,7 @@ import { formatLocation } from './utils/location'
 const STORAGE_KEY = 'network_mapping_search_history'
 const MAX_HISTORY = 12
 const PAGE_SIZE = 50
+const MAX_RESULT_WINDOW = 10000
 
 const searchInput = ref('')
 const searchHistory = ref([])
@@ -20,6 +21,8 @@ const errorSpan = ref(null)
 const searchResult = ref(null)
 const activeSearch = ref(null)
 const offset = ref(0)
+const sortField = ref('last_seen')
+const sortOrder = ref('desc')
 const syntaxDialogRef = ref(null)
 const tagCatalog = ref([])
 const autoGeneration = ref(null)
@@ -100,6 +103,8 @@ async function runSearch(nextOffset = 0, generateIfNeeded = false) {
       query,
       limit: PAGE_SIZE,
       offset: nextOffset,
+      sort_field: sortField.value,
+      sort_order: sortOrder.value,
       generate_if_needed: generateIfNeeded,
     })
     if (sequence !== searchSequence) return
@@ -172,7 +177,12 @@ function previousPage() {
 }
 
 function nextPage() {
-  if (searchResult.value && offset.value + PAGE_SIZE < searchResult.value.total) runSearch(offset.value + PAGE_SIZE)
+  if (searchResult.value && offset.value + PAGE_SIZE < Math.min(searchResult.value.total, MAX_RESULT_WINDOW)) runSearch(offset.value + PAGE_SIZE)
+}
+
+function changeSortField() {
+  sortOrder.value = ['last_seen', 'first_seen'].includes(sortField.value) ? 'desc' : 'asc'
+  runSearch(0)
 }
 
 function formatTime(timestamp) {
@@ -320,6 +330,19 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
           <h2 class="text-lg font-semibold">组合搜索结果</h2>
           <div class="flex flex-wrap items-center gap-3">
             <span class="text-sm opacity-70">“{{ searchResult.query }}” · 共 {{ searchResult.total }} 条</span>
+            <label class="flex items-center gap-1 text-sm">
+              <span>排序</span>
+              <select v-model="sortField" class="select select-bordered select-sm" aria-label="排序字段" :disabled="loading" @change="changeSortField">
+                <option value="last_seen">扫描时间</option>
+                <option value="first_seen">首次发现</option>
+                <option value="ip">IP</option>
+                <option value="port">端口</option>
+              </select>
+              <select v-model="sortOrder" class="select select-bordered select-sm" aria-label="排序方向" :disabled="loading" @change="runSearch(0)">
+                <option value="desc">降序</option>
+                <option value="asc">升序</option>
+              </select>
+            </label>
             <button class="btn btn-outline btn-sm" :disabled="loading || exporting || searchResult.items.length === 0" @click="exportCurrentPage">
               {{ exporting ? '导出中…' : '导出当前页 CSV' }}
             </button>
@@ -354,7 +377,11 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
             </tbody>
           </table>
         </div>
-        <div v-if="searchResult.total > PAGE_SIZE" class="mt-5 flex justify-end gap-2"><button class="btn btn-sm" :disabled="loading || offset === 0" @click="previousPage">上一页</button><button class="btn btn-sm" :disabled="loading || offset + PAGE_SIZE >= searchResult.total" @click="nextPage">下一页</button></div>
+        <div v-if="searchResult.total > PAGE_SIZE" class="mt-5 flex flex-wrap items-center justify-end gap-2">
+          <span v-if="searchResult.total > MAX_RESULT_WINDOW" class="mr-auto text-xs opacity-60">最多可浏览前 {{ MAX_RESULT_WINDOW }} 条结果。</span>
+          <button class="btn btn-sm" :disabled="loading || offset === 0" @click="previousPage">上一页</button>
+          <button class="btn btn-sm" :disabled="loading || offset + PAGE_SIZE >= Math.min(searchResult.total, MAX_RESULT_WINDOW)" @click="nextPage">下一页</button>
+        </div>
       </section>
     </div>
   </main>
