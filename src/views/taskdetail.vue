@@ -409,7 +409,7 @@ onBeforeUnmount(() => {
                 <div v-if="finding.tags?.length" class="flex flex-wrap gap-1"><span v-for="tag in finding.tags" :key="tag" class="badge badge-ghost badge-sm">{{ tag }}</span></div>
                 <div v-if="finding.extracted_results?.length"><span class="opacity-60">提取结果：</span><span class="break-all">{{ finding.extracted_results.join('；') }}</span></div>
                 <div v-if="finding.references?.length" class="flex flex-col gap-1">
-                  <a v-for="reference in finding.references" :key="reference" class="link link-primary break-all" :href="reference" target="_blank" rel="noopener noreferrer">{{ reference }}</a>
+                  <a v-for="reference in finding.references" :key="reference" class="link link-neutral break-all" :href="reference" target="_blank" rel="noopener noreferrer">{{ reference }}</a>
                 </div>
                 <div class="text-xs opacity-60">发现时间：{{ formatTime(finding.observed_at) }}</div>
               </div>

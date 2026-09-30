@@ -123,11 +123,11 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
       <router-link class="btn btn-sm btn-ghost" to="/reports">← 报告中心</router-link>
       <div class="flex flex-wrap gap-2">
         <button class="btn btn-sm btn-ghost" :disabled="loading" @click="load({ silent: true })">刷新</button>
-        <button v-if="report?.status === 'failed'" class="btn btn-sm btn-primary" :disabled="actionLoading" @click="action('retry')">重试生成</button>
+        <button v-if="report?.status === 'failed'" class="btn btn-sm btn-neutral" :disabled="actionLoading" @click="action('retry')">重试生成</button>
         <button v-if="report && ['ready', 'failed'].includes(report.status)" class="btn btn-sm" :disabled="actionLoading" @click="action('revisions')">生成修订版</button>
         <template v-if="report?.status === 'ready'">
           <button class="btn btn-sm" @click="exportCsv">导出 CSV</button><button class="btn btn-sm" @click="printReport">打印</button>
-          <button class="btn btn-sm btn-primary" :disabled="actionLoading || deliveries.some((d) => ['pending', 'sending'].includes(d.status))" @click="prepareSend">发送邮件</button>
+          <button class="btn btn-sm btn-neutral" :disabled="actionLoading || deliveries.some((d) => ['pending', 'sending'].includes(d.status))" @click="prepareSend">发送邮件</button>
         </template>
       </div>
     </div>
@@ -158,7 +158,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
       </template>
       <div class="report-controls card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">邮件投递记录</h2><p v-if="deliveryError" class="mt-3 text-sm text-error">{{ deliveryError }}</p><div v-else-if="deliveries.length" class="mt-3 overflow-x-auto"><table class="table table-sm"><thead><tr><th>收件人</th><th>批次</th><th>状态</th><th>尝试次数</th><th>说明</th></tr></thead><tbody><tr v-for="delivery in deliveries" :key="delivery.id"><td>{{ delivery.recipient }}</td><td>#{{ delivery.dispatch_seq }}</td><td>{{ deliveryStatuses[delivery.status] || delivery.status }}</td><td>{{ delivery.attempts }}</td><td class="max-w-sm break-words text-xs">{{ delivery.last_error || reportDate(delivery.sent_at, true) }}</td></tr></tbody></table></div><p v-else class="mt-3 text-sm opacity-60">尚无投递记录。手动生成与修订版默认只归档。</p></div>
     </template>
-    <dialog ref="sendDialog" class="modal"><div class="modal-box"><h2 class="text-lg font-semibold">发送报告邮件</h2><p class="mt-2 text-sm opacity-60">发送当前归档版本的摘要。邮件发送失败会自动重试；重发会创建新投递批次。</p><form class="mt-4" @submit.prevent="send"><label v-for="user in recipients" :key="user.id" class="mt-3 flex items-center gap-2 text-sm"><input v-model="selectedRecipients" type="checkbox" class="checkbox checkbox-sm" :value="user.id" />{{ user.username }} · {{ user.email }}</label><p v-if="!recipients.length" class="text-sm text-warning">没有可用管理员邮箱，请先完善个人信息。</p><div class="modal-action"><button type="button" class="btn" @click="sendDialog.close()">取消</button><button class="btn btn-primary" :disabled="!selectedRecipients.length || actionLoading">确认发送</button></div></form></div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
+    <dialog ref="sendDialog" class="modal"><div class="modal-box"><h2 class="text-lg font-semibold">发送报告邮件</h2><p class="mt-2 text-sm opacity-60">发送当前归档版本的摘要。邮件发送失败会自动重试；重发会创建新投递批次。</p><form class="mt-4" @submit.prevent="send"><label v-for="user in recipients" :key="user.id" class="mt-3 flex items-center gap-2 text-sm"><input v-model="selectedRecipients" type="checkbox" class="checkbox checkbox-sm" :value="user.id" />{{ user.username }} · {{ user.email }}</label><p v-if="!recipients.length" class="text-sm text-warning">没有可用管理员邮箱，请先完善个人信息。</p><div class="modal-action"><button type="button" class="btn" @click="sendDialog.close()">取消</button><button class="btn btn-neutral" :disabled="!selectedRecipients.length || actionLoading">确认发送</button></div></form></div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
   </div>
 </template>
 

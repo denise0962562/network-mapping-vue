@@ -323,7 +323,7 @@ onMounted(loadCatalog)
                     <option v-for="tag in availableTags.filter((item) => item.category_id === category.id)" :key="tag.id" :value="tag.id">{{ tag.name }}</option>
                   </optgroup>
                 </select>
-                <button class="btn btn-primary" :disabled="assetLoading || !selectedTagId" @click="assignTag">绑定</button>
+                <button class="btn btn-neutral" :disabled="assetLoading || !selectedTagId" @click="assignTag">绑定</button>
               </div>
             </div>
           </div>

@@ -123,7 +123,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
         <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="generate">
           <label class="form-control"><span class="mb-1 block text-xs opacity-60">周期</span><select v-model="generation.period_type" class="select select-bordered"><option value="weekly">周报</option><option value="monthly">月报</option></select></label>
           <label class="form-control"><span class="mb-1 block text-xs opacity-60">周期内日期（可选）</span><input v-model="generation.date" type="date" class="input input-bordered" /></label>
-          <button class="btn btn-primary" :disabled="generating"><span v-if="generating" class="loading loading-spinner loading-xs" />生成报告</button>
+          <button class="btn btn-neutral" :disabled="generating"><span v-if="generating" class="loading loading-spinner loading-xs" />生成报告</button>
         </form>
       </div>
       <div v-if="settingsError" role="alert" class="alert alert-warning"><span>{{ settingsError }}</span><button class="btn btn-sm" @click="loadSettings">重试</button></div>
@@ -132,14 +132,14 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
         <div v-if="!settings.mail_ready" class="alert alert-info"><span>SMTP 配置不完整，报告可以归档；发送前请完善<router-link class="link" to="/setting">邮件设置</router-link>。</span></div>
         <div class="grid gap-4 lg:grid-cols-2">
           <form v-for="plan in plans" :key="plan.period_type" class="card border border-base-300 bg-base-100 p-5" @submit.prevent="savePlan(plan)">
-            <div class="flex items-center justify-between gap-3"><h2 class="font-semibold">{{ plan.period_type === 'weekly' ? '自动周报' : '自动月报' }}</h2><label class="flex items-center gap-2 text-sm"><input v-model="plan.enabled" type="checkbox" class="toggle toggle-primary toggle-sm" />启用</label></div>
+            <div class="flex items-center justify-between gap-3"><h2 class="font-semibold">{{ plan.period_type === 'weekly' ? '自动周报' : '自动月报' }}</h2><label class="flex items-center gap-2 text-sm"><input v-model="plan.enabled" type="checkbox" class="toggle toggle-neutral toggle-sm" />启用</label></div>
             <p class="mt-2 text-xs text-base-content/60">{{ plan.period_type === 'weekly' ? '周一发送上一周报告' : '每月 1 日发送上一自然月报告' }}。启用后从下一周期开始，不补发启用前的历史。</p>
             <p v-if="plan.enabled && !settings.notifications[plan.period_type]" class="mt-2 text-sm text-warning">通知设置已暂停此计划；保存启用计划可恢复通知。</p>
             <div class="mt-4 flex items-center gap-2"><span class="text-sm">发送时间</span><input v-model="plan.send_hour" type="number" min="0" max="23" required class="input input-bordered input-sm w-20" aria-label="发送小时" /><span>:</span><input v-model="plan.send_minute" type="number" min="0" max="59" required class="input input-bordered input-sm w-20" aria-label="发送分钟" /></div>
             <fieldset class="mt-4"><legend class="text-sm font-medium">收件管理员</legend><p class="mt-1 text-xs opacity-60">不勾选时发送给所有有有效邮箱的启用中管理员。</p>
               <label v-for="user in settings.recipients" :key="user.id" class="mt-2 flex items-center gap-2 text-sm"><input v-model="plan.recipient_ids" type="checkbox" class="checkbox checkbox-sm" :value="user.id" :disabled="!user.email" /><span>{{ user.username }} · {{ user.email || '未设置邮箱' }}</span></label>
             </fieldset>
-            <div class="mt-4 flex flex-wrap items-center justify-between gap-2"><span class="text-xs opacity-60">下次：{{ reportDate(plan.next_run_at, true, plan.timezone) }}</span><button class="btn btn-sm btn-primary" :disabled="!!saving || (plan.enabled && !settings.analytics_ready)">{{ saving === plan.period_type ? '保存中…' : '保存计划' }}</button></div>
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-2"><span class="text-xs opacity-60">下次：{{ reportDate(plan.next_run_at, true, plan.timezone) }}</span><button class="btn btn-sm btn-neutral" :disabled="!!saving || (plan.enabled && !settings.analytics_ready)">{{ saving === plan.period_type ? '保存中…' : '保存计划' }}</button></div>
           </form>
         </div>
       </div>
