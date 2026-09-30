@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, useId, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
 import { applyTimeSettings, offsetLabel } from '@/utils/systemTime'
@@ -10,6 +10,12 @@ const saved = ref(null)
 const revision = ref(0)
 const timezones = ref([])
 const search = ref('')
+const timezoneDropdown = ref(null)
+const timezoneTrigger = ref(null)
+const timezoneSearch = ref(null)
+const timezoneOpen = ref(false)
+const activeOption = ref(-1)
+const timezoneListId = `timezone-list-${useId()}`
 const loading = ref(true)
 const failed = ref(false)
 const saving = ref(false)
@@ -22,8 +28,57 @@ const labels = { 'Asia/Shanghai': '中国大陆', 'Asia/Hong_Kong': '中国香�
 function label(zone) {
   return `${labels[zone.id] ? `${labels[zone.id]} · ` : ''}${zone.id} · ${offsetLabel(zone.offsetSeconds * 1000)} · ${zone.observesDst ? '本年有夏令时调整' : '本年无夏令时调整'}`
 }
-const options = computed(() => timezones.value.filter((zone) => zone.id === document.value.timezone || label(zone).toLowerCase().includes(search.value.trim().toLowerCase())))
+const options = computed(() => timezones.value.filter((zone) => label(zone).toLowerCase().includes(search.value.trim().toLowerCase())))
 const selected = computed(() => timezones.value.find((zone) => zone.id === document.value.timezone))
+function resetActiveOption() {
+  const selectedIndex = options.value.findIndex((zone) => zone.id === document.value.timezone)
+  activeOption.value = selectedIndex >= 0 ? selectedIndex : options.value.length ? 0 : -1
+}
+function scrollActiveOption() {
+  nextTick(() => timezoneDropdown.value?.querySelector(`[data-option-index="${activeOption.value}"]`)?.scrollIntoView({ block: 'nearest' }))
+}
+watch(search, () => { resetActiveOption(); scrollActiveOption() })
+async function openTimezone() {
+  if (saving.value) return
+  search.value = ''
+  resetActiveOption()
+  timezoneOpen.value = true
+  await nextTick()
+  timezoneSearch.value?.focus()
+  scrollActiveOption()
+}
+function closeTimezone(restoreFocus = false) {
+  timezoneOpen.value = false
+  if (restoreFocus) timezoneTrigger.value?.focus()
+}
+function selectTimezone(zone) {
+  document.value.timezone = zone.id
+  closeTimezone(true)
+}
+function timezoneKeydown(event) {
+  if (event.isComposing) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    closeTimezone(true)
+  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    if (!options.value.length) return
+    const step = event.key === 'ArrowDown' ? 1 : -1
+    activeOption.value = (activeOption.value + step + options.value.length) % options.value.length
+    scrollActiveOption()
+  } else if (event.key === 'Enter') {
+    event.preventDefault()
+    if (options.value[activeOption.value]) selectTimezone(options.value[activeOption.value])
+  }
+}
+function timezoneFocusout(event) {
+  if (!timezoneDropdown.value?.contains(event.relatedTarget)) closeTimezone()
+}
+function timezonePointerdown(event) {
+  if (!timezoneDropdown.value?.contains(event.target)) closeTimezone()
+}
+watch(saving, (value) => { if (value) closeTimezone() })
 const preview = computed(() => {
   try {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: document.value.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now.value).map(({ type, value }) => [type, value]))
@@ -69,8 +124,15 @@ async function save() {
   } finally { saving.value = false }
 }
 defineExpose({ save })
-onMounted(() => { load(); clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000) })
-onBeforeUnmount(() => window.clearInterval(clockTimer))
+onMounted(() => {
+  load()
+  clockTimer = window.setInterval(() => { now.value = Date.now() }, 1000)
+  window.addEventListener('pointerdown', timezonePointerdown)
+})
+onBeforeUnmount(() => {
+  window.clearInterval(clockTimer)
+  window.removeEventListener('pointerdown', timezonePointerdown)
+})
 </script>
 
 <template>
@@ -83,7 +145,57 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
     <div v-if="loading" class="flex items-center gap-2 py-3 text-sm opacity-60"><span class="loading loading-spinner loading-sm" />正在读取常规设置...</div>
     <div v-else-if="failed" class="alert alert-error"><span>无法读取设置</span><button class="btn btn-sm" @click="load">重新加载</button></div>
     <fieldset v-else :disabled="saving" class="grid gap-4 md:grid-cols-2">
-      <label class="form-control md:col-span-2"><span class="mb-2 text-sm font-medium">系统时区</span><input v-model="search" type="search" class="input input-bordered mb-2 w-full" placeholder="搜索地区或时区，例如：中国、Shanghai、New_York" aria-label="搜索时区" /><select v-model="document.timezone" class="select select-bordered w-full" aria-label="系统时区"><option v-for="zone in options" :key="zone.id" :value="zone.id">{{ label(zone) }}</option></select></label>
+      <div class="form-control min-w-0 md:col-span-2">
+        <label :for="`${timezoneListId}-trigger`" class="mb-2 block text-sm font-medium">系统时区</label>
+        <div ref="timezoneDropdown" class="dropdown w-full" :class="timezoneOpen ? 'dropdown-open' : 'dropdown-close'" @focusout="timezoneFocusout">
+          <button
+            :id="`${timezoneListId}-trigger`"
+            ref="timezoneTrigger"
+            type="button"
+            class="select select-bordered w-full text-left"
+            aria-label="系统时区"
+            aria-haspopup="listbox"
+            :aria-expanded="timezoneOpen"
+            :aria-controls="timezoneListId"
+            @click="timezoneOpen ? closeTimezone() : openTimezone()"
+            @keydown.down.prevent="openTimezone"
+            @keydown.up.prevent="openTimezone"
+            @keydown.esc.prevent="closeTimezone(true)"
+          ><span class="truncate">{{ selected ? label(selected) : document.timezone }}</span></button>
+          <div v-if="timezoneOpen" class="dropdown-content z-30 mt-2 w-full rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+            <input
+              ref="timezoneSearch"
+              v-model="search"
+              type="search"
+              class="input input-bordered mb-2 w-full"
+              placeholder="搜索地区、时区或 UTC 偏移"
+              aria-label="搜索时区"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="true"
+              :aria-controls="timezoneListId"
+              :aria-activedescendant="activeOption >= 0 ? `${timezoneListId}-${activeOption}` : undefined"
+              @keydown="timezoneKeydown"
+            />
+            <ul :id="timezoneListId" role="listbox" aria-label="时区选项" class="max-h-64 overflow-y-auto">
+              <li
+                v-for="(zone, index) in options"
+                :id="`${timezoneListId}-${index}`"
+                :key="zone.id"
+                role="option"
+                :aria-selected="zone.id === document.timezone"
+                :data-option-index="index"
+                class="cursor-pointer rounded-lg px-3 py-2 text-sm break-words hover:bg-base-200"
+                :class="{ 'bg-base-200': index === activeOption, 'font-semibold': zone.id === document.timezone }"
+                @pointerdown.prevent
+                @click="selectTimezone(zone)"
+                @mousemove="activeOption = index"
+              >{{ label(zone) }}</li>
+            </ul>
+            <p v-if="!options.length" role="status" class="px-3 py-4 text-sm text-base-content/60">没有匹配的时区，请尝试其他关键词。</p>
+          </div>
+        </div>
+      </div>
       <label class="form-control"><span class="mb-2 text-sm font-medium">时间制式</span><select v-model="document.hourCycle" class="select select-bordered w-full"><option value="24">24 小时制</option><option value="12">12 小时制</option></select></label>
       <label class="form-control"><span class="mb-2 text-sm font-medium">日期格式</span><select v-model="document.dateFormat" class="select select-bordered w-full"><option value="YYYY-MM-DD">YYYY-MM-DD</option><option value="YYYY/MM/DD">YYYY/MM/DD</option><option value="DD/MM/YYYY">DD/MM/YYYY</option></select></label>
       <div class="text-xs leading-5 opacity-60 md:col-span-2"><p>当前时间预览：{{ preview }} · {{ document.timezone }}</p><p>{{ selected?.observesDst ? '此时区按日期自动处理夏令时；遇到重复时间时需选择 UTC 偏移。' : '此时区本年没有夏令时调整，无需切换夏令时或冬令时。' }}</p><p>偏移显示为当前日期的偏移。切换时区会重新安排未来报告计划；旧统计缺少原始观测时间时，需先重建分析快照。</p></div>
