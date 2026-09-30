@@ -828,6 +828,7 @@ onMounted(() => {
 
             <div class="card bg-base-100 border border-base-300 p-4">
               <h4 class="font-medium mb-3">报告通知</h4>
+              <p class="mb-3 text-xs opacity-60">通知开关控制投递；发送时间和收件人请在<router-link class="link" to="/reports">报告中心</router-link>启用计划。旧配置不会自动启用计划。</p>
               <div class="flex flex-col gap-2">
                 <label class="w-full rounded-lg bg-base-200/60 px-3 py-2 flex items-center gap-3">
                   <input v-model="notificationPrefs.reportDaily" type="checkbox" class="checkbox rounded-md" />
