@@ -52,7 +52,9 @@ const notificationPrefs = ref({
   reportDaily: false,
   reportWeekly: true,
   reportMonthly: false,
-  healthAlertEnabled: true
+  healthAlertEnabled: true,
+  scannerOfflineEnabled: false,
+  scannerRecoveryEnabled: true
 })
 
 const savedSecurityConfig = ref({ ...securityConfig.value })
@@ -362,7 +364,9 @@ function normalizeMailSettings(data) {
       reportDaily: data?.notificationPrefs?.reportDaily ?? false,
       reportWeekly: data?.notificationPrefs?.reportWeekly ?? true,
       reportMonthly: data?.notificationPrefs?.reportMonthly ?? false,
-      healthAlertEnabled: data?.notificationPrefs?.healthAlertEnabled ?? true
+      healthAlertEnabled: data?.notificationPrefs?.healthAlertEnabled ?? true,
+      scannerOfflineEnabled: data?.notificationPrefs?.scannerOfflineEnabled ?? false,
+      scannerRecoveryEnabled: data?.notificationPrefs?.scannerRecoveryEnabled ?? true
     },
     senderKeyConfigured: Boolean(data?.senderKeyConfigured)
   }
@@ -787,6 +791,18 @@ onMounted(() => {
                 <input v-model="notificationPrefs.healthAlertEnabled" type="checkbox" class="toggle" />
               </div>
               <p class="text-xs opacity-60 mt-2">检测到慢请求、5xx 错误或慢 SQL 时，通过邮件通知所有启用中的管理员。</p>
+            </div>
+
+            <div class="card bg-base-100 border border-base-300 p-4">
+              <div class="flex items-center justify-between gap-3">
+                <h4 class="font-medium">扫描器掉线通知</h4>
+                <input v-model="notificationPrefs.scannerOfflineEnabled" type="checkbox" class="toggle" />
+              </div>
+              <p class="text-xs opacity-60 mt-2">扫描器超过 90 秒没有心跳时，通过邮件通知所有启用中的管理员。</p>
+              <label class="mt-3 flex items-center gap-2 text-sm" :class="notificationPrefs.scannerOfflineEnabled ? '' : 'opacity-50'">
+                <input v-model="notificationPrefs.scannerRecoveryEnabled" type="checkbox" class="checkbox checkbox-sm" :disabled="!notificationPrefs.scannerOfflineEnabled" />
+                恢复连接后发送通知
+              </label>
             </div>
 
             <div class="card bg-base-100 border border-base-300 p-4">
