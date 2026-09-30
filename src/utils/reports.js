@@ -1,3 +1,4 @@
+import { formatDate, formatDateTime } from './systemTime.js'
 export const reportStatuses = {
   queued: { label: '等待生成', class: 'badge-ghost' },
   waiting_data: { label: '等待统计', class: 'badge-warning' },
@@ -10,18 +11,17 @@ export const deliveryStatuses = {
   pending: '等待发送', sending: '发送中', sent: '已发送', failed: '发送失败', cancelled: '已取消',
 }
 
-export function reportDate(value, withTime = false) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
-    ...(withTime ? { hour: '2-digit', minute: '2-digit', hour12: false } : {}),
-  }).format(date)
+export function reportDate(value, withTime = false, timezone) {
+  if (!value || Number.isNaN(new Date(value).getTime())) return '-'
+  return withTime ? formatDateTime(value, timezone) : formatDate(value, timezone)
+}
+
+export function reportTimezone(report) {
+  return report.timezone || report.payload?.period?.timezone || 'Asia/Shanghai'
 }
 
 export function reportPeriod(report) {
-  return `${reportDate(report.period_start)} 至 ${reportDate(report.period_end)}（不含）`
+  return `${reportDate(report.period_start, false, reportTimezone(report))} 至 ${reportDate(report.period_end, false, reportTimezone(report))}（不含）`
 }
 
 export function csvCell(value) {
@@ -32,7 +32,7 @@ export function csvCell(value) {
 
 export function reportCsv(report) {
   const payload = report.payload || {}
-  const rows = [['报告类型', report.period_type === 'weekly' ? '周报' : '月报'], ['周期', reportPeriod(report)], ['修订号', report.revision], ['时区', 'Asia/Shanghai']]
+  const rows = [['报告类型', report.period_type === 'weekly' ? '周报' : '月报'], ['周期', reportPeriod(report)], ['修订号', report.revision], ['时区', reportTimezone(report)]]
   for (const [key, label] of Object.entries({ created: '新建任务', succeeded: '成功任务', failed: '失败任务', partial: '部分完成任务', cancelled: '取消任务', success_rate: '任务成功率（%）' })) {
     rows.push([label, payload.tasks?.[key]])
   }

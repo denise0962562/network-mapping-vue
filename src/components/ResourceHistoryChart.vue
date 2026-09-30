@@ -1,4 +1,5 @@
 <script setup>
+import { formatTime as formatSystemClock, toLocalInputValue as systemInputValue, parseSystemDate } from '@/utils/systemTime'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -35,8 +36,7 @@ const granularityOptions = [
 ]
 
 function toLocalInputValue(date) {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 16)
+  return systemInputValue(date)
 }
 
 function defaultCustomRange() {
@@ -68,8 +68,8 @@ function selectedRangeMilliseconds() {
   if (range.value !== 'custom') {
     return rangeOptions.find((item) => item.value === range.value)?.milliseconds ?? null
   }
-  const start = new Date(customStart.value)
-  const end = new Date(customEnd.value)
+  const start = parseSystemDate(customStart.value)
+  const end = parseSystemDate(customEnd.value)
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null
   return end.getTime() - start.getTime()
 }
@@ -99,8 +99,8 @@ function buildRequestParams() {
   let start
   let end
   if (range.value === 'custom') {
-    start = new Date(customStart.value)
-    end = new Date(customEnd.value)
+    start = parseSystemDate(customStart.value)
+    end = parseSystemDate(customEnd.value)
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       throw new Error('请选择有效的开始和结束时间。')
     }
@@ -274,7 +274,7 @@ const chartOptions = computed(() => ({
   legend: { position: 'top', horizontalAlign: 'left' },
   xaxis: {
     type: 'datetime',
-    labels: { datetimeUTC: false }
+    labels: { datetimeUTC: true, formatter: (value, timestamp) => formatSystemClock(timestamp ?? value) }
   },
   yaxis: {
     min: 0,
@@ -321,7 +321,7 @@ const totalSamples = computed(() =>
 const statusLabel = computed(() => {
   if (!lastUpdatedAt.value) return '尚未完成加载'
   const granularityLabel = meta.value?.granularity || granularity.value
-  return `粒度 ${granularityLabel} · ${points.value.length} 个时间点 · ${totalSamples.value.toLocaleString('zh-CN')} 个样本 · 更新于 ${lastUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
+  return `粒度 ${granularityLabel} · ${points.value.length} 个时间点 · ${totalSamples.value.toLocaleString('zh-CN')} 个样本 · 更新于 ${formatSystemClock(lastUpdatedAt.value)}`
 })
 
 onMounted(() => {
@@ -378,11 +378,11 @@ onBeforeUnmount(() => {
     <div v-if="range === 'custom'" class="grid gap-3 rounded-box bg-base-200/60 p-3 sm:grid-cols-2">
       <label class="form-control w-full">
         <span class="label-text mb-1 text-xs">开始时间</span>
-        <input v-model="customStart" type="datetime-local" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+        <SystemDateTimeInput v-model="customStart" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
       </label>
       <label class="form-control w-full">
         <span class="label-text mb-1 text-xs">结束时间</span>
-        <input v-model="customEnd" type="datetime-local" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+        <SystemDateTimeInput v-model="customEnd" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
       </label>
     </div>
 

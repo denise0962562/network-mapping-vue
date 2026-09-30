@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -58,7 +59,7 @@ function formatTime(value) {
   if (value === null || value === undefined || value === '') return '--'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '--'
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(date)
 }
 
 function statusInfo(status) {

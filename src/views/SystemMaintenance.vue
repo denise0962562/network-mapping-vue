@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime, toLocalInputValue as systemInputValue, parseSystemDate } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
@@ -58,7 +59,7 @@ function closeAlert(id) {
 function formatTime(value) {
   if (!value) return '未设置'
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return Number.isNaN(date.getTime()) ? '—' : formatSystemDateTime(date)
 }
 
 function formatDuration(seconds) {
@@ -75,11 +76,7 @@ function formatDuration(seconds) {
 }
 
 function toLocalDateTime(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+  return value ? systemInputValue(value) : ''
 }
 
 function applyResponse(data, { syncForm = true } = {}) {
@@ -100,7 +97,7 @@ function requestPayload() {
   return {
     message: form.value.message.trim(),
     expectedEndAt: form.value.expectedEndAt
-      ? new Date(form.value.expectedEndAt).toISOString()
+      ? parseSystemDate(form.value.expectedEndAt).toISOString()
       : null
   }
 }
@@ -290,7 +287,7 @@ onBeforeUnmount(() => {
 
         <fieldset class="fieldset max-w-md">
           <legend class="fieldset-legend">预计结束时间（可选）</legend>
-          <input v-model="form.expectedEndAt" type="datetime-local" class="input input-bordered w-full" />
+          <SystemDateTimeInput v-model="form.expectedEndAt" class="input input-bordered w-full" />
           <div class="label text-xs text-base-content/60">到达该时间不会自动退出维护模式。</div>
         </fieldset>
 

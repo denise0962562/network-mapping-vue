@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
@@ -140,7 +141,7 @@ const statusView = computed(() => {
 
 function formatDate(value) {
   if (!value) return '-'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(new Date(value))
 }
 
 function toggleList(list, value, checked) {

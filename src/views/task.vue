@@ -1,4 +1,5 @@
 ﻿<script setup>
+import { formatDateTime as formatSystemDateTime, localToIso } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -44,16 +45,7 @@ const stateConfig = {
 }
 
 function formatUnixMs(value) {
-  if (value === null || value === undefined) return '-'
-  const date = new Date(Number(value))
-  if (Number.isNaN(date.getTime())) return '-'
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-  const minute = String(date.getMinutes()).padStart(2, '0')
-  const second = String(date.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hour}:${minute}:${second}`
+  return value == null ? '-' : formatSystemDateTime(Number(value))
 }
 
 function resolveStatus(status) {
@@ -74,7 +66,6 @@ function normalizeTask(item) {
     port: isDnsTask ? 'DNS 记录' : item.task_port || '-',
     operator: item.task_initiator || '-',
     createTimeMs: Number.isFinite(createTimeMs) ? createTimeMs : null,
-    createTime: formatUnixMs(item.task_create_time),
     statusKey: resolveStatus(item.task_status),
     remark: item.remarks || '-',
     attemptCount: Number(item.attempt_count) || 0,
@@ -114,7 +105,7 @@ function closeAlert(id) {
 
 function filterTimestamp(value) {
   if (!value) return null
-  const timestamp = new Date(value).getTime()
+  const timestamp = new Date(localToIso(value)).getTime()
   return Number.isFinite(timestamp) ? timestamp : null
 }
 
@@ -219,6 +210,13 @@ async function refreshSystemTaskVisibility() {
 
 async function applySearch() {
   if (isLoadingData.value) return
+  try {
+    if (draftFilters.value.startTime) localToIso(draftFilters.value.startTime)
+    if (draftFilters.value.endTime) localToIso(draftFilters.value.endTime)
+  } catch (e) {
+    pushAlert('warning', '时间筛选无效', e.message)
+    return
+  }
   appliedFilters.value = { ...draftFilters.value }
   expandedRow.value = null
   await reloadFromFirstPage()
@@ -325,12 +323,12 @@ onMounted(async () => {
               <div class="grid gap-3 pt-1 md:grid-cols-2 xl:grid-cols-4">
                 <label class="form-control w-full">
                   <span class="label-text mb-1">开始时间</span>
-                  <input v-model="draftFilters.startTime" type="datetime-local" class="input input-bordered w-full" :disabled="isLoadingData" />
+                  <SystemDateTimeInput v-model="draftFilters.startTime" class="input input-bordered w-full" :disabled="isLoadingData" />
                 </label>
 
                 <label class="form-control w-full">
                   <span class="label-text mb-1">结束时间</span>
-                  <input v-model="draftFilters.endTime" type="datetime-local" class="input input-bordered w-full" :disabled="isLoadingData" />
+                  <SystemDateTimeInput v-model="draftFilters.endTime" class="input input-bordered w-full" :disabled="isLoadingData" />
                 </label>
 
                 <label class="form-control w-full">
@@ -424,7 +422,7 @@ onMounted(async () => {
                     <td></td>
                     <td colspan="7" class="p-4">
                       <dl class="grid gap-4 text-sm md:grid-cols-3">
-                        <div><dt class="text-xs text-base-content/50">创建时间</dt><dd class="mt-1">{{ taskItem.createTime }}</dd></div>
+                        <div><dt class="text-xs text-base-content/50">创建时间</dt><dd class="mt-1">{{ formatUnixMs(taskItem.createTimeMs) }}</dd></div>
                         <div><dt class="text-xs text-base-content/50">领取次数</dt><dd class="mt-1">{{ taskItem.attemptCount }}</dd></div>
                         <div><dt class="text-xs text-base-content/50">备注</dt><dd class="mt-1 break-words">{{ taskItem.remark }}</dd></div>
                         <div v-if="taskItem.failureReason" class="md:col-span-3">

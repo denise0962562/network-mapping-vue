@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
+import { timeSettings } from '@/utils/systemTime'
 import { reportDate, reportPeriod, reportStatuses } from '@/utils/reports'
 
 const router = useRouter()
@@ -99,6 +100,8 @@ async function savePlan(plan) {
   }
 }
 
+watch(() => timeSettings.timezone, () => loadSettings())
+
 watch(filter, () => { if (page.value !== 1) page.value = 1; else loadReports() })
 watch(page, () => loadReports())
 onMounted(async () => { await loadReports(); if (!forbidden.value && !disposed) await loadSettings() })
@@ -109,7 +112,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
   <div class="min-w-0 space-y-6 p-4 md:p-6">
     <AppAlert v-for="item in alerts" :key="item.id" v-bind="item" @close="alerts = alerts.filter((a) => a.id !== item.id)" />
     <div class="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 class="text-2xl font-semibold">报告中心</h1><p class="mt-1 text-sm text-base-content/60">管理员平台周报与月报 · Asia/Shanghai · 归档后保留统计快照</p></div>
+      <div><h1 class="text-2xl font-semibold">报告中心</h1><p class="mt-1 text-sm text-base-content/60">管理员平台周报与月报 · {{ timeSettings.timezone }} · 归档后保留统计快照</p></div>
       <button class="btn btn-sm btn-ghost" :disabled="loading" @click="loadReports(); loadSettings()">刷新</button>
     </div>
     <EmptyState v-if="forbidden" type="error" title="仅管理员可以访问平台报告" />
@@ -136,7 +139,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
             <fieldset class="mt-4"><legend class="text-sm font-medium">收件管理员</legend><p class="mt-1 text-xs opacity-60">不勾选时发送给所有有有效邮箱的启用中管理员。</p>
               <label v-for="user in settings.recipients" :key="user.id" class="mt-2 flex items-center gap-2 text-sm"><input v-model="plan.recipient_ids" type="checkbox" class="checkbox checkbox-sm" :value="user.id" :disabled="!user.email" /><span>{{ user.username }} · {{ user.email || '未设置邮箱' }}</span></label>
             </fieldset>
-            <div class="mt-4 flex flex-wrap items-center justify-between gap-2"><span class="text-xs opacity-60">下次：{{ reportDate(plan.next_run_at, true) }}</span><button class="btn btn-sm btn-primary" :disabled="!!saving || (plan.enabled && !settings.analytics_ready)">{{ saving === plan.period_type ? '保存中…' : '保存计划' }}</button></div>
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-2"><span class="text-xs opacity-60">下次：{{ reportDate(plan.next_run_at, true, plan.timezone) }}</span><button class="btn btn-sm btn-primary" :disabled="!!saving || (plan.enabled && !settings.analytics_ready)">{{ saving === plan.period_type ? '保存中…' : '保存计划' }}</button></div>
           </form>
         </div>
       </div>

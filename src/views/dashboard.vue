@@ -164,7 +164,8 @@
 </style>
 
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { formatDate as formatSystemDate, timeSettings } from '@/utils/systemTime'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import SystemHistoryPanel from '@/components/SystemHistoryPanel.vue'
 import { renderChartTooltip } from '@/utils/chartTooltip'
@@ -388,8 +389,9 @@ const scanChartOptions = computed(() => ({
     }
   },
   xaxis: {
-    type: 'datetime',
-    categories: trendDays.value
+    type: 'category',
+    categories: trendDays.value,
+    labels: { formatter: (value) => formatSystemDate(value) }
   },
   legend: {
     position: 'right',
@@ -403,7 +405,7 @@ const scanChartOptions = computed(() => ({
     intersect: false,
     custom({ series, dataPointIndex, w }) {
       return renderChartTooltip({
-        title: new Date(trendDays.value[dataPointIndex]).toLocaleDateString('zh-CN'),
+        title: formatSystemDate(trendDays.value[dataPointIndex]),
         rows: series.map((values, index) => ({
           label: w.globals.seriesNames[index],
           value: Number(values[dataPointIndex]).toLocaleString('zh-CN'),
@@ -480,6 +482,8 @@ function formatBytes(bytes) {
   const formatted = (value / (1024 ** unitIndex)).toFixed(unitIndex === 0 ? 0 : 1)
   return `${formatted} ${units[unitIndex]}`
 }
+
+watch(() => timeSettings.timezone, fetchDashboardData)
 
 onMounted(() => {
   fetchSystemData()

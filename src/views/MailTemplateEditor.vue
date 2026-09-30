@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
 import { autocompletion } from '@codemirror/autocomplete'
 import { html } from '@codemirror/lang-html'
@@ -376,7 +377,7 @@ function formatTime(value) {
   if (!value) return '--'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '--'
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(date)
 }
 
 useUnsavedChanges(hasUnsavedChanges, saveDraft)

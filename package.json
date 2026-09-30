@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:time": "node --test src/utils/systemTime.test.js src/utils/reports.test.js",
     "test:reports": "node --test src/utils/reports.test.js",
     "test:targets": "node src/utils/scanTargets.test.js",
     "preview": "vite preview"

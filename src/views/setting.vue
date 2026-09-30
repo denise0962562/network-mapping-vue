@@ -1,10 +1,13 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import GeneralSettings from '@/components/GeneralSettings.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
 const alerts = ref([])
+const generalSettings = ref(null)
+const generalDirty = ref(false)
 
 const listenConfig = ref({
   host: '',
@@ -134,6 +137,8 @@ const showNotifySave = computed(() => {
   return mailChanged || prefChanged
 })
 const hasUnsavedChanges = computed(() => (
+  generalDirty.value
+  ||
   showSecuritySave.value
   || showSessionSave.value
   || showTrustedProxySave.value
@@ -448,6 +453,7 @@ async function saveNotifyConfig() {
 }
 
 async function saveAllSettings() {
+  if (generalDirty.value && !await generalSettings.value?.save()) return false
   if (showSecuritySave.value) saveSecurityConfig()
   if (showSessionSave.value && !await saveSessionSettings()) return false
   if (showTrustedProxySave.value && !await saveTrustedProxySettings()) return false
@@ -516,6 +522,7 @@ onMounted(() => {
     </div>
 
     <div class="grid grid-cols-1 gap-5">
+      <GeneralSettings ref="generalSettings" @dirty="generalDirty = $event" />
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="mb-3 flex items-start justify-between gap-3">
           <div>

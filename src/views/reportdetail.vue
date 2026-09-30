@@ -5,7 +5,7 @@ import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ReportTrendChart from '@/components/ReportTrendChart.vue'
 import http from '@/utils/http'
-import { deliveryStatuses, reportCsv, reportDate, reportPeriod, reportStatuses } from '@/utils/reports'
+import { deliveryStatuses, reportCsv, reportDate, reportTimezone, reportPeriod, reportStatuses } from '@/utils/reports'
 
 const route = useRoute()
 const router = useRouter()
@@ -136,7 +136,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
     <template v-else-if="report">
       <div class="card border border-base-300 bg-base-100 p-5">
         <div class="flex flex-wrap items-center gap-3"><h1 class="text-2xl font-semibold">平台{{ report.period_type === 'weekly' ? '周报' : '月报' }}</h1><span class="badge badge-outline">修订 #{{ report.revision }}</span><span class="badge" :class="reportStatuses[report.status]?.class">{{ reportStatuses[report.status]?.label }}</span></div>
-        <p class="mt-3 text-sm">{{ reportPeriod(report) }} · Asia/Shanghai</p>
+        <p class="mt-3 text-sm">{{ reportPeriod(report) }} · {{ reportTimezone(report) }}</p>
         <p class="mt-1 text-xs text-base-content/60">输入固定于 {{ reportDate(report.cutoff_at, true) }} · 归档于 {{ reportDate(report.generated_at, true) }}</p>
         <router-link v-if="report.supersedes_report_id" class="link mt-2 text-xs" :to="`/reports/${report.supersedes_report_id}`">查看上一修订版</router-link>
       </div>

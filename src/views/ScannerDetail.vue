@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '@/components/EmptyState.vue'
@@ -30,7 +31,7 @@ function formatDate(value) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(date)
 }
 
 function formatUptime(value) {

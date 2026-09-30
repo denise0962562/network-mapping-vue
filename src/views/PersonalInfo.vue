@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
@@ -48,7 +49,7 @@ function formatTime(value) {
   if (value === null || value === undefined || value === '') return '--'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '--'
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(date)
 }
 
 function normalizeUserInfo(rawUserInfo) {
@@ -56,9 +57,9 @@ function normalizeUserInfo(rawUserInfo) {
     username: rawUserInfo?.username || '',
     email: rawUserInfo?.email || '',
     userType: rawUserInfo?.role === 1 ? '管理员' : '普通用户',
-    createdAt: formatTime(rawUserInfo?.create_time),
+    createdAt: rawUserInfo?.create_time,
     updatedAt: '--',
-    lastLoginAt: formatTime(rawUserInfo?.last_login_at),
+    lastLoginAt: rawUserInfo?.last_login_at,
     lastLoginIp: rawUserInfo?.last_login_ip || '--',
     loginRestricted: Boolean(rawUserInfo?.limit_login)
   }
@@ -224,7 +225,7 @@ onMounted(() => {
 
         <div class="rounded-lg bg-base-200/60 p-3">
           <div class="text-xs opacity-60">创建时间</div>
-          <div class="mt-1 text-sm font-medium">{{ userInfo.createdAt }}</div>
+          <div class="mt-1 text-sm font-medium">{{ formatTime(userInfo.createdAt) }}</div>
         </div>
 
         <div class="rounded-lg bg-base-200/60 p-3">
@@ -234,7 +235,7 @@ onMounted(() => {
 
         <div class="rounded-lg bg-base-200/60 p-3">
           <div class="text-xs opacity-60">最后一次登录时间</div>
-          <div class="mt-1 text-sm font-medium">{{ userInfo.lastLoginAt }}</div>
+          <div class="mt-1 text-sm font-medium">{{ formatTime(userInfo.lastLoginAt) }}</div>
         </div>
 
         <div class="rounded-lg bg-base-200/60 p-3">

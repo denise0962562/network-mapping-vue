@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -116,13 +117,13 @@ function backupStop(backup) {
 function formatEpoch(value) {
   const seconds = Number(value)
   if (!Number.isFinite(seconds) || seconds <= 0) return '--'
-  return new Date(seconds * 1000).toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(new Date(seconds * 1000))
 }
 
 function formatTime(value) {
   if (!value) return '--'
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleString('zh-CN', { hour12: false })
+  return Number.isNaN(date.getTime()) ? '--' : formatSystemDateTime(date)
 }
 
 function formatBytes(value) {

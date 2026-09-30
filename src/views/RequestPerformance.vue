@@ -1,4 +1,5 @@
 <script setup>
+import { formatTime as formatSystemClock } from '@/utils/systemTime'
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
@@ -199,7 +200,7 @@ const trendOptions = computed(() => ({
   colors: ['#3b82f6', '#8b5cf6', '#ef4444', '#94a3b8'],
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: [2, 2.5, 2, 2], dashArray: [0, 0, 0, 6] },
-  xaxis: { type: 'datetime', labels: { datetimeUTC: false } },
+  xaxis: { type: 'datetime', labels: { datetimeUTC: true, formatter: (value, timestamp) => formatSystemClock(timestamp ?? value) } },
   yaxis: { min: 0, labels: { formatter: (value) => formatDuration(value) } },
   legend: { position: 'top' },
   tooltip: {

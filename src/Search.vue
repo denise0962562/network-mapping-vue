@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AssetTags from './components/AssetTags.vue'
 import http from './utils/http'
@@ -187,7 +188,7 @@ function changeSortField() {
 
 function formatTime(timestamp) {
   if (!timestamp) return '-'
-  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(new Date(timestamp))
 }
 
 function formatNetworkOwner(item) {

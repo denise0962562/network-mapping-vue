@@ -1,4 +1,5 @@
 <script setup>
+import { formatTime as formatSystemClock } from '@/utils/systemTime'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -124,7 +125,7 @@ const chartOptions = computed(() => ({
   stroke: { curve: 'smooth', width: 2 },
   markers: { size: 0, hover: { size: 4 } },
   legend: { position: 'top', horizontalAlign: 'left' },
-  xaxis: { type: 'datetime', labels: { datetimeUTC: false } },
+  xaxis: { type: 'datetime', labels: { datetimeUTC: true, formatter: (value, timestamp) => formatSystemClock(timestamp ?? value) } },
   yaxis: {
     min: 0,
     labels: { formatter: (value) => `${Number(value).toFixed(0)} ms` }
@@ -155,7 +156,7 @@ const totalSamples = computed(() =>
 
 const statusText = computed(() => {
   if (!lastUpdatedAt.value) return '尚未完成加载'
-  return `粒度 ${meta.value?.granularity || 'auto'} · ${totalSamples.value.toLocaleString('zh-CN')} 个样本 · 更新于 ${lastUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
+  return `粒度 ${meta.value?.granularity || 'auto'} · ${totalSamples.value.toLocaleString('zh-CN')} 个样本 · 更新于 ${formatSystemClock(lastUpdatedAt.value)}`
 })
 
 watch(() => props.scannerId, () => {

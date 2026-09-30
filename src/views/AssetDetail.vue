@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, markRaw, onMounted, ref } from 'vue'
 import ApexMaps from 'vue-apexmaps'
 import 'apexmaps/apexmaps.css'
@@ -176,7 +177,7 @@ const mapOptions = computed(() => ({
 
 function formatTime(timestamp) {
   if (!timestamp) return '-'
-  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(new Date(timestamp))
 }
 
 function validCoordinate(value, maximum) {

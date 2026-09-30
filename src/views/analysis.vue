@@ -1,4 +1,6 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
+import { calendarDate, mondayDate, addCalendarDays, calendarMidnight, timeSettings } from '@/utils/systemTime'
 import axios from 'axios'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
@@ -62,28 +64,20 @@ function closeAlert(id) {
 }
 
 function startOfWeekMonday(date) {
-  const result = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const day = result.getDay()
-  result.setDate(result.getDate() + (day === 0 ? -6 : 1 - day))
-  result.setHours(0, 0, 0, 0)
-  return result
+  return new Date(`${mondayDate(date)}T00:00:00Z`)
 }
 
 function formatDateKey(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
 function buildDateRange(weeks) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const start = startOfWeekMonday(today)
-  start.setDate(start.getDate() - (weeks - 1) * 7)
-  const end = new Date(today)
-  end.setDate(end.getDate() + 1)
-  return { startAt: start.toISOString(), endAt: end.toISOString() }
+  const start = addCalendarDays(mondayDate(), -(weeks - 1) * 7)
+  const end = addCalendarDays(calendarDate(), 1)
+  return { startAt: calendarMidnight(start), endAt: calendarMidnight(end) }
 }
 
 function buildCommonParams(snapshot) {
@@ -280,13 +274,13 @@ const weekStarts = computed(() => {
   const currentWeekStart = startOfWeekMonday(new Date())
   return Array.from({ length: activeFilters.value.weeks }, (_, index) => {
     const date = new Date(currentWeekStart)
-    date.setDate(date.getDate() - (activeFilters.value.weeks - 1 - index) * 7)
+    date.setUTCDate(date.getUTCDate() - (activeFilters.value.weeks - 1 - index) * 7)
     return date
   })
 })
 
 const weekLabels = computed(() =>
-  weekStarts.value.map((date) => `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`)
+  weekStarts.value.map((date) => `${String(date.getUTCMonth() + 1).padStart(2, '0')}/${String(date.getUTCDate()).padStart(2, '0')}`)
 )
 
 const heatmapCountMap = computed(() =>
@@ -294,17 +288,16 @@ const heatmapCountMap = computed(() =>
 )
 
 const heatmapSeries = computed(() => {
-  const today = new Date()
-  today.setHours(23, 59, 59, 999)
+  const today = calendarDate()
   return weekdayRows.map((rowName, rowIndex) => ({
     name: rowName,
     data: weekStarts.value.map((weekStart, weekIndex) => {
       const date = new Date(weekStart)
-      date.setDate(date.getDate() + rowIndex)
+      date.setUTCDate(date.getUTCDate() + rowIndex)
       const dateLabel = formatDateKey(date)
       return {
         x: weekLabels.value[weekIndex],
-        y: date > today ? null : (heatmapCountMap.value.get(dateLabel) ?? 0),
+        y: dateLabel > today ? null : (heatmapCountMap.value.get(dateLabel) ?? 0),
         dateLabel
       }
     })
@@ -393,10 +386,10 @@ function scheduleSquareHeatmapCells() {
 
 const lastUpdatedLabel = computed(() => {
   if (snapshotDataAsOf.value) {
-    return `统计截至 ${snapshotDataAsOf.value.toLocaleString('zh-CN', { hour12: false })}`
+    return `统计截至 ${formatSystemDateTime(snapshotDataAsOf.value)}`
   }
   if (!lastUpdatedAt.value) return '尚未完成加载'
-  return `更新于 ${lastUpdatedAt.value.toLocaleTimeString('zh-CN', { hour12: false })}`
+  return `更新于 ${formatSystemClock(lastUpdatedAt.value)}`
 })
 
 onMounted(() => {
@@ -405,6 +398,8 @@ onMounted(() => {
   heatmapResizeObserver = new ResizeObserver(scheduleSquareHeatmapCells)
   if (heatmapChartContainer.value) heatmapResizeObserver.observe(heatmapChartContainer.value)
 })
+
+watch(() => timeSettings.timezone, () => loadAnalysis())
 
 watch([heatmapSeries, heatmapChartHeight, hasLoadedHeatmap], async () => {
   await nextTick()

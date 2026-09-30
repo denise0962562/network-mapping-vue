@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import { defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
@@ -123,7 +124,7 @@ function closeAlert(id) {
 
 function formatTime(value) {
   if (!value) return '--'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(new Date(value))
 }
 
 function formatDuration(ms) {
@@ -322,7 +323,7 @@ const trendOptions = computed(() => ({
   chart: { type: 'area', toolbar: { show: false }, stacked: false },
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
-  xaxis: { type: 'datetime', labels: { datetimeUTC: false } },
+  xaxis: { type: 'datetime', labels: { datetimeUTC: true, formatter: (value, timestamp) => formatSystemClock(timestamp ?? value) } },
   yaxis: { labels: { formatter: (value) => Number(value).toLocaleString('zh-CN') } },
   legend: { position: 'top' },
   tooltip: {

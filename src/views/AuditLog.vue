@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime, localToIso } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -89,7 +90,7 @@ function closeAlert(id) {
 
 function formatTime(value) {
   if (!value) return '--'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(new Date(value))
 }
 
 function resultClass(outcome) {
@@ -118,8 +119,8 @@ function buildParams(includePagination = true) {
   for (const key of ['keyword', 'category', 'outcome', 'request_id']) {
     if (filters.value[key]) params[key] = filters.value[key]
   }
-  if (filters.value.start) params.start = new Date(filters.value.start).toISOString()
-  if (filters.value.end) params.end = new Date(filters.value.end).toISOString()
+  if (filters.value.start) params.start = localToIso(filters.value.start)
+  if (filters.value.end) params.end = localToIso(filters.value.end)
   if (includePagination) {
     params.page = page.value
     params.page_size = pageSize
@@ -145,7 +146,7 @@ async function loadEvents() {
     if (error.response?.status === 403) {
       pushAlert('error', '审计日志加载失败', '只有管理员可以查看审计日志。')
     } else {
-      pushAlert('error', '审计日志加载失败', '请检查网络连接或服务器运行状态。')
+      pushAlert('error', '审计日志加载失败', error.response?.data?.message || error.message || '请检查网络连接或服务器运行状态。')
     }
   } finally {
     loading.value = false
@@ -251,8 +252,8 @@ onMounted(loadEvents)
             <option value="failure">失败</option>
             <option value="denied">拒绝</option>
           </select>
-          <input v-model="filters.start" type="datetime-local" class="input input-bordered w-full" aria-label="开始时间" />
-          <input v-model="filters.end" type="datetime-local" class="input input-bordered w-full" aria-label="结束时间" />
+          <SystemDateTimeInput v-model="filters.start" class="input input-bordered w-full" aria-label="开始时间" />
+          <SystemDateTimeInput v-model="filters.end" class="input input-bordered w-full" aria-label="结束时间" />
           <input v-model.trim="filters.request_id" class="input input-bordered w-full" placeholder="请求 ID (UUID)" @keyup.enter="applyFilters" />
         </div>
         <div class="flex justify-end gap-2">

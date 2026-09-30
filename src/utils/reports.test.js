@@ -22,7 +22,7 @@ test('export uses archived numbers and includes scope notes', () => {
 })
 
 test('report dates use Shanghai time regardless of the browser timezone', () => {
-  assert.equal(reportDate('2026-09-20T16:00:00Z'), '2026/09/21')
+  assert.equal(reportDate('2026-09-20T16:00:00Z'), '2026-09-21')
   assert.equal(reportDate(null), '-')
   assert.equal(reportDate('invalid'), '-')
 })

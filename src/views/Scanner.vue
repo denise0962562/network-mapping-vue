@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -63,7 +64,7 @@ function formatDate(value) {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(date)
 }
 
 function resolveStatus(item) {
@@ -116,7 +117,7 @@ function normalizeScanner(item, index) {
     region: item.location || '-',
     ip: item.ip_address || '-',
     creator: item.creator || '-',
-    lastSeenAt: formatDate(item.last_seen_at),
+    lastSeenAt: item.last_seen_at,
     currentTaskId: item.current_task_id,
     statusKey: status.key,
     statusText: status.text,
@@ -329,7 +330,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   </td>
                   <td><span class="badge badge-sm whitespace-nowrap" :class="item.latencyClass" :title="item.latencyTitle">{{ item.latencyText }}</span></td>
                   <td>{{ item.creator }}</td>
-                  <td class="whitespace-nowrap">{{ item.lastSeenAt }}</td>
+                  <td class="whitespace-nowrap">{{ formatDate(item.lastSeenAt) }}</td>
                   <td>
                     <router-link v-if="item.currentTaskId" class="link link-neutral text-xs" :to="`/task/${item.currentTaskId}`">
                       查看任务

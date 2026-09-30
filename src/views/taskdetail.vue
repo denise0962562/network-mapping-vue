@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import http from '@/utils/http'
@@ -32,7 +33,7 @@ const statusText = {
 function formatTime(value) {
   if (value === null || value === undefined) return '-'
   const date = new Date(Number(value))
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('zh-CN', { hour12: false })
+  return Number.isNaN(date.getTime()) ? '-' : formatSystemDateTime(date)
 }
 
 function formatDuration(start, end) {

@@ -1,4 +1,5 @@
 <script setup>
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -62,7 +63,7 @@ function closeAlert(id) {
 
 function formatTime(value) {
   if (!value) return '--'
-  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+  return formatSystemDateTime(new Date(value))
 }
 
 function windowRange(window) {

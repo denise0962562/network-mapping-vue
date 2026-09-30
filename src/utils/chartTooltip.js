@@ -1,3 +1,4 @@
+import { formatDateTime as formatSystemDateTime, formatDate as formatSystemDate } from './systemTime.js'
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, (character) => ({
     '&': '&amp;',
@@ -12,7 +13,7 @@ export function formatChartTooltipTime(value) {
   const date = new Date(value)
   return Number.isNaN(date.getTime())
     ? String(value ?? '')
-    : date.toLocaleString('zh-CN', { hour12: false })
+    : formatSystemDateTime(date)
 }
 
 export function renderChartTooltip({ title, rows = [], footer = '' }) {
