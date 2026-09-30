@@ -1,4 +1,6 @@
 <script setup>
+import { useChartTheme } from '@/composables/useChartTheme'
+import { useTheme } from '@/composables/useTheme'
 import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
 import { calendarDate, mondayDate, addCalendarDays, calendarMidnight, timeSettings } from '@/utils/systemTime'
 import axios from 'axios'
@@ -8,6 +10,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
+const { isDark } = useTheme()
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
 const weekOptions = [4, 8, 12]
@@ -239,7 +242,7 @@ const distributionSegments = computed(() => {
 
 const pieSeries = computed(() => distributionSegments.value.map((item) => item.value))
 const pieLabels = computed(() => distributionSegments.value.map((item) => item.name))
-const pieOptions = computed(() => ({
+const pieOptions = useChartTheme(() => ({
   chart: { type: 'pie', toolbar: { show: false } },
   labels: pieLabels.value,
   legend: { position: 'bottom' },
@@ -247,7 +250,7 @@ const pieOptions = computed(() => ({
     enabled: true,
     formatter: (value) => `${Number(value).toFixed(1)}%`
   },
-  stroke: { width: 1 },
+  stroke: { width: 1, colors: [isDark.value ? '#1d232a' : '#ffffff'] },
   tooltip: {
     custom({ seriesIndex, dataPointIndex, w }) {
       const index = Number.isInteger(dataPointIndex) ? dataPointIndex : seriesIndex
@@ -311,7 +314,7 @@ const heatmapMaximum = computed(() => Math.max(
     .filter((value) => Number.isFinite(value))
 ))
 
-const heatmapOptions = computed(() => ({
+const heatmapOptions = useChartTheme(() => ({
   chart: {
     type: 'heatmap',
     toolbar: { show: false },
@@ -340,7 +343,7 @@ const heatmapOptions = computed(() => ({
       }
     }
   },
-  stroke: { width: 1 },
+  stroke: { width: 1, colors: [isDark.value ? '#1d232a' : '#ffffff'] },
   legend: { show: false },
   tooltip: {
     custom({ series, seriesIndex, dataPointIndex, w }) {

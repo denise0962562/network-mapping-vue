@@ -1,4 +1,5 @@
 <script setup>
+import { useChartTheme } from '@/composables/useChartTheme'
 import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import { defineAsyncComponent } from 'vue'
@@ -319,7 +320,7 @@ const trendSeries = computed(() => {
   }
   return series
 })
-const trendOptions = computed(() => ({
+const trendOptions = useChartTheme(() => ({
   chart: { type: 'area', toolbar: { show: false }, stacked: false },
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },

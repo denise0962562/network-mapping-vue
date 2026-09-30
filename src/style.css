@@ -3,6 +3,25 @@
    themes: light --default, dark --prefersdark;
  }
 
+:root {
+    --maintenance-label-bg: #fef3c7;
+    --maintenance-label-text: #78350f;
+}
+
+:root[data-theme="dark"] {
+    --maintenance-label-bg: #452f12;
+    --maintenance-label-text: #fde68a;
+}
+
+html, body {
+    background-color: var(--color-base-200);
+    color: var(--color-base-content);
+}
+
+body {
+    margin: 0;
+}
+
 .resource_card {
     @apply card bg-base-100 card-border border-base-300 w-full p-2.5;
 }
@@ -21,7 +40,7 @@
 
 .input_items_required::before {
     content: "* " ;
-    color:red;
+    color: var(--color-error);
 }
 
 
@@ -50,6 +69,26 @@
     color: oklch(0.74 0.16 232.661);
 }
 
+[data-theme="dark"] .scan_wait {
+    background-color: var(--color-base-300);
+    color: var(--color-base-content);
+}
+
+[data-theme="dark"] .scan_faild {
+    background-color: color-mix(in oklab, var(--color-error) 12%, var(--color-base-100));
+    color: var(--color-error);
+}
+
+[data-theme="dark"] .scan_success {
+    background-color: color-mix(in oklab, var(--color-success) 12%, var(--color-base-100));
+    color: var(--color-success);
+}
+
+[data-theme="dark"] .scan_open {
+    background-color: color-mix(in oklab, var(--color-info) 12%, var(--color-base-100));
+    color: var(--color-info);
+}
+
 /* daisyui的选择器没有生效，现在手动选择导航栏选项激活 */
 .menu li > a.active {
   background-color: var(--color-base-300);
@@ -65,17 +104,17 @@
     width: 100%;
     padding: 18px 60px 18px 24px;
     font-size: 1.1rem;
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-color);
+    background-color: var(--color-base-100);
+    border: 1px solid var(--color-base-300);
     border-radius: 50px;
-    color: var(--text-primary);
+    color: var(--color-base-content);
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
     transition: all 0.3s;
     outline: none;
 }
 
 .search-input:focus {
-    border-color: var(--accent-blue);
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15), 0 10px 25px -5px rgba(0, 0, 0, 0.3);
 }
 
@@ -84,7 +123,7 @@
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    background: var(--accent-blue);
+    background: var(--color-primary);
     border: none;
     width: 42px;
     height: 42px;
@@ -93,7 +132,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #0f172a;
+    color: var(--color-primary-content);
     transition: transform 0.2s;
 }
 .search-btn:hover { transform: translateY(-50%) scale(1.05); }
@@ -115,3 +154,39 @@
 
 
 /* task.vue css结束 */
+
+/* ApexCharts renders tooltip/menu surfaces outside the Vue templates. */
+html[data-theme] .apexcharts-tooltip,
+html[data-theme] .apexcharts-tooltip .apexcharts-tooltip-title,
+html[data-theme] .apexcharts-xaxistooltip,
+html[data-theme] .apexcharts-yaxistooltip,
+html[data-theme] .apexcharts-menu {
+    background: var(--color-base-100);
+    border-color: var(--color-base-300);
+    color: var(--color-base-content);
+}
+
+html[data-theme] .apexcharts-menu-item:hover {
+    background: var(--color-base-200);
+}
+
+html[data-theme] .apexcharts-toolbar svg {
+    fill: var(--color-base-content);
+}
+
+html[data-theme] .apexmaps {
+    --apexmaps-fg: var(--color-base-content);
+    --apexmaps-fg-muted: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+    --apexmaps-bg: transparent;
+    --apexmaps-surface: var(--color-base-100);
+    --apexmaps-border: var(--color-base-300);
+    --apexmaps-focus: var(--color-primary);
+}
+
+@media print {
+    html, body {
+        background: white !important;
+        color: #111 !important;
+        color-scheme: light;
+    }
+}

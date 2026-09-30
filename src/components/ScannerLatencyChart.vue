@@ -1,4 +1,5 @@
 <script setup>
+import { useChartTheme } from '@/composables/useChartTheme'
 import { formatTime as formatSystemClock } from '@/utils/systemTime'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -112,7 +113,7 @@ function formatLatency(value) {
   return Number.isFinite(milliseconds) ? `${milliseconds.toFixed(1)} ms` : '--'
 }
 
-const chartOptions = computed(() => ({
+const chartOptions = useChartTheme(() => ({
   chart: {
     type: 'line',
     height: 340,

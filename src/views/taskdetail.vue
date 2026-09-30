@@ -355,7 +355,7 @@ onBeforeUnmount(() => {
           v-for="execution in task.executions"
           :key="execution.execution_id"
           class="rounded-lg border p-3 text-left transition-colors"
-          :class="execution.execution_id === task.selected_execution_id ? 'border-neutral bg-neutral/10' : 'border-base-300 bg-base-200/40 hover:border-base-content/30'"
+          :class="execution.execution_id === task.selected_execution_id ? 'border-base-content/60 bg-base-content/10' : 'border-base-300 bg-base-200/40 hover:border-base-content/30'"
           @click="changeExecution(execution.execution_id)"
         >
           <div class="flex items-center justify-between gap-2">
@@ -505,7 +505,7 @@ onBeforeUnmount(() => {
           <div>
             <ul class="timeline timeline-vertical">
               <li v-for="(step, index) in timelineSteps" :key="step.label">
-                <hr v-if="index > 0" :class="isPrevLineActive(index) ? 'bg-neutral' : ''" />
+                <hr v-if="index > 0" :class="isPrevLineActive(index) ? 'bg-base-content' : ''" />
                 <div class="timeline-start text-xs opacity-70">{{ step.time }}</div>
                 <div class="timeline-middle">
                   <svg
@@ -513,7 +513,7 @@ onBeforeUnmount(() => {
                     viewBox="0 0 20 20"
                     fill="currentColor"
                     class="h-5 w-5"
-                    :class="isNodeActive(index) ? 'text-neutral' : 'opacity-40'"
+                    :class="isNodeActive(index) ? 'text-base-content' : 'opacity-40'"
                   >
                     <path
                       fill-rule="evenodd"
@@ -523,7 +523,7 @@ onBeforeUnmount(() => {
                   </svg>
                 </div>
                 <div class="timeline-end timeline-box text-sm">{{ step.label }}</div>
-                <hr v-if="index < timelineSteps.length - 1" :class="isNextLineActive(index) ? 'bg-neutral' : ''" />
+                <hr v-if="index < timelineSteps.length - 1" :class="isNextLineActive(index) ? 'bg-base-content' : ''" />
               </li>
             </ul>
           </div>

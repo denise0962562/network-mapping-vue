@@ -9,11 +9,14 @@
     "test:time": "node --test src/utils/systemTime.test.js src/utils/reports.test.js",
     "test:reports": "node --test src/utils/reports.test.js",
     "test:targets": "node src/utils/scanTargets.test.js",
+    "test:theme": "node --test src/utils/theme.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/lang-html": "^6.4.12",
+    "@codemirror/language": "^6.12.4",
+    "@lezer/highlight": "^1.2.3",
     "@lucide/vue": "^1.17.0",
     "apexcharts": "^5.6.0",
     "apexmaps": "^0.3.0",

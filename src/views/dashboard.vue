@@ -164,6 +164,7 @@
 </style>
 
 <script setup>
+import { useChartTheme } from '@/composables/useChartTheme'
 import { formatDate as formatSystemDate, timeSettings } from '@/utils/systemTime'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
@@ -282,7 +283,7 @@ const resourceChartSeries = computed(() => {
   ]
 })
 
-const resourceChartOptions = computed(() => ({
+const resourceChartOptions = useChartTheme(() => ({
   chart: {
     type: 'bar',
     height: 320,
@@ -347,7 +348,7 @@ const scanChartSeries = computed(() => {
   }))
 })
 
-const scanChartOptions = computed(() => ({
+const scanChartOptions = useChartTheme(() => ({
   chart: {
     type: 'bar',
     height: 320,

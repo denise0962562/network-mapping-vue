@@ -120,8 +120,8 @@ export function buildSystemMaintenanceAnnotations(history, {
             onLabelMouseLeave?.(item, event)
           },
           style: {
-            background: '#fef3c7',
-            color: '#78350f',
+            background: 'var(--maintenance-label-bg)',
+            color: 'var(--maintenance-label-text)',
             fontSize: '10px',
             fontWeight: 500,
             cssClass: 'system-maintenance-annotation-label'

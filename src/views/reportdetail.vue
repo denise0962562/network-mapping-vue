@@ -166,7 +166,18 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
 @media print {
   .report-controls, .drawer-side, .navbar, .modal { display: none !important; }
   .drawer-content { margin-left: 0 !important; }
+  .drawer, .drawer-content { background: white !important; color: #111 !important; }
   .report-detail .card { break-inside: avoid; box-shadow: none; }
-  .report-detail { color: #111; }
+  .report-detail {
+    --color-base-100: white;
+    --color-base-200: #f5f5f5;
+    --color-base-300: #ddd;
+    --color-base-content: #111;
+    color: #111;
+    background: white;
+  }
+  .report-detail .card { background: white !important; border-color: #ddd !important; }
+  .report-detail .apexcharts-text { fill: #111 !important; }
+  .report-detail .apexcharts-legend-text { color: #111 !important; }
 }
 </style>

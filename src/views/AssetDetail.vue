@@ -4,9 +4,12 @@ import { computed, markRaw, onMounted, ref } from 'vue'
 import ApexMaps from 'vue-apexmaps'
 import 'apexmaps/apexmaps.css'
 import AssetTags from '../components/AssetTags.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
+import { useTheme } from '@/composables/useTheme'
 import http from '../utils/http'
 import { formatLocation } from '../utils/location'
 
+const { isDark, resolvedTheme } = useTheme()
 const HISTORY_PAGE_SIZE = 50
 const PORT_PAGE_SIZE = 20
 const MAP_COUNTRY_NAMES = {
@@ -111,8 +114,8 @@ const countryTooltipSeries = computed(() => ({
   data: (worldCountriesGeometry.value?.features || [])
     .filter((feature) => feature.properties?.name)
     .map((feature) => ({ name: feature.properties.name, value: 1, kind: 'country' })),
-  scale: { type: 'ordinal', palette: ['#e8ecf2'] },
-  stroke: { color: '#cbd5e1', width: 1 },
+  scale: { type: 'ordinal', palette: [isDark.value ? '#374151' : '#e8ecf2'] },
+  stroke: { color: isDark.value ? '#64748b' : '#cbd5e1', width: 1 },
 }))
 const mapCanRender = computed(() => Boolean(worldCountriesGeometry.value && mapCoordinates.value))
 const mapSeries = computed(() => {
@@ -124,7 +127,7 @@ const mapSeries = computed(() => {
     name: '资产位置',
     shape: 'pin',
     size: 18,
-    color: '#2563eb',
+    color: isDark.value ? '#60a5fa' : '#2563eb',
     data: [{
       lon: coordinates[0],
       lat: coordinates[1],
@@ -138,6 +141,7 @@ const mapSeries = computed(() => {
 })
 
 const mapOptions = computed(() => ({
+  theme: { mode: resolvedTheme.value },
   chart: {
     context: 'dashboard',
     animations: { enabled: true },
@@ -146,7 +150,7 @@ const mapOptions = computed(() => ({
     map: worldCountriesGeometry.value,
     projection: 'plateCarree',
     view: { fit: 'world', padding: 24 },
-    fill: '#e8ecf2',
+    fill: isDark.value ? '#374151' : '#e8ecf2',
   },
   legend: { show: false },
   tooltip: {
@@ -169,7 +173,7 @@ const mapOptions = computed(() => ({
     hover: {
       enabled: true,
       brightness: 0.08,
-      stroke: '#2563eb',
+      stroke: isDark.value ? '#60a5fa' : '#2563eb',
       strokeWidth: 1.5,
     },
   },
@@ -460,7 +464,8 @@ onMounted(() => {
           <h1 class="text-2xl font-semibold">资产详情</h1>
           <p class="mt-1 text-sm opacity-65">展示单个 IP 的网络属性、发现概况和端口服务。</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <ThemeToggle />
           <a href="/search.html" class="btn btn-ghost btn-sm">返回搜索</a>
           <a href="/" class="btn btn-ghost btn-sm">仪表盘</a>
         </div>

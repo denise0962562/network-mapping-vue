@@ -404,7 +404,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                     :key="profile.value"
                     class="flex items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
                     :class="[
-                      scanProfile === profile.value ? 'border-neutral' : '',
+                      scanProfile === profile.value ? 'border-base-content/60' : '',
                       profile.domainOnly && !isDnsTask ? 'cursor-not-allowed opacity-45' : 'cursor-pointer'
                     ]"
                   >

@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { nextTick, onMounted, ref } from 'vue'
 import AppAlert from './components/AppAlert.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import http from './utils/http'
 import { getCookieValue, expireCookie } from './utils/csrf'
 
@@ -134,8 +135,8 @@ function backToLogin() {
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-gray-200 font-sans">
-    <div class="fixed right-4 top-4 z-50 flex w-[calc(100vw-2rem)] flex-col items-end sm:w-auto">
+  <div class="flex min-h-screen flex-col bg-base-200 font-sans">
+    <div class="fixed right-4 top-20 z-50 flex w-[calc(100vw-2rem)] flex-col items-end sm:w-auto">
       <transition
         enter-active-class="transition duration-200 ease-out"
         enter-from-class="opacity-0 translate-y-[-8px]"
@@ -154,6 +155,10 @@ function backToLogin() {
           @close="closeLoginError"
         />
       </transition>
+    </div>
+
+    <div class="flex justify-end px-4 pt-4 sm:px-8">
+      <ThemeToggle />
     </div>
 
     <div class="flex grow items-center justify-center py-10">
@@ -279,7 +284,7 @@ function backToLogin() {
       </transition>
     </div>
 
-    <footer class="footer footer-center bg-base-content p-4 text-white sm:footer-horizontal">
+    <footer class="footer footer-center bg-neutral p-4 text-neutral-content sm:footer-horizontal">
       <aside>
         <p>Copyright © 2026 - All right reserved by Abdc.world</p>
       </aside>

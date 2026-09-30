@@ -1,4 +1,5 @@
 <script setup>
+import { useChartTheme } from '@/composables/useChartTheme'
 import { formatTime as formatSystemClock, toLocalInputValue as systemInputValue, parseSystemDate } from '@/utils/systemTime'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -257,7 +258,7 @@ const chartSeries = computed(() => {
   return series
 })
 
-const chartOptions = computed(() => ({
+const chartOptions = useChartTheme(() => ({
   chart: {
     type: 'line',
     height: 420,

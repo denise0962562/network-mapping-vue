@@ -19,6 +19,12 @@ importers:
       '@codemirror/lang-html':
         specifier: ^6.4.12
         version: 6.4.12
+      '@codemirror/language':
+        specifier: ^6.12.4
+        version: 6.12.4
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@lucide/vue':
         specifier: ^1.17.0
         version: 1.17.0(vue@3.5.35)

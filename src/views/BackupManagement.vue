@@ -491,7 +491,7 @@ sudo -u network-mapping sudo -n -u postgres -- /bin/sh -c id</code></pre>
           <summary class="collapse-title font-semibold">4. 全量、差异和增量怎样选择？</summary>
           <div class="collapse-content space-y-3 text-sm text-base-content/75">
             <div class="grid gap-3 md:grid-cols-3">
-              <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-neutral">全量 full</div><p class="mt-1">完整读取集群并建立新基线。用于首次部署、仓库重建、重大数据迁移或 PostgreSQL 大版本切换后。</p></div>
+              <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-base-content">全量 full</div><p class="mt-1">完整读取集群并建立新基线。用于首次部署、仓库重建、重大数据迁移或 PostgreSQL 大版本切换后。</p></div>
               <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-secondary">差异 diff</div><p class="mt-1">保存相对最近全量的变化。适合日常备份和希望缩短恢复链路的场景。</p></div>
               <div class="rounded-box bg-base-200 p-3"><div class="font-semibold text-accent">增量 incr</div><p class="mt-1">保存相对最近一次备份的变化。适合发布前和较短备份周期，单次开销较小但恢复链更长。</p></div>
             </div>

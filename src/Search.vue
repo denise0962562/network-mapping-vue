@@ -2,6 +2,7 @@
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AssetTags from './components/AssetTags.vue'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import http from './utils/http'
 import { formatLocation } from './utils/location'
 
@@ -274,7 +275,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
 </script>
 
 <template>
-  <nav class="absolute top-0 right-0 py-5 px-8 flex items-center gap-5">
+  <nav class="absolute top-0 right-0 flex flex-wrap items-center justify-end gap-3 px-4 py-5 sm:gap-5 sm:px-8">
+    <ThemeToggle />
     <a class="link" target="_blank" href="/">仪表盘</a>
     <a class="link" target="_blank" rel="noopener noreferrer" href="https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md">搜索文档</a>
   </nav>
