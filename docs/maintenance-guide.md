@@ -478,3 +478,7 @@ IP/CIDR 可选默认值。“仅 DNS”（`dns_records`）是任务级域名专�
 - [ ] 卡片骨架屏是否保持了标题/副标题可见
 - [ ] 图表数据为空数组时是否能安全渲染
 - [ ] 是否移除了对 `src/views/loading.vue` 的引用（已废弃，统一使用 daisyUI skeleton）
+
+## 扫描器诊断面板补充（2026-10-01）
+
+`ScannerDetail.vue` 在延迟历史之后接入 `ScannerDiagnostics.vue`，复用既有 HTTP/CSRF 与系统时间工具。面板包含错误筛选、证据日志下载、目录选择、采集进度和告警确认；它在卸载时停止轮询并取消查询。权限和异常状态检查参见[扫描器诊断面板](scanner-diagnostics.md)。

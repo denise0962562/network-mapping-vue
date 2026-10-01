@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '@/components/EmptyState.vue'
 import ScannerLatencyChart from '@/components/ScannerLatencyChart.vue'
+import ScannerDiagnostics from '@/components/ScannerDiagnostics.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
@@ -247,6 +248,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
       <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
         <section class="min-w-0 space-y-5 xl:col-span-2">
           <ScannerLatencyChart :scanner-id="scannerId" />
+          <ScannerDiagnostics :scanner="scannerDetail" />
 
           <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div class="card bg-base-100 card-border border-base-300 p-4">

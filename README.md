@@ -49,6 +49,10 @@ has_endpoint(port = 80) AND has_endpoint(port = 443)
 Nuclei，且使用经过审核的本地签名模板目录。协议、上线顺序和存储语义参见服务端仓库的
 [扫描计划与结果协议](https://github.com/wshijiang/network-mapping/blob/dev/docs/SCAN_PIPELINE.md)。
 
+## 扫描器错误与日志
+
+扫描器详情新增目录刷新、日志快照采集/下载、错误筛选、证据行号和告警确认，支持离线和旧扫描器提示。使用与验证说明参见[扫描器诊断面板](docs/scanner-diagnostics.md)。
+
 ## Recommended IDE Setup
 
 [VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
