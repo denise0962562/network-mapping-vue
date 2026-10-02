@@ -328,7 +328,7 @@ onMounted(loadAll)
     </div>
 
     <div class="tabs tabs-box mb-5 w-full overflow-x-auto" role="tablist" aria-label="运行时配置分类">
-      <button v-for="item in namespaces" :key="item.key" type="button" role="tab" :aria-selected="activeTab === item.key" class="tab whitespace-nowrap" :class="{ 'tab-active': activeTab === item.key }" @click="selectTab(item.key)">
+      <button v-for="item in namespaces" :key="item.key" type="button" role="tab" :aria-selected="activeTab === item.key" class="tab whitespace-nowrap bg-white" :class="{ 'tab-active': activeTab === item.key }" @click="selectTab(item.key)">
         {{ item.title }}
       </button>
     </div>
@@ -356,7 +356,7 @@ onMounted(loadAll)
         <template v-if="activeItem.key === 'requests'">
           <div class="grid gap-3 lg:grid-cols-2">
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.requests.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">采集请求日志</span><span class="mt-1 block text-xs opacity-60">关闭后停止写入新访问日志；后台 writer 保持待命。</span></span></label>
-            <label class="form-control"><span class="label-text mb-1">在线保留天数</span><input v-model.number="settings.requests.retention_days" min="1" type="number" class="input input-bordered" /><span class="label-text-alt mt-1 opacity-60">保存后会按新版本重新安排清理。</span></label>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">在线保留天数</legend><input v-model.number="settings.requests.retention_days" min="1" type="number" class="input input-bordered" /><p class="label whitespace-normal opacity-60">保存后会按新版本重新安排清理。</p></fieldset>
           </div>
         </template>
 
@@ -364,8 +364,8 @@ onMounted(loadAll)
           <div class="grid gap-3 lg:grid-cols-2">
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用健康监控</span><span class="mt-1 block text-xs opacity-60">关闭时不再发送健康告警。</span></span></label>
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.server_error_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">5xx 告警</span><span class="mt-1 block text-xs opacity-60">维护响应不会触发该告警。</span></span></label>
-            <label class="form-control"><span class="label-text mb-1">错误告警冷却时间（秒）</span><input v-model.number="settings.monitor.alert_cooldown_seconds" min="1" max="604800" type="number" class="input input-bordered" /><span class="label-text-alt mt-1 opacity-60">用于 5xx 等没有操作耗时规则的错误告警。</span></label>
-            <label class="form-control"><span class="label-text mb-1">慢 SQL 检查间隔（秒）</span><input v-model.number="settings.monitor.slow_sql_check_interval_seconds" min="1" max="86400" type="number" class="input input-bordered" /></label>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">错误告警冷却时间（秒）</legend><input v-model.number="settings.monitor.alert_cooldown_seconds" min="1" max="604800" type="number" class="input input-bordered" /><p class="label whitespace-normal opacity-60">用于 5xx 等没有操作耗时规则的错误告警。</p></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">慢 SQL 检查间隔（秒）</legend><input v-model.number="settings.monitor.slow_sql_check_interval_seconds" min="1" max="86400" type="number" class="input input-bordered" /></fieldset>
           </div>
           <MonitorRulesEditor v-model="settings.monitor" :saved-document="savedDocuments.monitor" :catalogue="catalogue" :loading="catalogueLoading" :error="catalogueError" :sql-message="sqlMessage" @reload="loadCatalogue" />
         </template>
@@ -374,7 +374,7 @@ onMounted(loadAll)
           <div class="alert text-sm" role="status">掉线策略独立于健康监控总开关。掉线及恢复邮件开关仍在系统设置的通知偏好中管理；维护、禁用及删除的扫描器不会触发掉线通知。</div>
           <p class="text-xs opacity-60">扫描器默认每 30 秒发送心跳，在线判定时间至少覆盖两个默认周期。自定义心跳周期较长时，请相应提高在线判定和告警时间。</p>
           <div class="grid gap-3 lg:grid-cols-2">
-            <label v-for="field in scannerHealthFields" :key="field.key" class="form-control"><span class="label-text mb-1">{{ field.label }}（{{ field.unit }}）</span><input v-model.number="settings.scanner_health[field.key]" :min="field.min" :max="field.max" step="1" type="number" class="input input-bordered" /><span class="label-text-alt mt-1 opacity-60">{{ field.description }}</span></label>
+            <fieldset v-for="field in scannerHealthFields" :key="field.key" class="fieldset min-w-0"><legend class="fieldset-legend">{{ field.label }}（{{ field.unit }}）</legend><input v-model.number="settings.scanner_health[field.key]" :min="field.min" :max="field.max" step="1" type="number" class="input input-bordered" /><p class="label whitespace-normal opacity-60">{{ field.description }}</p></fieldset>
           </div>
           <p v-if="validateScannerHealth(settings.scanner_health)" class="text-sm text-error">{{ validateScannerHealth(settings.scanner_health) }}</p>
           <p class="text-xs opacity-60">持续掉线按一次事件通知，修改阈值不会重复创建已有事件；任务租约时间独立管理。</p>
@@ -386,42 +386,42 @@ onMounted(loadAll)
             <p class="text-xs opacity-60">主动搜索单个明确 IP 或域名时，数据缺失或过期则创建任务；翻页不触发。IP 使用下方授权范围、排除范围、端口和优先级，开关独立于周期生成。</p>
             <label class="flex items-center gap-3"><input v-model="settings.automatic_target.search_generation.enabled" type="checkbox" class="toggle" /><span>启用搜索生成</span></label>
             <div class="grid gap-3 md:grid-cols-2">
-              <label class="form-control"><span class="label-text mb-1">数据有效期（天）</span><input v-model.number="settings.automatic_target.search_generation.stale_after_days" type="number" min="1" max="3650" class="input input-bordered" /></label>
-              <label class="form-control"><span class="label-text mb-1">同一用户、目标的冷却期（分钟）</span><input v-model.number="settings.automatic_target.search_generation.cooldown_minutes" type="number" min="1" max="525600" class="input input-bordered" /></label>
-              <label class="form-control"><span class="label-text mb-1">搜索待执行任务上限</span><input v-model.number="settings.automatic_target.search_generation.max_pending_tasks" type="number" min="1" max="10000" class="input input-bordered" /></label>
-              <label class="form-control"><span class="label-text mb-1">每用户每小时创建上限</span><input v-model.number="settings.automatic_target.search_generation.per_user_hourly_limit" type="number" min="1" max="10000" class="input input-bordered" /></label>
+              <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">数据有效期（天）</legend><input v-model.number="settings.automatic_target.search_generation.stale_after_days" type="number" min="1" max="3650" class="input input-bordered" /></fieldset>
+              <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">同一用户、目标的冷却期（分钟）</legend><input v-model.number="settings.automatic_target.search_generation.cooldown_minutes" type="number" min="1" max="525600" class="input input-bordered" /></fieldset>
+              <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">搜索待执行任务上限</legend><input v-model.number="settings.automatic_target.search_generation.max_pending_tasks" type="number" min="1" max="10000" class="input input-bordered" /></fieldset>
+              <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">每用户每小时创建上限</legend><input v-model.number="settings.automatic_target.search_generation.per_user_hourly_limit" type="number" min="1" max="10000" class="input input-bordered" /></fieldset>
             </div>
             <label class="flex items-center gap-3"><input v-model="settings.automatic_target.search_generation.domain_enabled" type="checkbox" class="toggle" /><span>允许域名搜索生成</span></label>
-            <label class="form-control"><span class="label-text mb-1">授权域名（每行一个，包含其子域名）</span><textarea v-model="cidrText.searchDomains" class="textarea textarea-bordered font-mono" rows="3" placeholder="example.com"></textarea><span class="label-text-alt mt-1 opacity-60">域名生成还需启用 DNS 后续扫描；解析出的地址按 DNS 后续扫描授权范围过滤。</span></label>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">授权域名（每行一个，包含其子域名）</legend><textarea v-model="cidrText.searchDomains" class="textarea textarea-bordered font-mono" rows="3" placeholder="example.com"></textarea><p class="label whitespace-normal opacity-60">域名生成还需启用 DNS 后续扫描；解析出的地址按 DNS 后续扫描授权范围过滤。</p></fieldset>
           </div>
           <div class="alert alert-warning alert-soft text-sm">自动目标会创建实际扫描任务。只允许填写已获得明确授权的网段；启用前请复核范围、端口和优先级。</div>
           <div class="grid gap-3 lg:grid-cols-2">
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv4 自动生成</span><span class="mt-1 block text-xs opacity-60">必须配置授权 IPv4 CIDR。</span></span></label>
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.automatic_target.ipv6_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 IPv6 自动生成</span><span class="mt-1 block text-xs opacity-60">仅在支持 IPv6 的扫描器在线时补充。</span></span></label>
-            <label class="form-control"><span class="label-text mb-1">生成间隔（秒）</span><input v-model.number="settings.automatic_target.interval_seconds" min="5" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">IPv4 队列低水位 / 高水位</span><div class="join"><input v-model.number="settings.automatic_target.pending_low_watermark" min="0" max="100" type="number" class="input input-bordered join-item w-1/2" /><input v-model.number="settings.automatic_target.pending_high_watermark" min="1" max="100" type="number" class="input input-bordered join-item w-1/2" /></div></label>
-            <label class="form-control"><span class="label-text mb-1">IPv6 队列低水位 / 高水位</span><div class="join"><input v-model.number="settings.automatic_target.ipv6_pending_low_watermark" min="0" max="100" type="number" class="input input-bordered join-item w-1/2" /><input v-model.number="settings.automatic_target.ipv6_pending_high_watermark" min="1" max="100" type="number" class="input input-bordered join-item w-1/2" /></div></label>
-            <label class="form-control"><span class="label-text mb-1">优先级（0-4）</span><input v-model.number="settings.automatic_target.priority" min="0" max="4" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">IPv4 任务前缀</span><input v-model.number="settings.automatic_target.ipv4_task_prefix" min="0" max="32" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">IPv6 任务前缀</span><input v-model.number="settings.automatic_target.ipv6_task_prefix" min="0" max="128" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">重复扫描间隔（秒）</span><input v-model.number="settings.automatic_target.repeat_after_seconds" min="1" type="number" class="input input-bordered" /></label>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">生成间隔（秒）</legend><input v-model.number="settings.automatic_target.interval_seconds" min="5" type="number" class="input input-bordered" /></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">IPv4 队列低水位 / 高水位</legend><div class="join"><input v-model.number="settings.automatic_target.pending_low_watermark" min="0" max="100" type="number" class="input input-bordered join-item w-1/2" /><input v-model.number="settings.automatic_target.pending_high_watermark" min="1" max="100" type="number" class="input input-bordered join-item w-1/2" /></div></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">IPv6 队列低水位 / 高水位</legend><div class="join"><input v-model.number="settings.automatic_target.ipv6_pending_low_watermark" min="0" max="100" type="number" class="input input-bordered join-item w-1/2" /><input v-model.number="settings.automatic_target.ipv6_pending_high_watermark" min="1" max="100" type="number" class="input input-bordered join-item w-1/2" /></div></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">优先级（0-4）</legend><input v-model.number="settings.automatic_target.priority" min="0" max="4" type="number" class="input input-bordered" /></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">IPv4 任务前缀</legend><input v-model.number="settings.automatic_target.ipv4_task_prefix" min="0" max="32" type="number" class="input input-bordered" /></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">IPv6 任务前缀</legend><input v-model.number="settings.automatic_target.ipv6_task_prefix" min="0" max="128" type="number" class="input input-bordered" /></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">重复扫描间隔（秒）</legend><input v-model.number="settings.automatic_target.repeat_after_seconds" min="1" type="number" class="input input-bordered" /></fieldset>
           </div>
           <div class="grid gap-3 lg:grid-cols-2">
-            <label class="form-control"><span class="label-text mb-1">授权 IPv4 CIDR</span><textarea v-model="cidrText.automaticAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="198.51.100.0/24"></textarea></label>
-            <label class="form-control"><span class="label-text mb-1">排除 IPv4 CIDR</span><textarea v-model="cidrText.automaticExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="198.51.100.128/25"></textarea></label>
-            <label class="form-control"><span class="label-text mb-1">授权 IPv6 CIDR</span><textarea v-model="cidrText.automaticIpv6Authorized" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="2001:db8::/32"></textarea></label>
-            <label class="form-control"><span class="label-text mb-1">排除 IPv6 CIDR</span><textarea v-model="cidrText.automaticIpv6Excluded" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="2001:db8:1::/48"></textarea></label>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">授权 IPv4 CIDR</legend><textarea v-model="cidrText.automaticAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="198.51.100.0/24"></textarea></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">排除 IPv4 CIDR</legend><textarea v-model="cidrText.automaticExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="198.51.100.128/25"></textarea></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">授权 IPv6 CIDR</legend><textarea v-model="cidrText.automaticIpv6Authorized" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="2001:db8::/32"></textarea></fieldset>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">排除 IPv6 CIDR</legend><textarea v-model="cidrText.automaticIpv6Excluded" class="textarea textarea-bordered min-h-28 font-mono text-sm" placeholder="2001:db8:1::/48"></textarea></fieldset>
           </div>
-          <label class="form-control"><span class="label-text mb-1">常用端口</span><input v-model="settings.automatic_target.common_ports" type="text" class="input input-bordered font-mono" placeholder="80,443,8080" /><span class="label-text-alt mt-1 opacity-60">以逗号分隔，可使用范围，例如 8000-8100。</span></label>
+          <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">常用端口</legend><input v-model="settings.automatic_target.common_ports" type="text" class="input input-bordered font-mono" placeholder="80,443,8080" /><p class="label whitespace-normal opacity-60">以逗号分隔，可使用范围，例如 8000-8100。</p></fieldset>
         </template>
 
         <template v-else-if="activeItem.key === 'dns_follow_up'">
           <div class="alert alert-warning alert-soft text-sm">此策略允许 DNS 解析结果创建端口扫描任务。必须将范围限制在已授权的 CIDR 内，排除项优先。</div>
           <div class="grid gap-3 lg:grid-cols-2">
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.dns_follow_up.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用 DNS 后续任务</span><span class="mt-1 block text-xs opacity-60">启用时必须配置授权 CIDR。</span></span></label>
-            <label class="form-control"><span class="label-text mb-1">单任务最大目标数</span><input v-model.number="settings.dns_follow_up.max_targets_per_task" min="1" max="500" type="number" class="input input-bordered" /></label>
+            <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">单任务最大目标数</legend><input v-model.number="settings.dns_follow_up.max_targets_per_task" min="1" max="500" type="number" class="input input-bordered" /></fieldset>
           </div>
-          <div class="grid gap-3 lg:grid-cols-2"><label class="form-control"><span class="label-text mb-1">授权 CIDR</span><textarea v-model="cidrText.dnsAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label><label class="form-control"><span class="label-text mb-1">排除 CIDR</span><textarea v-model="cidrText.dnsExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></label></div>
+          <div class="grid gap-3 lg:grid-cols-2"><fieldset class="fieldset min-w-0"><legend class="fieldset-legend">授权 CIDR</legend><textarea v-model="cidrText.dnsAuthorized" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></fieldset><fieldset class="fieldset min-w-0"><legend class="fieldset-legend">排除 CIDR</legend><textarea v-model="cidrText.dnsExcluded" class="textarea textarea-bordered min-h-28 font-mono text-sm"></textarea></fieldset></div>
         </template>
 
         <template v-else-if="activeItem.key === 'dns_resolvers'">
@@ -441,10 +441,10 @@ onMounted(loadAll)
         </template>
 
         <template v-else-if="activeItem.key === 'analytics_snapshot'">
-          <div class="grid gap-3 lg:grid-cols-2"><label class="form-control"><span class="label-text mb-1">运行模式</span><select v-model="settings.analytics_snapshot.mode" class="select select-bordered"><option value="realtime">realtime（实时聚合）</option><option value="shadow">shadow（后台构建快照）</option><option value="snapshot">snapshot（读取快照）</option></select><span class="label-text-alt mt-1 opacity-60">切换为 snapshot 前请确认历史快照已构建完成。</span></label><label class="form-control"><span class="label-text mb-1">处理间隔（分钟）</span><input v-model.number="settings.analytics_snapshot.interval_minutes" min="1" max="1440" type="number" class="input input-bordered" /></label></div>
+          <div class="grid gap-3 lg:grid-cols-2"><fieldset class="fieldset min-w-0"><legend class="fieldset-legend">运行模式</legend><select v-model="settings.analytics_snapshot.mode" class="select select-bordered"><option value="realtime">realtime（实时聚合）</option><option value="shadow">shadow（后台构建快照）</option><option value="snapshot">snapshot（读取快照）</option></select><p class="label whitespace-normal opacity-60">切换为 snapshot 前请确认历史快照已构建完成。</p></fieldset><fieldset class="fieldset min-w-0"><legend class="fieldset-legend">处理间隔（分钟）</legend><input v-model.number="settings.analytics_snapshot.interval_minutes" min="1" max="1440" type="number" class="input input-bordered" /></fieldset></div>
         </template>
 
-        <label class="form-control"><span class="label-text mb-1">变更原因 <span class="opacity-60">（建议填写，最长 500 字）</span></span><input v-model="changeReasons[activeItem.key]" maxlength="500" type="text" class="input input-bordered" placeholder="例如：调整告警阈值以适应新的性能基线" /></label>
+        <fieldset class="fieldset min-w-0"><legend class="fieldset-legend">变更原因 <span class="opacity-60">（建议填写，最长 500 字）</span></legend><input v-model="changeReasons[activeItem.key]" maxlength="500" type="text" class="input input-bordered" placeholder="例如：调整告警阈值以适应新的性能基线" /></fieldset>
       </fieldset>
       <div v-if="policyNamespace && revisions[activeItem.key]" class="mt-5 border-t border-base-300 pt-4">
         <div class="flex items-center justify-between gap-2"><div><h4 class="font-medium">配置历史</h4><p class="mt-1 text-xs opacity-60">历史版本可载入草稿，检查差异后保存为新版本。</p></div><button type="button" class="btn btn-ghost btn-sm" :disabled="historyLoading || saving[activeItem.key] || previewNamespace !== null" @click="loadHistory">{{ historyLoading ? '加载中...' : '查看最近 30 个版本' }}</button></div>
@@ -471,66 +471,7 @@ onMounted(loadAll)
   justify-content: space-between;
 }
 
-.runtime-fields .form-control {
-  display: grid;
-  grid-template-columns: minmax(9rem, 1fr) minmax(14rem, 28rem);
-  align-items: center;
-  column-gap: 1.25rem;
-  row-gap: 0.4rem;
-}
-
-.runtime-fields .form-control > .label-text {
-  grid-column: 1;
-  grid-row: 1;
-  margin-bottom: 0;
-  text-align: right;
-}
-
-.runtime-fields .form-control > :is(.input, .select, .textarea, .join) {
-  grid-column: 2;
-  grid-row: 1;
+.runtime-fields .fieldset > :is(.input, .select, .textarea, .join) {
   width: 100%;
-}
-
-.runtime-fields .form-control > .label-text-alt {
-  grid-column: 2;
-  grid-row: 2;
-  margin-top: 0;
-  font-size: 0.75rem;
-  line-height: 1.25;
-}
-
-.runtime-fields .form-control:has(> .textarea) {
-  align-items: start;
-}
-
-.runtime-fields .form-control:has(> .textarea) > .label-text {
-  padding-top: 0.45rem;
-}
-
-@media (max-width: 640px) {
-  .runtime-fields .form-control {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .runtime-fields .form-control > .label-text,
-  .runtime-fields .form-control > :is(.input, .select, .textarea, .join),
-  .runtime-fields .form-control > .label-text-alt {
-    grid-column: 1;
-  }
-
-  .runtime-fields .form-control > .label-text {
-    grid-row: auto;
-    padding-top: 0;
-    text-align: left;
-  }
-
-  .runtime-fields .form-control > :is(.input, .select, .textarea, .join) {
-    grid-row: auto;
-  }
-
-  .runtime-fields .form-control > .label-text-alt {
-    grid-row: auto;
-  }
 }
 </style>
