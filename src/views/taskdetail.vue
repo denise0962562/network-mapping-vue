@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import http from '@/utils/http'
 import { formatLocation } from '@/utils/location'
+import { isProjectionPending, projectionMessage } from '@/utils/projectionStatus'
 
 const route = useRoute()
 const router = useRouter()
@@ -83,6 +84,8 @@ const scanTypeLabel = computed(() => {
 const currentExecution = computed(() => task.value?.executions?.find(
   (execution) => execution.execution_id === task.value?.selected_execution_id
 ) || null)
+const projectionStatus = computed(() => currentExecution.value?.projection_status || task.value?.projection_status)
+const projectionNotice = computed(() => projectionMessage(projectionStatus.value))
 const taskMeta = computed(() => ({
   status: statusText[currentExecution.value?.status] || '未知',
   priority: task.value?.task_level ?? '-',
@@ -155,7 +158,7 @@ function severityBadge(severity) {
 function scheduleRefresh() {
   window.clearTimeout(refreshTimer)
   refreshTimer = undefined
-  if (isUnmounted || !refreshableStatuses.has(currentExecution.value?.status)) return
+  if (isUnmounted || (!refreshableStatuses.has(currentExecution.value?.status) && !isProjectionPending(projectionStatus.value))) return
   refreshTimer = window.setTimeout(() => loadTask({ silent: true }), 30000)
 }
 
@@ -342,6 +345,9 @@ onBeforeUnmount(() => {
     <div v-if="actionMessage" role="alert" class="alert alert-info mb-4"><span>{{ actionMessage }}</span></div>
     <div v-if="hasUnavailableResults" role="alert" class="alert alert-warning mb-4">
       <span>任务信息已加载，但部分扫描结果索引暂不可用，请稍后刷新。</span>
+    </div>
+    <div v-if="projectionNotice" role="status" class="alert mb-4" :class="projectionStatus === 'retrying' ? 'alert-warning' : 'alert-info'">
+      <span>{{ projectionNotice }}</span>
     </div>
     <p class="text-sm opacity-70 mb-4 break-words"><span v-if="task.task_source === 'search'" class="badge badge-info badge-soft badge-sm mr-2">搜索生成</span>备注：{{ taskRemark }}</p>
 
