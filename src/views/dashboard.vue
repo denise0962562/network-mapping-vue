@@ -247,7 +247,7 @@ const overviewCards = computed(() => {
   const successRate = finished > 0 ? `${Math.round((Number(tasks.succeeded || 0) / finished) * 100)}%` : '0%'
   const averageSeconds = Math.round(Number(dashboardData.value?.avg_duration_ms || 0) / 1000)
   return [
-    { title: '在线扫描器', value: dashboardData.value?.online_scanners ?? 0, description: '90 秒内存在心跳', class: 'text-success' },
+    { title: '在线扫描器', value: dashboardData.value?.online_scanners ?? 0, description: '在配置的在线判定时间内存在心跳', class: 'text-success' },
     { title: '执行中任务', value: tasks.running ?? 0, description: `等待 ${tasks.pending ?? 0} 个`, class: 'text-info' },
     { title: '任务成功率', value: successRate, description: `已完成 ${finished} 个`, class: '' },
     { title: '平均耗时', value: `${averageSeconds} 秒`, description: '成功任务平均值', class: '' }

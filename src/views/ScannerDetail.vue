@@ -60,9 +60,9 @@ function formatLatency(value) {
 
 function latencyBadge(latency) {
   if (!latency || latency.stale) return 'badge-ghost'
-  if (latency.network_rtt_ms < 100) return 'badge-success'
-  if (latency.network_rtt_ms <= 300) return 'badge-warning'
-  return 'badge-error'
+  if (latency.severity === 'critical') return 'badge-error'
+  if (latency.severity === 'warning') return 'badge-warning'
+  return 'badge-success'
 }
 
 const scannerStatus = computed(() => {

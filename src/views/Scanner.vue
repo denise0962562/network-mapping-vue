@@ -101,9 +101,8 @@ function normalizeLatency(latency) {
   if (latency.stale) {
     return { text, class: 'badge-ghost', title: `样本已过期：${formatDate(latency.measured_at)}` }
   }
-  const badgeClass = milliseconds < 100
-    ? 'badge-success'
-    : milliseconds <= 300 ? 'badge-warning' : 'badge-error'
+  const badgeClass = latency.severity === 'critical' ? 'badge-error'
+    : latency.severity === 'warning' ? 'badge-warning' : 'badge-success'
   return { text, class: badgeClass, title: `测量时间：${formatDate(latency.measured_at)}` }
 }
 

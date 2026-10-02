@@ -10,6 +10,7 @@
     "test:reports": "node --test src/utils/reports.test.js",
     "test:targets": "node src/utils/scanTargets.test.js",
     "test:projection": "node --test src/utils/projectionStatus.test.js",
+    "test:monitor": "node --test src/utils/monitorRules.test.js",
     "test:theme": "node --test src/utils/theme.test.js",
     "preview": "vite preview"
   },

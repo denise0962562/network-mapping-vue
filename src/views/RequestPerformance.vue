@@ -60,6 +60,7 @@ function emptySummary() {
     max_ms: null,
     error_rate: 0,
     slow_rate: 0,
+    policy_slow_rate: 0,
     normalized_coverage: 1,
   }
 }
@@ -332,11 +333,14 @@ onMounted(loadPerformance)
           <div class="stat-desc" :class="deltaClass(changes.p99_delta_rate)">{{ summaryHasBaseline ? deltaLabel(changes.p99_delta_rate) : '基线样本不足' }}</div>
         </div>
         <div class="stat rounded-box border border-base-300 bg-base-100">
-          <div class="stat-title">慢请求率</div>
-          <div class="stat-value text-2xl">{{ formatRate(summary.slow_rate) }}</div>
-          <div class="stat-desc">阈值 ≥ {{ meta.slow_threshold_ms || 1000 }} ms · 错误率 {{ formatRate(summary.error_rate) }}</div>
+          <div class="stat-title">按当前策略的慢请求率</div>
+          <div class="stat-value text-2xl">{{ formatRate(summary.policy_slow_rate) }}</div>
+          <div class="stat-desc">监控策略 #{{ meta.policy_revision || '—' }}{{ meta.policy_enabled === false ? ' · 已关闭' : '' }} · 错误率 {{ formatRate(summary.error_rate) }}</div>
+          <div class="mt-1 text-xs opacity-60">固定 {{ meta.slow_threshold_ms || 1000 }} ms 参考值：{{ formatRate(summary.slow_rate) }}</div>
         </div>
       </div>
+
+      <p class="mt-3 text-xs opacity-60">策略慢请求率按当前操作规则重新计算，已关闭的操作不计入慢请求；缺少路由模板的历史样本使用 Web API 默认规则。历史告警保留发生时的阈值与配置版本。</p>
 
       <div v-if="summary.sample_count > 0 && normalizedCoverage < 1" class="alert alert-warning mt-4 text-sm">
         <span>当前范围内有 {{ formatRate(1 - normalizedCoverage) }} 的历史请求缺少标准化路由，已合并为“历史未标准化”。新采集数据会自动恢复正常事件分组。</span>

@@ -25,7 +25,11 @@ const alertTypeOptions = [
   { value: '', label: '全部类型' },
   { value: 'slow_request', label: '慢请求' },
   { value: 'server_error', label: '服务端错误' },
-  { value: 'slow_sql', label: '慢 SQL' }
+  { value: 'slow_sql', label: '慢 SQL' },
+  { value: 'slow_elasticsearch_query', label: 'ES 慢查询' },
+  { value: 'slow_elasticsearch_write', label: 'ES 慢写入' },
+  { value: 'elasticsearch_query_error', label: 'ES 查询错误' },
+  { value: 'elasticsearch_write_error', label: 'ES 写入错误' }
 ]
 
 const severityOptions = [
@@ -37,7 +41,11 @@ const severityOptions = [
 const alertTypeLabels = {
   slow_request: '慢请求',
   server_error: '服务端错误',
-  slow_sql: '慢 SQL'
+  slow_sql: '慢 SQL',
+  slow_elasticsearch_query: 'ES 慢查询',
+  slow_elasticsearch_write: 'ES 慢写入',
+  elasticsearch_query_error: 'ES 查询错误',
+  elasticsearch_write_error: 'ES 写入错误'
 }
 
 const severityLabels = {

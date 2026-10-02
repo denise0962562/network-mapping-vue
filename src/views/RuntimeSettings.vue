@@ -1,12 +1,16 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import MonitorRulesEditor from '@/components/MonitorRulesEditor.vue'
+import { normalizeMonitor, policyDiff, scannerHealthDefaults, scannerHealthFields, validateMonitor, validateScannerHealth } from '@/utils/monitorRules'
+import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
 const namespaces = [
   { key: 'requests', title: '请求日志', description: '控制访问日志采集和在线保留期。' },
-  { key: 'monitor', title: '健康监控', description: '控制慢请求、5xx、慢 SQL 与 Elasticsearch 告警阈值。' },
+  { key: 'monitor', title: '健康监控', description: '按服务和具体操作管理慢检测阈值、告警级别及冷却时间。' },
+  { key: 'scanner_health', title: '扫描器在线与告警', description: '管理在线判定、掉线告警时间、维护宽限期和通信延迟标识。' },
   { key: 'automatic_target', title: '自动目标', description: '控制系统自动生成的 IPv4/IPv6 扫描任务。' },
   { key: 'dns_follow_up', title: 'DNS 后续任务', description: '控制 DNS 解析结果自动创建端口扫描任务的范围。' },
   { key: 'dns_resolvers', title: 'DNS 服务器', description: '维护创建域名扫描任务时可选择的常用 DNS 服务器。' },
@@ -27,6 +31,7 @@ const defaults = {
     elasticsearch_write_critical_threshold_ms: 15000,
     alert_cooldown_seconds: 300,
   },
+  scanner_health: scannerHealthDefaults,
   automatic_target: {
     search_generation: {
       enabled: false, stale_after_days: 7, cooldown_minutes: 1440,
@@ -56,6 +61,8 @@ const defaults = {
   analytics_snapshot: { mode: 'realtime', interval_minutes: 30 },
 }
 
+defaults.monitor = normalizeMonitor(defaults.monitor)
+
 const alerts = ref([])
 const activeTab = ref('requests')
 const loading = reactive(Object.fromEntries(namespaces.map(({ key }) => [key, false])))
@@ -63,6 +70,17 @@ const saving = reactive(Object.fromEntries(namespaces.map(({ key }) => [key, fal
 const revisions = reactive(Object.fromEntries(namespaces.map(({ key }) => [key, 0])))
 const settings = reactive(structuredClone(defaults))
 const savedDocuments = reactive({})
+const catalogue = ref([])
+const catalogueLoading = ref(false)
+const catalogueError = ref('')
+const sqlMessage = ref('')
+const previewNamespace = ref(null)
+const history = ref([])
+const historyLoading = ref(false)
+const conflicts = reactive({})
+const historyError = ref('')
+const previewRows = computed(() => previewNamespace.value ? policyDiff(previewNamespace.value, savedDocuments[previewNamespace.value], documentFor(previewNamespace.value), catalogue.value) : [])
+const policyNamespace = computed(() => ['monitor', 'scanner_health'].includes(activeTab.value))
 const changeReasons = reactive(Object.fromEntries(namespaces.map(({ key }) => [key, ''])))
 const cidrText = reactive({
   searchDomains: '',
@@ -105,6 +123,7 @@ function removeDnsResolverPreset(index) {
 }
 
 function documentFor(namespace) {
+  if (namespace === 'monitor') return normalizeMonitor(settings.monitor)
   if (namespace === 'automatic_target') {
     return {
       ...settings.automatic_target,
@@ -126,7 +145,7 @@ function documentFor(namespace) {
 }
 
 function applyDocument(namespace, document, revision) {
-  settings[namespace] = { ...clone(defaults[namespace]), ...clone(document) }
+  settings[namespace] = namespace === 'monitor' ? normalizeMonitor({ ...clone(defaults.monitor), ...clone(document) }) : { ...clone(defaults[namespace]), ...clone(document) }
   revisions[namespace] = revision
   if (namespace === 'automatic_target') {
     settings.automatic_target.search_generation = { ...clone(defaults.automatic_target.search_generation), ...clone(document.search_generation || {}) }
@@ -142,10 +161,11 @@ function applyDocument(namespace, document, revision) {
   }
   savedDocuments[namespace] = documentFor(namespace)
   changeReasons[namespace] = ''
+  delete conflicts[namespace]
 }
 
 function isDirty(namespace) {
-  return JSON.stringify(documentFor(namespace)) !== JSON.stringify(savedDocuments[namespace])
+  return Boolean(savedDocuments[namespace]) && JSON.stringify(documentFor(namespace)) !== JSON.stringify(savedDocuments[namespace])
 }
 
 const hasUnsavedChanges = computed(() => namespaces.some(({ key }) => isDirty(key)))
@@ -153,6 +173,8 @@ const activeItem = computed(() => namespaces.find(({ key }) => key === activeTab
 
 function selectTab(namespace) {
   activeTab.value = namespace
+  history.value = []
+  historyError.value = ''
 }
 
 async function loadNamespace(namespace, silent = false) {
@@ -171,11 +193,85 @@ async function loadNamespace(namespace, silent = false) {
 }
 
 async function loadAll() {
-  await Promise.all(namespaces.map(({ key }) => loadNamespace(key)))
+  await Promise.all([...namespaces.map(({ key }) => loadNamespace(key)), loadCatalogue()])
+}
+
+async function loadCatalogue() {
+  catalogueLoading.value = true
+  catalogueError.value = ''
+  try {
+    const response = await http.get('/api/config/monitor/operations')
+    const data = response.data?.data
+    if (!Array.isArray(data?.operations)) throw new Error('invalid operation catalogue')
+    catalogue.value = data.operations
+    sqlMessage.value = data.postgresql_message || ''
+  } catch {
+    catalogueError.value = '操作目录加载失败，请重试后保存健康监控规则。'
+  } finally {
+    catalogueLoading.value = false
+  }
+}
+
+function validationError(namespace) {
+  if (namespace === 'monitor') {
+    if (catalogueLoading.value || catalogueError.value || !catalogue.value.length) return '请先成功加载操作目录'
+    return validateMonitor(settings.monitor, catalogue.value)
+  }
+  if (namespace === 'scanner_health') return validateScannerHealth(settings.scanner_health)
+  return ''
+}
+
+function requestSave(namespace) {
+  if (!isDirty(namespace)) return
+  const error = validationError(namespace)
+  if (error) { pushAlert('error', '配置需要修正', error); return }
+  if (['monitor', 'scanner_health'].includes(namespace)) previewNamespace.value = namespace
+  else saveNamespace(namespace)
+}
+
+async function confirmSave() {
+  const namespace = previewNamespace.value
+  if (namespace && await saveNamespace(namespace)) {
+    previewNamespace.value = null
+    history.value = []
+  }
+}
+
+async function loadHistory() {
+  const namespace = activeTab.value
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const response = await http.get(`/api/config/runtime/${namespace}/history`)
+    if (!Array.isArray(response.data?.data)) throw new Error('invalid history response')
+    if (activeTab.value === namespace) history.value = response.data.data
+  } catch {
+    if (activeTab.value === namespace) historyError.value = '配置历史加载失败，请重试。'
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function restoreVersion(item) {
+  const namespace = activeTab.value
+  settings[namespace] = namespace === 'monitor' ? normalizeMonitor({ ...clone(defaults.monitor), ...clone(item.document) }) : { ...clone(defaults[namespace]), ...clone(item.document) }
+  changeReasons[namespace] = `恢复历史版本 #${item.revision}`
+  pushAlert('info', '历史配置已载入草稿', '请检查差异后保存，保存将生成新版本。')
+}
+
+function reviewConflict(namespace) {
+  const latest = conflicts[namespace]
+  if (!latest) return
+  savedDocuments[namespace] = namespace === 'monitor' ? normalizeMonitor({ ...clone(defaults.monitor), ...clone(latest.document) }) : { ...clone(defaults[namespace]), ...clone(latest.document) }
+  revisions[namespace] = latest.revision
+  delete conflicts[namespace]
+  requestSave(namespace)
 }
 
 async function saveNamespace(namespace) {
   if (saving[namespace] || !isDirty(namespace)) return true
+  const errorMessage = validationError(namespace)
+  if (errorMessage) { pushAlert('error', '配置需要修正', errorMessage); return false }
   saving[namespace] = true
   try {
     const response = await http.post(`/api/config/runtime/${namespace}`, {
@@ -191,8 +287,12 @@ async function saveNamespace(namespace) {
   } catch (error) {
     console.error(`save runtime config ${namespace} failed`, error)
     if (error.response?.status === 409) {
-      pushAlert('warning', '配置已被更新', '已有其他管理员发布了更新，已重新加载当前版本。')
-      await loadNamespace(namespace, true)
+      pushAlert('warning', '配置已被更新', '本地草稿已保留。请对照最新配置重新检查差异。')
+      previewNamespace.value = null
+      try {
+        const latest = await http.get(`/api/config/runtime/${namespace}`)
+        if (latest.data?.data?.document) conflicts[namespace] = latest.data.data
+      } catch { pushAlert('error', '最新配置读取失败', '本地草稿仍保留，请稍后重试。') }
     } else {
       pushAlert('error', '运行时配置保存失败', error.response?.data?.message || '请检查输入后重试。')
     }
@@ -204,7 +304,10 @@ async function saveNamespace(namespace) {
 
 async function saveAllChanges() {
   for (const { key } of namespaces) {
-    if (isDirty(key) && !(await saveNamespace(key))) return false
+    if (isDirty(key)) {
+      if (['monitor', 'scanner_health'].includes(key)) { requestSave(key); return false }
+      if (!(await saveNamespace(key))) return false
+    }
   }
   return true
 }
@@ -218,10 +321,10 @@ onMounted(loadAll)
     <AppAlert v-for="alert in alerts" :key="alert.id" class="pointer-events-auto" v-bind="alert" @close="closeAlert(alert.id)" />
   </div>
 
-  <div class="p-5">
+  <div class="min-w-0 w-full p-5">
     <div class="mb-4">
       <h2 class="text-lg font-semibold">运行时配置</h2>
-      <p class="text-xs opacity-60">这些策略保存在数据库中，保存后立即发布到当前服务进程。配置版本冲突时会重新加载，避免覆盖其他管理员的更新。</p>
+      <p class="text-xs opacity-60">这些策略保存在数据库中，保存后立即应用到当前进程，其他实例通常在 5 秒内同步监控策略。版本冲突时保留草稿，供对照最新配置。</p>
     </div>
 
     <div class="tabs tabs-box mb-5 w-full overflow-x-auto" role="tablist" aria-label="运行时配置分类">
@@ -230,7 +333,7 @@ onMounted(loadAll)
       </button>
     </div>
 
-    <section v-if="activeItem" :key="activeItem.key" class="card card-border border-base-300 bg-base-100 p-4">
+    <section v-if="activeItem" :key="activeItem.key" class="card card-border min-w-0 border-base-300 bg-base-100 p-4">
       <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 class="font-semibold">{{ activeItem.title }}</h3>
@@ -239,15 +342,17 @@ onMounted(loadAll)
         <div class="flex items-center gap-2">
           <span class="badge badge-ghost badge-sm">版本 #{{ revisions[activeItem.key] || '—' }}</span>
           <button type="button" class="btn btn-ghost btn-sm rounded-lg" :disabled="loading[activeItem.key] || saving[activeItem.key]" @click="loadNamespace(activeItem.key)">重新加载</button>
-          <button type="button" class="btn btn-neutral btn-sm rounded-lg" :class="isDirty(activeItem.key) ? 'visible' : 'invisible'" :disabled="!isDirty(activeItem.key) || loading[activeItem.key] || saving[activeItem.key]" @click="saveNamespace(activeItem.key)">
-            <span v-if="saving[activeItem.key]" class="loading loading-spinner loading-xs"></span>{{ saving[activeItem.key] ? '发布中' : '发布' }}
+          <button type="button" class="btn btn-neutral btn-sm rounded-lg" :class="isDirty(activeItem.key) ? 'visible' : 'invisible'" :disabled="!isDirty(activeItem.key) || loading[activeItem.key] || saving[activeItem.key]" @click="requestSave(activeItem.key)">
+            <span v-if="saving[activeItem.key]" class="loading loading-spinner loading-xs"></span>{{ saving[activeItem.key] ? '保存中' : policyNamespace ? '预览并保存' : '发布' }}
           </button>
         </div>
       </div>
 
       <div v-if="loading[activeItem.key]" class="flex items-center gap-2 py-8 text-sm opacity-60"><span class="loading loading-spinner loading-sm"></span>正在读取配置...</div>
 
-      <fieldset v-else :disabled="saving[activeItem.key]" class="runtime-fields space-y-4">
+      <div v-if="conflicts[activeItem.key]" class="alert alert-warning mb-4" role="alert"><div><p>当前配置已更新到版本 #{{ conflicts[activeItem.key].revision }}，本地草稿已保留。</p><p class="mt-1 text-xs">重新预览会对照最新版本列出全部差异，请检查是否包含其他管理员的修改。</p></div><button type="button" class="btn btn-sm" @click="reviewConflict(activeItem.key)">对照最新配置</button></div>
+      <div v-if="!loading[activeItem.key] && !revisions[activeItem.key]" class="alert alert-error mb-4" role="alert">配置尚未成功加载，请点击重新加载后编辑。</div>
+      <fieldset v-if="!loading[activeItem.key]" :disabled="saving[activeItem.key] || !revisions[activeItem.key] || previewNamespace !== null" class="runtime-fields min-w-0 w-full space-y-4">
         <template v-if="activeItem.key === 'requests'">
           <div class="grid gap-3 lg:grid-cols-2">
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.requests.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">采集请求日志</span><span class="mt-1 block text-xs opacity-60">关闭后停止写入新访问日志；后台 writer 保持待命。</span></span></label>
@@ -259,15 +364,20 @@ onMounted(loadAll)
           <div class="grid gap-3 lg:grid-cols-2">
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">启用健康监控</span><span class="mt-1 block text-xs opacity-60">关闭时不再发送健康告警。</span></span></label>
             <label class="runtime-switch rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer"><input v-model="settings.monitor.server_error_enabled" type="checkbox" class="toggle mt-0.5" /><span><span class="block font-medium">5xx 告警</span><span class="mt-1 block text-xs opacity-60">维护响应不会触发该告警。</span></span></label>
-            <label class="form-control"><span class="label-text mb-1">告警冷却时间（秒）</span><input v-model.number="settings.monitor.alert_cooldown_seconds" min="1" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">慢请求阈值（ms）</span><input v-model.number="settings.monitor.slow_request_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">慢 SQL 阈值（ms）</span><input v-model.number="settings.monitor.slow_sql_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">慢 SQL 检查间隔（秒）</span><input v-model.number="settings.monitor.slow_sql_check_interval_seconds" min="1" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">ES 查询 warning（ms）</span><input v-model.number="settings.monitor.elasticsearch_query_warning_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">ES 查询 critical（ms）</span><input v-model.number="settings.monitor.elasticsearch_query_critical_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">ES 写入 warning（ms）</span><input v-model.number="settings.monitor.elasticsearch_write_warning_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1">ES 写入 critical（ms）</span><input v-model.number="settings.monitor.elasticsearch_write_critical_threshold_ms" min="1" type="number" class="input input-bordered" /></label>
+            <label class="form-control"><span class="label-text mb-1">错误告警冷却时间（秒）</span><input v-model.number="settings.monitor.alert_cooldown_seconds" min="1" max="604800" type="number" class="input input-bordered" /><span class="label-text-alt mt-1 opacity-60">用于 5xx 等没有操作耗时规则的错误告警。</span></label>
+            <label class="form-control"><span class="label-text mb-1">慢 SQL 检查间隔（秒）</span><input v-model.number="settings.monitor.slow_sql_check_interval_seconds" min="1" max="86400" type="number" class="input input-bordered" /></label>
           </div>
+          <MonitorRulesEditor v-model="settings.monitor" :saved-document="savedDocuments.monitor" :catalogue="catalogue" :loading="catalogueLoading" :error="catalogueError" :sql-message="sqlMessage" @reload="loadCatalogue" />
+        </template>
+
+        <template v-else-if="activeItem.key === 'scanner_health'">
+          <div class="alert text-sm" role="status">掉线策略独立于健康监控总开关。掉线及恢复邮件开关仍在系统设置的通知偏好中管理；维护、禁用及删除的扫描器不会触发掉线通知。</div>
+          <p class="text-xs opacity-60">扫描器默认每 30 秒发送心跳，在线判定时间至少覆盖两个默认周期。自定义心跳周期较长时，请相应提高在线判定和告警时间。</p>
+          <div class="grid gap-3 lg:grid-cols-2">
+            <label v-for="field in scannerHealthFields" :key="field.key" class="form-control"><span class="label-text mb-1">{{ field.label }}（{{ field.unit }}）</span><input v-model.number="settings.scanner_health[field.key]" :min="field.min" :max="field.max" step="1" type="number" class="input input-bordered" /><span class="label-text-alt mt-1 opacity-60">{{ field.description }}</span></label>
+          </div>
+          <p v-if="validateScannerHealth(settings.scanner_health)" class="text-sm text-error">{{ validateScannerHealth(settings.scanner_health) }}</p>
+          <p class="text-xs opacity-60">持续掉线按一次事件通知，修改阈值不会重复创建已有事件；任务租约时间独立管理。</p>
         </template>
 
         <template v-else-if="activeItem.key === 'automatic_target'">
@@ -336,7 +446,22 @@ onMounted(loadAll)
 
         <label class="form-control"><span class="label-text mb-1">变更原因 <span class="opacity-60">（建议填写，最长 500 字）</span></span><input v-model="changeReasons[activeItem.key]" maxlength="500" type="text" class="input input-bordered" placeholder="例如：调整告警阈值以适应新的性能基线" /></label>
       </fieldset>
+      <div v-if="policyNamespace && revisions[activeItem.key]" class="mt-5 border-t border-base-300 pt-4">
+        <div class="flex items-center justify-between gap-2"><div><h4 class="font-medium">配置历史</h4><p class="mt-1 text-xs opacity-60">历史版本可载入草稿，检查差异后保存为新版本。</p></div><button type="button" class="btn btn-ghost btn-sm" :disabled="historyLoading || saving[activeItem.key] || previewNamespace !== null" @click="loadHistory">{{ historyLoading ? '加载中...' : '查看最近 30 个版本' }}</button></div>
+        <p v-if="historyError" class="mt-2 text-sm text-error" role="alert">{{ historyError }}</p>
+        <div v-if="history.length" class="mt-3 overflow-x-auto"><table class="table table-sm"><thead><tr><th>版本</th><th>时间</th><th>变更原因</th><th></th></tr></thead><tbody><tr v-for="item in history" :key="item.revision"><td>#{{ item.revision }} <span v-if="item.revision === revisions[activeItem.key]" class="badge badge-ghost badge-xs">当前</span></td><td>{{ formatSystemDateTime(new Date(item.changed_at)) }}</td><td>{{ item.change_reason || '—' }}</td><td><button type="button" class="btn btn-ghost btn-xs" :disabled="item.revision === revisions[activeItem.key] || saving[activeItem.key] || previewNamespace !== null" @click="restoreVersion(item)">载入草稿</button></td></tr></tbody></table></div>
+      </div>
     </section>
+  </div>
+  <div v-if="previewNamespace" class="modal modal-open" role="dialog" aria-modal="true" aria-labelledby="policy-preview-title">
+    <div class="modal-box max-h-[90vh] max-w-5xl overflow-y-auto">
+      <h3 id="policy-preview-title" class="text-lg font-semibold">保存前差异预览</h3>
+      <p class="mt-2 text-sm opacity-70">{{ namespaces.find((item) => item.key === previewNamespace)?.title }} · 当前版本 #{{ revisions[previewNamespace] }}。保存后生效，历史告警保留原判定阈值。</p>
+      <p class="mt-2 text-xs opacity-60">降低耗时阈值可能增加告警；修改服务默认规则会影响所有继承该规则的操作。</p>
+      <div class="mt-4 overflow-x-auto"><table class="table table-sm"><thead><tr><th>对象</th><th>修改前</th><th>修改后</th><th>影响方式</th></tr></thead><tbody><tr v-for="(row, index) in previewRows" :key="index"><td class="min-w-48 break-all">{{ row.label }}</td><td class="min-w-48">{{ row.before }}</td><td class="min-w-48">{{ row.after }}</td><td class="whitespace-nowrap">{{ row.effect }}</td></tr></tbody></table></div>
+      <p class="mt-3 text-xs opacity-60">共 {{ previewRows.length }} 项差异 · 变更原因：{{ changeReasons[previewNamespace].trim() || '未填写' }}</p>
+      <div class="modal-action"><button type="button" class="btn btn-ghost" :disabled="saving[previewNamespace]" @click="previewNamespace = null">返回编辑</button><button type="button" class="btn btn-neutral" :disabled="saving[previewNamespace]" @click="confirmSave"><span v-if="saving[previewNamespace]" class="loading loading-spinner loading-xs"></span>确认保存</button></div>
+    </div>
   </div>
 </template>
 
