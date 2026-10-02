@@ -82,6 +82,18 @@ pnpm install
 pnpm run dev
 ```
 
+### 自动化检查
+
+现有独立脚本覆盖系统时间、报告工具、扫描目标校验和主题工具：
+
+```sh
+pnpm test:time
+pnpm test:targets
+pnpm test:theme
+```
+
+`pnpm test:reports` 可单独运行报告工具测试（也包含在 `test:time` 中）。这些检查不覆盖完整页面行为；UI 改动仍需手动验证受影响路由及错误状态。
+
 ### Compile and Minify for Production
 
 ```sh

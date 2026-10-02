@@ -1,6 +1,6 @@
 # network-mapping-vue 维护与扩展指南
 
-> 更新日期：2026-09-03
+> 更新日期：2026-10-02
 
 ## 目录
 
@@ -21,15 +21,15 @@
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
-| 前端框架 | Vue 3 (Composition API) | ^3.5.29 |
-| 构建工具 | Vite | ^7.3.1 |
-| 路由 | Vue Router | ^5.0.3 |
-| 样式 | Tailwind CSS + daisyUI | ^4.2.1 / ^5.5.19 |
+| 前端框架 | Vue 3 (Composition API) | ^3.5.35 |
+| 构建工具 | Vite | ^7.3.6 |
+| 路由 | Vue Router | ^5.1.0 |
+| 样式 | Tailwind CSS + daisyUI | ^4.3.0 / ^5.5.20 |
 | 图表 | ApexCharts (vue3-apexcharts) | ^5.6.0 |
-| HTTP | Axios | ^1.15.1 |
+| HTTP | Axios | ^1.19.0 |
 | 二维码 | vue-qrcode | ^2.2.2 |
 | 图标 | @lucide/vue | ^1.17.0 |
-| 地图 | Leaflet | ^1.9.4 |
+| 地图 | ApexMaps / vue-apexmaps | ^0.3.0 / ^0.3.0 |
 
 关键文件：
 - `src/main.js` — 应用入口
@@ -72,17 +72,32 @@
 | 路径 | 文件 | 标题 | 说明 |
 |------|------|------|------|
 | `/` | `src/views/dashboard.vue` | Dashboard | 仪表盘首页 |
-| `/create_scan` | `src/views/createscan.vue` | 创建扫描 | 创建扫描任务 |
+| `/create_scan` | `src/views/createscan.vue` | 创建任务 | 创建扫描任务 |
 | `/task` | `src/views/task.vue` | 任务 | 任务列表、筛选、分页 |
 | `/task/:taskid` | `src/views/taskdetail.vue` | 任务详情 | 单个任务详情（UUID 路由参数） |
 | `/scanner` | `src/views/Scanner.vue` | 扫描器 | 扫描器列表 |
 | `/scanner/:id` | `src/views/ScannerDetail.vue` | 扫描器详情 | 单个扫描器详情 |
-| `/analysis` | `src/views/analysis.vue` | 数据分析 | Pie 图 + Heatmap |
+| `/analysis` | `src/views/AnalysisLayout.vue` | — | 分析布局，重定向至 `/analysis/scan` |
+| `/analysis/scan` | `src/views/analysis.vue` | 扫描分析 | 扫描统计图表 |
+| `/analysis/performance` | `src/views/RequestPerformance.vue` | 性能基线 | 请求性能分析 |
 | `/open-source` | `src/views/open-source.vue` | 开源项目 | 依赖声明列表 |
 | `/setting` | `src/views/setting.vue` | 设置 | 监听/安全/通知配置 |
 | `/user/info` | `src/views/PersonalInfo.vue` | 个人信息 | 用户资料编辑 |
 | `/user/security` | `src/views/UserSecurity.vue` | 用户安全 | 2FA 设置 |
 | `/testpage` | `src/views/TestPage.vue` | Alert 测试 | 组件测试页 |
+| `/scanner/:id/configuration` | `src/views/ScannerConfiguration.vue` | 扫描器配置 | 远程配置发布与应用状态 |
+| `/audit` | `src/views/AuditLog.vue` | 审计日志 | 操作审计 |
+| `/requests` | `src/views/Requests.vue` | 请求日志 | 请求查询 |
+| `/reports` | `src/views/reports.vue` | 报告中心 | 周报/月报与发送计划 |
+| `/reports/:id` | `src/views/reportdetail.vue` | 报告详情 | 报告查看与发送 |
+| `/health` | `src/views/Health.vue` | 健康告警 | 告警历史 |
+| `/admin/users` | `src/views/UserManagement.vue` | 用户管理 | 管理员用户操作 |
+| `/admin/tags` | `src/views/TagManagement.vue` | 标签管理 | 资产标签 |
+| `/admin/backups` | `src/views/BackupManagement.vue` | 数据备份 | pgBackRest 管理 |
+| `/setting/maintenance` | `src/views/SystemMaintenance.vue` | 系统维护 | 维护状态 |
+| `/setting/scan` | `src/views/ScanSettings.vue` | 扫描设置 | 默认扫描模式 |
+| `/setting/runtime` | `src/views/RuntimeSettings.vue` | 运行时配置 | 全局运行策略发布 |
+| `/setting/mail-templates` | `src/views/MailTemplateEditor.vue` | 邮件模板 | 模板编辑与发布 |
 | `/:pathMatch(.*)*` | `src/views/NotFound-404.vue` | 404 | 未匹配路由 |
 
 > **注意**：任务与新建扫描器均使用 UUIDv7。任务路由显式限制版本位为 7；扫描器路由为兼容已有数据接受任意标准 UUID 版本格式。
@@ -482,3 +497,17 @@ IP/CIDR 可选默认值。“仅 DNS”（`dns_records`）是任务级域名专�
 ## 扫描器诊断面板补充（2026-10-01）
 
 `ScannerDetail.vue` 在延迟历史之后接入 `ScannerDiagnostics.vue`，复用既有 HTTP/CSRF 与系统时间工具。面板包含错误筛选、证据日志下载、目录选择、采集进度和告警确认；它在卸载时停止轮询并取消查询。权限和异常状态检查参见[扫描器诊断面板](scanner-diagnostics.md)。
+
+## 构建与自动化检查
+
+Node 版本要求为 `^20.19.0 || >=22.12.0`。现有自动化检查是独立脚本，不包含完整页面或端到端覆盖：
+
+```sh
+pnpm test:time     # 系统时间与报告工具测试
+pnpm test:reports  # 报告工具测试（已包含在 test:time 中）
+pnpm test:targets  # 扫描目标校验测试
+pnpm test:theme    # 主题工具测试
+pnpm build
+```
+
+按改动选择相关脚本；页面行为变更还需手动检查受影响路由、加载/空状态和错误状态。依赖版本以 `package.json` 为准。
