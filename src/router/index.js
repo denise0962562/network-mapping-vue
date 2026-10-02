@@ -16,6 +16,7 @@ const router = createRouter({
       redirect: '/analysis/scan',
       children: [
         { path: 'scan', component: () => import('../views/analysis.vue'), meta: { title: '扫描分析' } },
+        { path: 'statistics', component: () => import('../views/statistics.vue'), meta: { title: '统计分析' } },
         { path: 'performance', component: () => import('../views/RequestPerformance.vue'), meta: { title: '性能基线' } },
       ],
     },

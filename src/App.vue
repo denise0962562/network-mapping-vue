@@ -310,6 +310,11 @@ async function handleLogout() {
                     <span class="whitespace-nowrap">扫描分析</span>
                   </router-link>
                 </li>
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/analysis/statistics">
+                    <span class="whitespace-nowrap">统计分析</span>
+                  </router-link>
+                </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/analysis/performance">
                     <span class="whitespace-nowrap">性能基线</span>
