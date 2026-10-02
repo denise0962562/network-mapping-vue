@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { expireCookie, getCookieValue } from './csrf'
+import { expireCookie, getCookieValue } from './csrf.js'
 
 let sessionExpiredDispatched = false
 
@@ -14,11 +14,13 @@ function shouldAttachCsrf(config) {
 function getResponsePathname(response) {
   const config = response?.config || {}
   const baseURL = config.baseURL ? new URL(config.baseURL, window.location.origin) : null
-  return new URL(config.url || '', baseURL || window.location.origin).pathname
+  const url = new URL(config.url || '', baseURL || window.location.origin)
+  return url.origin === window.location.origin ? url.pathname : null
 }
 
 function shouldHandleUnauthorizedResponse(response) {
   const pathname = getResponsePathname(response)
+  if (pathname === null) return false
   if (window.location.pathname === '/login' && (pathname === '/api/login' || pathname === '/api/totp/verify')) {
     return false
   }

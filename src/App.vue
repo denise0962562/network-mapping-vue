@@ -5,6 +5,7 @@ import { expireCookie } from './utils/csrf'
 import http from './utils/http'
 import ReLoginModal from './components/ReLoginModal.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import SidebarVersionUpdates from '@/components/SidebarVersionUpdates.vue'
 import packageInfo from '../package.json'
 
 const route = useRoute()
@@ -483,6 +484,13 @@ async function handleLogout() {
           </li>
         </ul>
 
+        <SidebarVersionUpdates
+          class="w-full px-4 pb-1 is-drawer-close:px-2"
+          :expanded="drawerOpen"
+          :frontend-version="frontendVersion"
+          :server-version="serverVersion"
+          @expand="drawerOpen = true"
+        />
         <div class="w-full is-drawer-close:hidden">
           <div class="divider my-0 px-4 text-xs opacity-60">版本信息</div>
           <div class="flex items-center justify-between px-4 pb-2 text-xs opacity-70">

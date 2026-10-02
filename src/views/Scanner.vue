@@ -3,6 +3,7 @@ import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import VersionUpdateBadge from '@/components/VersionUpdateBadge.vue'
 import http from '@/utils/http'
 
 const scannerForm = ref({
@@ -116,6 +117,7 @@ function normalizeScanner(item, index) {
     region: item.location || '-',
     ip: item.ip_address || '-',
     creator: item.creator || '-',
+    version: item.scanner_version || '',
     lastSeenAt: item.last_seen_at,
     currentTaskId: item.current_task_id,
     statusKey: status.key,
@@ -295,7 +297,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           />
 
           <div v-else class="overflow-x-auto rounded-box border border-base-300">
-            <table class="table table-sm">
+            <table class="table table-sm whitespace-nowrap">
               <thead>
                 <tr>
                   <th></th>
@@ -303,6 +305,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   <th>区域</th>
                   <th>地址</th>
                   <th>状态</th>
+                  <th>版本</th>
                   <th>协议</th>
                   <th>延迟</th>
                   <th>添加者</th>
@@ -321,6 +324,12 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   <td>{{ item.region }}</td>
                   <td>{{ item.ip }}</td>
                   <td><span class="badge badge-sm" :class="item.statusClass">{{ item.statusText }}</span></td>
+                  <td>
+                    <div class="flex items-center gap-2 whitespace-nowrap">
+                      <span>{{ item.version || '-' }}</span>
+                      <VersionUpdateBadge component="scanner" :current-version="item.version" />
+                    </div>
+                  </td>
                   <td>
                     <div class="flex gap-1 whitespace-nowrap">
                       <span class="badge badge-xs" :class="item.ipv4Ready ? 'badge-success' : 'badge-ghost'">IPv4</span>

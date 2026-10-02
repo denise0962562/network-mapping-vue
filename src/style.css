@@ -22,6 +22,26 @@ body {
     margin: 0;
 }
 
+.version-update-text {
+    display: inline-block;
+    transform-origin: center;
+    animation: version-update-sway 3s ease-in-out infinite;
+}
+
+@keyframes version-update-sway {
+    0%, 36%, 100% { transform: rotate(0deg); }
+    8% { transform: rotate(8deg); }
+    16% { transform: rotate(-8deg); }
+    24% { transform: rotate(5deg); }
+    30% { transform: rotate(-5deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .version-update-text {
+        animation: none;
+    }
+}
+
 .resource_card {
     @apply card bg-base-100 card-border border-base-300 w-full p-2.5;
 }

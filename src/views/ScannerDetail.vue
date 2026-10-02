@@ -3,6 +3,7 @@ import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import EmptyState from '@/components/EmptyState.vue'
+import VersionUpdateBadge from '@/components/VersionUpdateBadge.vue'
 import ScannerLatencyChart from '@/components/ScannerLatencyChart.vue'
 import ScannerDiagnostics from '@/components/ScannerDiagnostics.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
@@ -239,7 +240,12 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
             </router-link>
             <span v-else>-</span>
           </div>
-          <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">扫描器版本：</span>{{ scannerDetail.scanner_version || '-' }}</div>
+          <div class="rounded-lg bg-base-200/60 p-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <div><span class="opacity-70">扫描器版本：</span>{{ scannerDetail.scanner_version || '-' }}</div>
+              <VersionUpdateBadge component="scanner" :current-version="scannerDetail.scanner_version || ''" />
+            </div>
+          </div>
           <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">标签：</span>{{ scannerDetail.tag || '-' }}</div>
           <div class="rounded-lg bg-base-200/60 p-3"><span class="opacity-70">备注：</span>{{ scannerDetail.remark || '-' }}</div>
         </div>
