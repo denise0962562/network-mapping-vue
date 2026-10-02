@@ -1,5 +1,6 @@
 <script setup>
 import { useChartTheme } from '@/composables/useChartTheme'
+import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { formatTime as formatSystemClock } from '@/utils/systemTime'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -186,11 +187,20 @@ onBeforeUnmount(() => {
         <h3 class="font-semibold">服务端通信延迟趋势</h3>
         <p class="mt-1 text-xs opacity-60">网络 RTT 为 HTTPS 总 RTT 扣除服务端处理耗时后的估算值。</p>
       </div>
-      <select v-model="range" class="select select-bordered select-sm" :disabled="loading">
-        <option v-for="option in rangeOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
+      <div class="flex items-center gap-2">
+        <select v-model="range" class="select select-bordered select-sm w-36" :disabled="loading">
+          <option v-for="option in rangeOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+        <ChartCsvExport
+          :filename="`scanner-${scannerId}-latency`"
+          :series="chartSeries"
+          :options="chartOptions"
+          unit="ms"
+          :disabled="loading || failed"
+        />
+      </div>
     </div>
 
     <div v-if="loading && points.length === 0" class="grid min-h-72 place-items-center rounded-lg bg-base-200/60">

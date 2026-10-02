@@ -1,5 +1,6 @@
 <script setup>
 import { useChartTheme } from '@/composables/useChartTheme'
+import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { formatTime as formatSystemClock, toLocalInputValue as systemInputValue, parseSystemDate } from '@/utils/systemTime'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -369,6 +370,13 @@ onBeforeUnmount(() => {
           </select>
         </label>
 
+        <ChartCsvExport
+          filename="resource-history"
+          :series="chartSeries"
+          :options="chartOptions"
+          unit="%"
+          :disabled="loading || !hasMetrics"
+        />
         <button class="btn btn-neutral btn-sm" :disabled="loading" @click="loadHistory()">
           <span v-if="loading" class="loading loading-spinner loading-xs"></span>
           {{ loading ? '加载中…' : '应用' }}

@@ -1,5 +1,6 @@
 <script setup>
 import { useChartTheme } from '@/composables/useChartTheme'
+import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { formatTime as formatSystemClock } from '@/utils/systemTime'
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -348,12 +349,21 @@ onMounted(loadPerformance)
 
       <section class="card mt-5 border border-base-300 bg-base-100 shadow-sm">
         <div class="card-body p-4">
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 class="font-semibold">耗时趋势 <span v-if="granularityLabel" class="badge badge-ghost badge-sm align-middle">{{ granularityLabel }}</span></h2>
               <p class="mt-1 text-xs text-base-content/60">上一周期 P95 已平移到当前时间轴，用于观察相同位置的性能变化。</p>
             </div>
-            <span v-if="loading" class="loading loading-spinner loading-sm"></span>
+            <div class="flex shrink-0 items-center gap-2">
+              <span v-if="loading" class="loading loading-spinner loading-sm"></span>
+              <ChartCsvExport
+                filename="request-performance"
+                :series="trendSeries"
+                :options="trendOptions"
+                unit="ms"
+                :disabled="loading || !trend.length"
+              />
+            </div>
           </div>
           <EmptyState v-if="!trend.length" class="mt-4" title="暂无耗时趋势" message="当前筛选范围内没有可用于分析的请求样本。" />
           <div v-else class="relative">

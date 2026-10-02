@@ -1,5 +1,6 @@
 <script setup>
 import { useChartTheme } from '@/composables/useChartTheme'
+import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
 import { computed, onMounted, ref } from 'vue'
 import { defineAsyncComponent } from 'vue'
@@ -455,12 +456,21 @@ onMounted(loadAll)
 
     <section class="card mt-5 border border-base-300 bg-base-100 shadow-sm">
       <div class="card-body p-4">
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 class="font-semibold">请求与错误趋势 <span v-if="granularityLabel" class="badge badge-ghost badge-sm align-middle">{{ granularityLabel }}</span></h2>
             <p class="mt-1 text-xs text-base-content/60">按时间分桶统计请求量，展示 4xx / 5xx 汇总，并将高频错误状态码细分为独立曲线。</p>
           </div>
-          <span v-if="summaryLoading" class="loading loading-spinner loading-sm"></span>
+          <div class="flex shrink-0 items-center gap-2">
+            <span v-if="summaryLoading" class="loading loading-spinner loading-sm"></span>
+            <ChartCsvExport
+              filename="request-trend"
+              :series="trendSeries"
+              :options="trendOptions"
+              unit="个请求"
+              :disabled="summaryLoading"
+            />
+          </div>
         </div>
         <div v-if="summaryLoading && !summary.trend.length" class="mt-4 skeleton h-72 w-full rounded-box"></div>
         <EmptyState v-else-if="!summary.trend.length" class="mt-4" title="暂无趋势数据" message="当前筛选范围内没有请求记录。" />

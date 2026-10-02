@@ -8,6 +8,7 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useTheme } from '@/composables/useTheme'
 import http from '../utils/http'
 import { formatLocation } from '../utils/location'
+import ChartCsvExport from '@/components/ChartCsvExport.vue'
 
 const { isDark, resolvedTheme } = useTheme()
 const HISTORY_PAGE_SIZE = 50
@@ -107,6 +108,16 @@ const mapCoordinates = computed(() => {
   const point = mapPoint.value
   return point ? pointCoordinates(point) : null
 })
+const mapCsvData = computed(() => ({
+  headers: ['IP 地址', '地理位置', '定位精度', '纬度', '经度'],
+  rows: mapPoint.value ? [[
+    mapPoint.value.name,
+    mapPoint.value.location,
+    mapPoint.value.precision,
+    mapPoint.value.lat ?? null,
+    mapPoint.value.lon ?? null
+  ]] : []
+}))
 const countryTooltipSeries = computed(() => ({
   type: 'choropleth',
   name: '国家和地区',
@@ -517,7 +528,14 @@ onMounted(() => {
                   <h2 class="font-semibold">IP 地理位置</h2>
                   <p class="mt-1 text-sm opacity-60">{{ mapPoint?.precision || '未提供可用的地理位置' }}</p>
                 </div>
-                <span v-if="mapPoint" class="badge badge-outline">{{ location }}</span>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span v-if="mapPoint" class="badge badge-outline">{{ location }}</span>
+                  <ChartCsvExport
+                    :filename="`asset-${summary.ip}-location`"
+                    :data="mapCsvData"
+                    :disabled="loading"
+                  />
+                </div>
               </div>
               <ApexMaps
                 v-if="mapCanRender && !mapError"

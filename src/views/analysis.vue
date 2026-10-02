@@ -1,5 +1,6 @@
 <script setup>
 import { useChartTheme } from '@/composables/useChartTheme'
+import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { useTheme } from '@/composables/useTheme'
 import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
 import { calendarDate, mondayDate, addCalendarDays, calendarMidnight, timeSettings } from '@/utils/systemTime'
@@ -497,12 +498,22 @@ onBeforeUnmount(() => {
     <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
       <section class="card border border-base-300 bg-base-100 shadow-sm">
         <div class="card-body p-4">
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 class="font-semibold">常见{{ activeFilters.dimension === 'service' ? '服务' : '端口' }}分布</h2>
               <p class="mt-1 text-xs text-base-content/60">按唯一 IP、端口和任务执行去重，Top N 之外合并为“其他”。</p>
             </div>
-            <span class="badge badge-ghost whitespace-nowrap">共 {{ distributionData.total.toLocaleString('zh-CN') }} 个端点</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost whitespace-nowrap">共 {{ distributionData.total.toLocaleString('zh-CN') }} 个端点</span>
+              <ChartCsvExport
+                :filename="`${activeFilters.dimension}-distribution`"
+                :series="pieSeries"
+                :options="pieOptions"
+                :category-header="activeFilters.dimension === 'service' ? '服务' : '端口'"
+                value-header="端点数"
+                :disabled="distributionLoading || !hasLoadedDistribution || distributionData.total === 0"
+              />
+            </div>
           </div>
 
           <div v-if="distributionLoading && !hasLoadedDistribution" class="mt-4 skeleton h-80 w-full rounded-box"></div>
@@ -528,12 +539,22 @@ onBeforeUnmount(() => {
 
       <section class="card border border-base-300 bg-base-100 shadow-sm">
         <div class="card-body p-4">
-          <div class="flex items-start justify-between gap-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 class="font-semibold">发现 IP 热力图</h2>
               <p class="mt-1 text-xs text-base-content/60">按自然日统计去重 IP；无发现显示为 0，未来日期留空。</p>
             </div>
-            <span class="badge badge-ghost whitespace-nowrap">累计 {{ discoveredTotal.toLocaleString('zh-CN') }}</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost whitespace-nowrap">累计 {{ discoveredTotal.toLocaleString('zh-CN') }}</span>
+              <ChartCsvExport
+                filename="discovered-ip-heatmap"
+                :series="heatmapSeries"
+                :options="heatmapOptions"
+                category-header="日期"
+                value-header="发现 IP 数"
+                :disabled="heatmapLoading || !hasLoadedHeatmap"
+              />
+            </div>
           </div>
 
           <div v-if="heatmapLoading && !hasLoadedHeatmap" class="mt-4 skeleton h-96 w-full rounded-box"></div>

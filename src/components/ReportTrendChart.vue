@@ -1,7 +1,11 @@
 <script setup>
 import { useChartTheme } from '@/composables/useChartTheme'
+import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { computed, defineAsyncComponent } from 'vue'
-const props = defineProps({ items: { type: Array, default: () => [] } })
+const props = defineProps({
+  items: { type: Array, default: () => [] },
+  filename: { type: String, default: 'report-trend' }
+})
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const series = computed(() => [
   { name: '成功', data: props.items.map((d) => d.succeeded || 0) },
@@ -19,5 +23,14 @@ const options = useChartTheme(() => ({
 </script>
 
 <template>
+  <div class="flex justify-end">
+    <ChartCsvExport
+      :filename="filename"
+      :series="series"
+      :options="options"
+      category-header="日期"
+      unit="个任务"
+    />
+  </div>
   <ApexChart type="bar" height="300" :options="options" :series="series" />
 </template>
