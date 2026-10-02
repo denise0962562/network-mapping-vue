@@ -1,106 +1,101 @@
-# Network Mapping Vue
+# Network Mapping Web
 
-Network Mapping 的 Vue 3/Vite 单页前端，提供扫描任务、扫描器、审计日志和结果分析界面。
+**Network Mapping 的 Web 控制台**
 
-## 高级搜索界面
+基于 Vue 3 与 Vite，提供扫描任务、扫描器管理、资产搜索、分析报告及运维界面。使用 Tailwind CSS 与 daisyUI 保持一致的页面布局和交互。
 
-独立入口 `/search.html` 使用 `POST /api/search/v2`，支持 IP/CIDR、端口、服务、Banner、
-地理信息和资产标签的组合查询。搜索框直接提交完整表达式，语法校验由服务端完成；HTTP
-`422` 响应中的 UTF-16 `span` 会用于选中错误位置。页面还会加载标签目录，点击标签即可
-追加精确标签条件。
+[快速开始](#快速开始) · [功能指南](docs/FEATURES.md) · [开发指南](docs/maintenance-guide.md) · [文档中心](docs/README.md)
+
+## 功能概览
+
+| 区域 | 功能 |
+| --- | --- |
+| 扫描管理 | 目标校验、四种扫描模式、多节点分配、任务与执行实例详情 |
+| 资产检索 | 高级表达式搜索、资产标签、端口/服务及地理信息 |
+| 节点管理 | 双栈能力、远程配置、错误与日志诊断 |
+| 数据分析 | 扫描统计、请求性能、平台周报与月报 |
+| 管理运维 | 用户、审计、健康告警、备份、运行时配置与邮件模板 |
+
+配套组件：[服务端](https://github.com/wshijiang/network-mapping) · [扫描器](https://github.com/wshijiang/Network-Mapping-Scanner)
+
+## 快速开始
+
+### 1. 准备环境
+
+Node.js 版本要求为 `^20.19.0 || >=22.12.0`，使用 pnpm 安装和运行。页面依赖已部署的服务端 API，登录后才能访问受保护功能。
+
+### 2. 安装依赖
+
+```sh
+git clone https://github.com/wshijiang/network-mapping-vue.git
+cd network-mapping-vue
+pnpm install --frozen-lockfile
+```
+
+### 3. 启动开发服务
+
+```sh
+pnpm dev
+```
+
+开发服务将 `/api` 和 `/logout` 转发到 `https://localhost:9999`。后端地址不同时修改 `vite.config.js` 的代理目标。仓库上一级存在 `ssl/key.pem` 和 `ssl/cert.pem` 时启用 HTTPS，否则使用 HTTP。登录与会话依赖后端，静态开发服务不能单独完成完整业务流程。
+
+## 构建与部署
+
+```sh
+pnpm build
+```
+
+构建产物位于 `dist/`，由 Network Mapping 服务端托管。服务端配置示例：
+
+```toml
+[frontend]
+directory = "../network-mapping-vue/dist"
+```
+
+此相对路径以服务端配置文件所在目录为基准。构建包含控制台、登录、搜索和资产独立入口；服务端按已声明路由提供页面，未知路径和缺失资源返回真实 404。
+
+`pnpm preview` 可本地预览构建产物，但不替代服务端的鉴权、API 和生产页面托管。
+
+## 项目结构
 
 ```text
-country = CN AND port = 443 AND tag = "生产环境"
-has_endpoint(port = 80) AND has_endpoint(port = 443)
+src/
+├── views/        页面与业务交互
+├── components/   通用界面组件
+├── composables/  共享组合逻辑
+├── router/       控制台路由
+├── utils/        HTTP、时间、校验等工具
+├── App.vue       控制台布局
+└── main.js       控制台入口
+public/           公共静态资源
+docs/             使用与开发文档
 ```
 
-完整语法、字段表、标签和跨端点语义参见服务端仓库的
-[资产搜索语法与 API](https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md)。
+其他页面入口由 `vite.config.js` 声明。API 请求复用 `src/utils/http.js`，新增界面优先复用本地组件与既有样式。
 
-## 双栈扫描界面
+## 开发与验证
 
-- 扫描器列表用 IPv4/IPv6 badge 显示当前协议是否就绪。
-- 扫描器详情显示探测到的公网地址、失败原因及最后检测时间。
-- 创建任务使用单一目标输入框，完整校验并自动识别 IPv4/CIDR、IPv6/CIDR 或域名。
-- 多目标支持逗号或换行分隔，但一次只能使用一种分隔符；混合目标类型时阻止提交。
-- 域名目标必须至少包含一个点，仅允许 ASCII 字母、数字和非首尾连字符；单标签不超过 63
-  octets，点分形式（不含末尾根点）不超过 253 octets。
-- 指定扫描器模式下，不兼容当前地址族的扫描器会被禁用。
-- 任务列表和任务详情展示服务端返回的 `address_family`。
+| 命令 | 用途 |
+| --- | --- |
+| `pnpm dev` | 开发服务 |
+| `pnpm test:time` | 系统时间与报告工具测试 |
+| `pnpm test:reports` | 单独运行报告工具测试，已包含在 `test:time` 中 |
+| `pnpm test:targets` | 扫描目标校验测试 |
+| `pnpm test:theme` | 主题工具测试 |
+| `pnpm build` | 生产构建 |
+| `pnpm preview` | 本地预览构建产物 |
 
-协议能力来自 `GET /api/scanner/list` 和 `GET /api/scanner/{id}`。前端只用于提前提示，
-服务端仍会重新解析目标并执行最终兼容性校验。
+按改动选择相关检查；工具脚本不覆盖完整 UI，页面变更仍需手动检查路由、加载、空状态和错误状态。问题反馈请附复现步骤和截图，提交界面改动时说明验证结果。
 
-## Nuclei 漏洞扫描界面
+## 文档导航
 
-- 创建页对 IP/CIDR 和域名统一提供“全部”“仅端口”“服务识别”“仅 DNS”四种模式；
-- 前端根据统一目标输入自动选择 IP 或域名创建接口，并在输入区实时显示识别类型和错误原因；
-- “全部”提交 `scan_profile=vulnerability_scan`；域名目标先解析，再由服务端对授权地址生成扫描任务；
-- “仅 DNS”提交 `scan_profile=dns_records`，只在域名目标下可选且不显示端口输入；
-- 域名目标同样支持自动分配、指定扫描器和全部扫描器，列表按 DNS 阶段及解析器能力过滤；
-- 目标切换为 IP/CIDR 时会移除“仅 DNS”选择，提交函数仍会执行同样校验；
-- 指定扫描器时，只允许选择声明该 profile 且目标地址族就绪的节点；
-- 管理员可在设置页将漏洞扫描设为新任务和自动任务的默认模式；
-- 任务详情显示漏洞总数，并最多展示最近 500 条漏洞的严重级别、模板、匹配位置、说明、
-  修复建议、标签、提取结果和 HTTP(S) 引用；
-- 漏洞详情来自服务端结构化结果，不渲染 Nuclei 原始请求或响应。
+| 我想了解 | 阅读入口 |
+| --- | --- |
+| 搜索与扫描页面行为 | [功能指南](docs/FEATURES.md) |
+| 路由、组件、HTTP 与扩展约定 | [维护与扩展指南](docs/maintenance-guide.md) |
+| 主题及扫描器诊断面板 | [文档中心](docs/README.md) |
 
-前端选择项不会远程启用 Nuclei，也不能指定模板或 CLI 参数。扫描节点必须提前安装并启用
-Nuclei，且使用经过审核的本地签名模板目录。协议、上线顺序和存储语义参见服务端仓库的
-[扫描计划与结果协议](https://github.com/wshijiang/network-mapping/blob/dev/docs/SCAN_PIPELINE.md)。
+## 许可证
 
-## 扫描器错误与日志
-
-扫描器详情新增目录刷新、日志快照采集/下载、错误筛选、证据行号和告警确认，支持离线和旧扫描器提示。使用与验证说明参见[扫描器诊断面板](docs/scanner-diagnostics.md)。
-
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-pnpm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
-pnpm run dev
-```
-
-### 自动化检查
-
-现有独立脚本覆盖系统时间、报告工具、扫描目标校验和主题工具：
-
-```sh
-pnpm test:time
-pnpm test:targets
-pnpm test:theme
-```
-
-`pnpm test:reports` 可单独运行报告工具测试（也包含在 `test:time` 中）。这些检查不覆盖完整页面行为；UI 改动仍需手动验证受影响路由及错误状态。
-
-### Compile and Minify for Production
-
-```sh
-pnpm run build
-```
-
-生产构建输出到 `dist/`，由 Network Mapping 服务端按已声明的 SPA 路由提供。未知路径和
-缺失资源不会回退到 SPA 页面。
-
-维护说明参见 [维护与扩展指南](docs/maintenance-guide.md)。
+本项目采用 [MIT License](LICENSE)。第三方依赖遵循各自许可证。
