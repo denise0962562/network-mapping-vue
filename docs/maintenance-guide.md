@@ -1,73 +1,23 @@
-# network-mapping-vue 维护与扩展指南
+# 前端开发指南
 
-> 更新日期：2026-10-02
+[项目首页](../README.md) · [功能指南](FEATURES.md) · [文档中心](README.md)
 
-## 目录
+本文面向前端维护者，说明应用入口、路由、共享组件和交互约定。安装与构建命令见[项目首页](../README.md#开发与验证)；依赖和版本要求以 `package.json` 为准。
 
-1. [技术栈与依赖](#1-技术栈与依赖)
-2. [项目入口与认证](#2-项目入口与认证)
-3. [路由表](#3-路由表)
-4. [布局与导航](#4-布局与导航)
-5. [通用组件](#5-通用组件)
-6. [HTTP 层](#6-http-层)
-7. [页面说明](#7-页面说明)
-8. [骨架屏约定](#8-骨架屏约定)
-9. [新增功能推荐流程](#9-新增功能推荐流程)
-10. [维护检查清单](#10-维护检查清单)
+## 应用入口
 
----
+| 入口 | 代码 | 职责 |
+| --- | --- | --- |
+| `index.html` | `src/main.js` / `src/App.vue` | 控制台、布局和 Vue Router |
+| `login.html` | `src/login.js` | 登录 |
+| `search.html` | `src/search.js` / `src/Search.vue` | 独立高级搜索 |
+| `asset.html` | `src/asset.js` / `src/views/AssetDetail.vue` | 独立资产详情 |
 
-## 1. 技术栈与依赖
+控制台启动先检查 CSRF cookie；缺失时跳转 `/login`。有 cookie 时先加载系统偏好，成功后挂载应用并启动偏好同步；失败时显示重试入口。cookie 存在不代表会话有效，鉴权结果仍由服务端决定。
 
-| 类别 | 技术 | 版本 |
-|------|------|------|
-| 前端框架 | Vue 3 (Composition API) | ^3.5.35 |
-| 构建工具 | Vite | ^7.3.6 |
-| 路由 | Vue Router | ^5.1.0 |
-| 样式 | Tailwind CSS + daisyUI | ^4.3.0 / ^5.5.20 |
-| 图表 | ApexCharts (vue3-apexcharts) | ^5.6.0 |
-| HTTP | Axios | ^1.19.0 |
-| 二维码 | vue-qrcode | ^2.2.2 |
-| 图标 | @lucide/vue | ^1.17.0 |
-| 地图 | ApexMaps / vue-apexmaps | ^0.3.0 / ^0.3.0 |
+图表按页面需要加载，避免在主入口注册所有大型组件。新增独立页面时，同步更新 `vite.config.js` 的构建入口、主题初始化和服务端托管路径。
 
-关键文件：
-- `src/main.js` — 应用入口
-- `src/search.js` / `src/Search.vue` — 独立高级搜索入口和页面
-- `src/App.vue` — 全局布局（导航栏 + 侧边抽屉 + `<router-view />`）
-- `src/router/index.js` — 路由配置
-- `src/style.css` — 全局样式（含 `.big_card`、`.scan_status` 等自定义类）
-- `vite.config.js` — Vite 配置
-
----
-
-## 2. 项目入口与认证
-
-### 2.1 启动流程 (`src/main.js`)
-
-```
-创建 Vue 应用 → 检查 CSRF token → 无则跳转 /login → 有则挂载 app
-```
-
-- 仪表盘和分析页通过 `defineAsyncComponent` 懒加载 `vue3-apexcharts`，入口不注册全局图表组件
-- 引入 `src/utils/http.js` 以激活 Axios 拦截器
-
-### 2.2 CSRF 保护 (`src/utils/csrf.js`)
-
-- `getCookieValue('csrf_token')` — 读取 CSRF cookie
-- `expireCookie('csrf_token')` — 使 cookie 过期（登出时调用）
-- 所有 `/api` 请求自动附带 `X-CSRF-Token` 请求头（由 http.js 拦截器处理）
-
-### 2.3 登出流程
-
-`App.vue` 中的 `handleLogout()`:
-1. 调用 `GET /logout`
-2. 清除 CSRF cookie
-3. 跳转到 `/login`
-
----
-
-## 3. 路由表
+## 路由与导航
 
 | 路径 | 文件 | 标题 | 说明 |
 |------|------|------|------|
@@ -102,412 +52,66 @@
 
 > **注意**：任务与新建扫描器均使用 UUIDv7。任务路由显式限制版本位为 7；扫描器路由为兼容已有数据接受任意标准 UUID 版本格式。
 
----
-
-## 4. 布局与导航
-
-### 4.1 整体结构 (`src/App.vue`)
-
-```
-┌──────────────────────────────────────────┐
-│  Navbar (页面标题 + GitHub 链接)           │
-├────────────┬─────────────────────────────┤
-│  Sidebar   │                             │
-│  (抽屉式)   │  <router-view />            │
-│            │                             │
-│  ┌──────┐  │                             │
-│  │系统设置│  │                             │
-│  │用户设置│  │                             │
-│  └──────┘  │                             │
-│  退出登录   │                             │
-├────────────┴─────────────────────────────┤
-```
-
-- 侧边栏使用 daisyUI `drawer` 组件，支持 lg 以上常开、以下折叠
-- 侧边栏底部有 `tabs` 切换："系统设置"与"用户设置"
-  - **系统设置标签**：仪表盘、创建扫描、搜索、扫描器、任务、数据分析、开源项目、Alert 测试、设置
-    - 管理员的“设置”子菜单包含常规设置、扫描设置、标签、系统维护、运行时配置和邮件模板
-  - **用户设置标签**：个人信息、安全设置
-- 导航栏标题由 `route.meta.title` 自动生成
-- 底部"退出登录"按钮
-
-### 4.2 自定义 CSS 类 (`src/style.css`)
-
-- `.big_card` — 卡片容器：`card bg-base-100 card-border border-base-300 w-full p-2.5`
-- `.task_input_items` — 表单输入：`input validator mt-2.5 w-full`
-- `.scan_open` / `.scan_success` / `.scan_wait` / `.scan_faild` — 任务状态标签样式
-
----
-
-## 5. 通用组件
-
-### 5.1 AppAlert (`src/components/AppAlert.vue`)
-
-浮层通知提示，支持四种类型。
-
-**Props：**
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `type` | String | `'info'` | `'info'` / `'success'` / `'warning'` / `'error'` |
-| `title` | String | (必填) | 标题文字 |
-| `description` | String | `''` | 描述文字 |
-| `closable` | Boolean | `true` | 是否可手动关闭 |
-| `timeout` | Number | `7000` | 自动消失时间（ms），`<=0` 不自动消失 |
-
-**Events：** `@close` — 关闭时触发
-
-**特性：** 鼠标悬停或聚焦时暂停计时；页面使用固定定位（`fixed top-20`）置于右上角。
-
-**使用示例：**
-```js
-// 在页面 script 中
-const alerts = ref([])
-
-function pushAlert(type, title, description = '', timeout = 7000) {
-  alerts.value.unshift({
-    id: crypto.randomUUID(),
-    type,
-    title,
-    description,
-    timeout
-  })
-}
-
-function closeAlert(id) {
-  alerts.value = alerts.value.filter(a => a.id !== id)
-}
-```
-
-```html
-<!-- 在页面 template 顶部固定区域 -->
-<div class="pointer-events-none fixed top-20 ...">
-  <AppAlert
-    v-for="alert in alerts"
-    :key="alert.id"
-    :type="alert.type"
-    :title="alert.title"
-    :description="alert.description"
-    :timeout="alert.timeout"
-    @close="closeAlert(alert.id)"
-  />
-</div>
-```
-
-### 5.2 EmptyState (`src/components/EmptyState.vue`)
-
-空状态/错误状态占位组件。
-
-**Props：**
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `type` | String | `'info'` | `'info'` / `'error'` |
-| `title` | String | (必填) | 主标题 |
-| `message` | String | `''` | 详细描述（支持 `\n` 换行） |
-
-居中显示，最小高度 `min-h-80`，带对应类型图标。
-
----
-
-## 6. HTTP 层
-
-### 6.1 Axios 实例 (`src/utils/http.js`)
-
-```js
-import http from '@/utils/http'
-```
-
-- 配置 `withCredentials: true`
-- **请求拦截器**：对同源 `/api` 路径和 `/logout` 自动附加 `X-CSRF-Token` 请求头（`/api/login` 除外）
-- **响应拦截器**：401 状态码时清除 CSRF cookie 并跳转 `/login`（防重复跳转）
-
-### 6.2 推荐 API 调用模式
-
-```js
-async function fetchData() {
-  try {
-    isLoading.value = true
-    const response = await http.get('/api/xxx', { params: { ... } })
-    // 处理 response.data
-  } catch (error) {
-    console.error('fetch failed', error)
-    pushAlert('error', '加载失败', '请检查网络连接。')
-  } finally {
-    isLoading.value = false
-  }
-}
-```
-
----
-
-## 7. 页面说明
-
-### 7.1 仪表盘 (`dashboard.vue`)
-
-首次进入时显示骨架屏（`isFirstLoad`），后续每 5 秒轮询刷新不显示骨架。
-
-**区域：**
-- 服务器资源利用状态（CPU / RAM / Disk 堆叠柱状图）
-- 最近 7 天扫描情况（按扫描器堆叠柱状图）
-- 历史趋势卡片：可在“服务器资源”和“数据库容量”标签间切换；只挂载当前标签对应的大型折线图
-  - 服务器资源：CPU / RAM / Disk，默认最近 30 分钟，支持时间范围、粒度和自定义区间
-  - 数据库容量：默认展示最新快照中最大的 6 张用户表，可按测绘、任务、日志、网络情报、系统配置等类别快捷选择，也可逐表切换；支持时间范围和粒度，表名按名称稳定排序
-- 系统详细信息（运行状态、Uptime、主机名、操作系统、内核、架构、CPU、内存、磁盘，以及按网口名排序的累计收发量）
-- 当前任务列表（最多 10 行，带状态标签）
-
-**数据来源：**
-- `GET /api/data/system-data`：当前资源快照及实时 `system_info` 主机信息，每 5 秒轮询
-- `GET /api/data/system-resource-history`：历史资源趋势，预设范围每 60 秒刷新
-- `GET /api/data/database-size-history`：数据库、连接数及全部用户表容量历史，预设范围每 60 秒刷新
-
-### 7.2 任务页 (`task.vue`)
-
-**功能：**
-- 搜索栏：任务 ID、目标、状态、操作者（点击“查询”后由服务端筛选）
-- 高级筛选（折叠面板）：开始/结束时间、扫描器 ID、每页数量
-- 任务表格：显示 IPv4/IPv6 地址族，点击行展开备注和创建时间
-- 任务 ID 为链接，可跳转到 `/task/:taskid`
-- 底部分页：上一页/下一页
-
-**Loading：** `isLoadingData` 期间筛选控件全部禁用，表格区显示简单骨架屏（整块 + 底部分页信息条）
-
-**数据来源：** `GET /api/task/all` — 服务端筛选及排他游标分页。首次进入默认只请求 20 条，支持以下参数：
-
-- `cursor`、`limit`：分页游标和每页数量；响应返回 `next_cursor` 与 `has_more`
-- `task_id`、`target`、`status`、`operator`、`scanner_id`：任务字段筛选
-- `start_time`、`end_time`：毫秒时间戳范围
-- `include_system`：是否包含系统自动任务
-
-**核心状态：**
-| 变量 | 说明 |
-|------|------|
-| `draftFilters` / `appliedFilters` | 筛选条件（未提交 / 已生效） |
-| `taskItems` | 服务端返回的当前页任务数据 |
-| `currentPage` / `totalPages` | 分页 |
-| `nextCursor` / `pageCursorHistory` | 下一页游标与上一页游标历史 |
-| `expandedRow` | 当前展开行 ID |
-
-**状态映射：**
-| statusKey | 文本 | CSS 类 |
-|-----------|------|--------|
-| `pending` | 待扫描 | `badge-warning` |
-| `running` | 扫描中 | `badge-info` |
-| `succeeded` | 扫描完成 | `badge-success` |
-| `failed` | 扫描失败 | `badge-error` |
-
-### 7.3 任务详情 (`taskdetail.vue`)
-
-通过 `GET /api/task/:taskid` 展示单个任务及各扫描器执行实例的完整信息。
-
-**区域：**
-- 任务 UUID（可复制）+ 操作按钮（重新打开 / 导出 / 删除）
-- 摘要统计卡片（发现 IP、开放端口、观察记录、扫描耗时；漏洞任务额外显示漏洞数）
-- 任务细节（目标IP、IPv4/IPv6 地址族、端口、扫描类型、时间、发起人、扫描器）
-- 端点结果（按 IP 展示端口与服务）
-- 漏洞任务独立展示最近 500 条结构化 Nuclei 结果；按严重级别显示 badge，支持展开模板、
-  matcher、匹配位置、说明、修复建议、标签、提取结果和 HTTP(S) 引用
-- 执行状态 Timeline（竖向时间线）
-- ASN & ISP 表格
-
-漏洞列表使用 `task.summary.vulnerability_count` 显示总数，使用 `task.vulnerabilities` 渲染明细。
-引用链接必须保留 `target="_blank" rel="noopener noreferrer"`。不要新增原始请求/响应渲染，
-服务端和扫描器会有意丢弃这些敏感字段。
-
-### 7.4 创建扫描 (`createscan.vue`)
-
-**功能：**
-- 表单字段：扫描目标（必填，支持 IPv4/CIDR、IPv6/CIDR 和域名）、端口（可选）、扫描等级、备注
-- 扫描模式：全部、仅端口、服务识别和仅 DNS；仅 DNS 只允许域名目标
-- 支持自动分配、指定扫描器和全部扫描器三种调度模式
-- 域名目标也可使用三种调度模式；指定扫描器时仅列出支持 DNS 阶段及当前解析器配置的节点
-- 单一目标输入框自动识别 IPv4/CIDR、IPv6/CIDR 或域名，并拒绝混合目标类型
-- 多目标可使用逗号或换行分隔，但同一次输入不能混用两种分隔符
-- 域名扫描目标至少包含两个由 `.` 分隔的标签；每个标签最多 63 octets，完整 wire name
-  最多 255 octets（不含末尾根点的点分形式最多 253 octets）
-- 指定扫描器模式会同时根据 `scan_capabilities.profiles`、`supports_ipv4/6` 和
-  `ipv4/6_ready` 禁用不兼容设备
-- IP/CIDR 提交到 `POST /api/task/create`，域名提交到 `POST /api/task/create-dns`，成功后清空表单
-- 提交期间按钮显示 loading 状态（`submitting`）
-- 通知使用 `AppAlert`
-
-前端通过目标是否包含 `:` 提供即时地址族提示，这不是安全校验。服务端会使用 IP/CIDR
-解析器重新验证每个目标、拒绝混合地址族，并再次检查所选扫描器能力。
-
-### 7.5 扫描器列表 (`Scanner.vue`)
+路由定义以 `src/router/index.js` 为准。独立搜索、登录和资产页面不经过此路由表。`App.vue` 根据 `route.meta.title` 设置页面标题；新增页面时同时检查侧边栏入口和服务端 SPA 白名单。
 
-**功能：**
-- 表格显示名称、地区、连接 IP、在线状态、IPv4/IPv6 就绪 badge、创建者和当前任务
-- 分页：每页 7 条，支持翻页
-- 点击卡片可跳转到 `/scanner/:id`
-- 右侧表单创建扫描器并一次性展示注册 ID 和 token
-- 数据来源：`GET /api/scanner/list`
+管理员菜单的可见性用于界面提示；操作权限必须由服务端检查。
 
-### 7.6 扫描器详情 (`ScannerDetail.vue`)
+## HTTP 与会话
 
-单个扫描器的详情页面，展示基本信息、运行环境、管理操作和网络协议探测状态。
-
-网络协议区域使用以下字段：
-
-| 字段 | 用途 |
-|---|---|
-| `supports_ipv4` / `supports_ipv6` | 扫描端是否启用协议 |
-| `ipv4_ready` / `ipv6_ready` | 最近一次公网探测是否成功 |
-| `public_ipv4` / `public_ipv6` | 检测到的出口地址 |
-| `network_status_reason` | 两种协议的不可用原因 |
-| `network_capabilities_updated_at` | 最近一次心跳更新时间 |
-
-公网地址属于部署信息。新增截图、诊断导出或前端日志时，不要无意公开这些字段。
-
-### 7.7 数据分析 (`analysis.vue`)
-
-页面使用真实扫描结果，支持时间范围、扫描器、任务来源、分布维度和 Top N 筛选。
-
-**Pie 图（常见服务或开放端口分布）：**
-- 数据来源：`GET /api/analysis/distribution`
-- 按唯一执行、IP 和端口去重，Top N 之外合并为“其他”
-- 当前扫描协议没有独立产品与版本字段，因此不展示不可靠的版本聚合
-
-**Heatmap（发现 IP 热力图）：**
-- 数据来源：`GET /api/analysis/discovery-heatmap`
-- Y 轴为周一至周日，X 轴为最近 4、8 或 12 周
-- 按自然日统计去重 IP，无发现显示 0，未来日期留空
-- 两张图拥有独立的 Loading、首次失败和保留旧数据状态
-
-### 7.8 开源项目 (`open-source.vue`)
-
-静态表格展示项目依赖的名称、版本、License 和用途。进入页面显示 3 秒骨架屏后展示数据。
-
-### 7.9 设置页 (`setting.vue`)
-
-各配置卡片拥有独立骨架屏和保存按钮。
-
-**扫描设置：** 通过 `GET /api/config/scan` 读取、`POST /api/config/scan` 保存
-`defaultScanProfile`。设置页仍保留 `legacy` 兼容值；创建页只展示“全部”
-（`vulnerability_scan`）、“仅端口”（`port_only`）和“服务识别”（`service_inventory`）作为
-IP/CIDR 可选默认值。“仅 DNS”（`dns_records`）是任务级域名专用模式，不能设为系统默认。
-修改只影响之后创建的任务和系统自动任务，不改变已经进入队列的任务。
-
-**监听配置：** 主机 + 端口，保存按钮在值变更时显示
-**系统安全：** 登录错误次数限制（1-4）、锁定时间（分钟）、API/页面速率限制
-  - 输入时自动 clamp / normalize
-**通知：** 登录通知、任务通知（错误时/完成时）、报告通知（日/周/月报）
-  - 邮件配置：收件人、SMTP 服务器、端口、发件人、密钥（可切换明文）
-  - "测试邮件服务器"按钮
-
-### 7.10 个人信息 (`PersonalInfo.vue`)
-
-- 数据来源：`GET /api/userinfo/get`
-- 保存：`POST /api/userinfo/update`
-- 可编辑：用户名、邮箱
-- 只读：用户类型、登录限制、创建时间、更新时间、最后登录时间/IP
-- 最近操作日志表格（带"显示无数据"切换）
-- Loading 期间显示骨架屏，卡片标题保持可见
-
-### 7.11 用户安全 (`UserSecurity.vue`)
-
-- 2FA 总开关（toggle）
-- 绑定状态徽章（已绑定 / 未绑定 / 关闭）
-- 未绑定时显示二维码（vue-qrcode）+ 可复制 OTP 内容
-- 进入页面显示 3 秒骨架屏
-
-### 7.12 高级搜索 (`Search.vue`)
-
-`Search.vue` 由 `search.html` / `src/search.js` 独立挂载，不经过主应用 Vue Router。
-
-- 使用 `POST /api/search/v2` 提交完整查询表达式，不在浏览器端拆分 IP、端口或服务类型；
-- 请求继续复用 `src/utils/http.js`，因此自动携带 Session 与 CSRF 请求头；
-- 搜索历史保存在浏览器 `localStorage` 的 `network_mapping_search_history`；
-- 页面加载 `GET /api/tags`，展示前十个标签快捷入口；
-- 点击标签时使用双引号和反斜杠转义后追加 `AND tag = "..."`；
-- 服务端返回 HTTP 422 时，通过 `span.start`、`span.end` 选中错误范围；
-- 分页大小固定为 50，继续使用响应中的 `total`、`limit`、`offset`；
-- 结果以 `(IP, port)` 为单位，标签通过复用的 `AssetTags` 组件显示。
-
-搜索语法由服务端解析器定义。修改字段、操作符、优先级或限制时，应先更新服务端解析器和
-`docs/SEARCH_SYNTAX.md`，再同步页面内的语法说明；不要在前端维护第二套解析规则。
-
----
-
-## 8. 骨架屏约定
-
-项目使用 daisyUI `skeleton` class 替代旧的 `Loading` spinner 组件。
-
-### 8.1 基本原则
-
-1. **卡片标题和副标题始终可见**，仅内容区显示骨架屏
-2. 有真实 API 加载逻辑的页面，骨架屏跟随 `isLoading` 状态
-3. 暂无后端逻辑的静态页面，`onMounted` 中 `setTimeout(() => isLoading = false, 3000)` 模拟加载
-
-### 8.2 各页面骨架屏一览
-
-| 页面 | 触发条件 | 骨架形式 |
-|------|----------|----------|
-| dashboard | 首次加载 (`isFirstLoad`) | 图表区 `skeleton h-64`、系统信息 `skeleton h-36`、任务表 `skeleton h-56` |
-| task | `isLoadingData` | 表格区 `skeleton h-72` + 底部分页条 `skeleton h-4 w-52` |
-| analysis (pie) | `isPieLoading` (450ms) | `skeleton h-80` |
-| analysis (heatmap) | `isHeatmapLoading` (650ms) | `skeleton h-96` |
-| open-source | 3 秒定时器 | `skeleton h-64` |
-| setting | 3 秒定时器 | 三张卡片各独立骨架 |
-| PersonalInfo | `loadingUserInfo` (API) | 标题 + 8 个表单字段骨架 |
-| UserSecurity | 3 秒定时器 | `skeleton h-40` |
-
-### 8.3 代码示例
-
-```html
-<!-- 卡片骨架屏：标题可见，内容区用骨架 -->
-<div class="card bg-base-100 card-border border-base-300 p-4">
-  <div class="mb-3">
-    <h3 class="font-semibold">卡片标题</h3>
-    <p class="text-xs opacity-60">副标题说明</p>
-  </div>
-  <div v-if="isLoading" class="skeleton h-64 w-full rounded-box"></div>
-  <div v-else>
-    <!-- 真实内容 -->
-  </div>
-</div>
-```
-
----
-
-## 9. 新增功能推荐流程
-
-1. 在 `src/router/index.js` 注册路由和 `meta.title`
-2. 在 `src/views/` 创建页面 `.vue` 文件
-3. 如需侧边栏入口，在 `App.vue` 对应标签的 `<ul class="menu">` 中添加 `<router-link>`
-4. 在 script setup 中定义状态（`ref` / `computed`），然后编写交互函数
-5. 加载状态使用 `ref(true)` + daisyUI `skeleton` class
-6. 有 API 调用的页面参考 [HTTP 层](#6-http-层) 的推荐模式
-7. 错误/成功提示使用 `AppAlert` 组件的 `pushAlert` 模式
-8. 图表页面：先确定数据结构 → `computed` 处理 → 配置 `options`
-
----
-
-## 10. 维护检查清单
-
-- [ ] 新路由是否已在 `src/router/index.js` 注册
-- [ ] 侧边栏是否需要添加入口（注意"系统设置"/"用户设置"标签归属）
-- [ ] 新字段是否有默认值（避免 `undefined` 导致渲染异常）
-- [ ] 异步操作的 loading 是否在 `finally` 中关闭
-- [ ] 异常路径是否给了用户提示（`pushAlert('error', ...)`）
-- [ ] 401 响应是否由 http.js 拦截器统一处理
-- [ ] 分页操作是否禁用按钮防止重复请求
-- [ ] 卡片骨架屏是否保持了标题/副标题可见
-- [ ] 图表数据为空数组时是否能安全渲染
-- [ ] 是否移除了对 `src/views/loading.vue` 的引用（已废弃，统一使用 daisyUI skeleton）
-
-## 扫描器诊断面板补充（2026-10-01）
-
-`ScannerDetail.vue` 在延迟历史之后接入 `ScannerDiagnostics.vue`，复用既有 HTTP/CSRF 与系统时间工具。面板包含错误筛选、证据日志下载、目录选择、采集进度和告警确认；它在卸载时停止轮询并取消查询。权限和异常状态检查参见[扫描器诊断面板](scanner-diagnostics.md)。
-
-## 构建与自动化检查
-
-Node 版本要求为 `^20.19.0 || >=22.12.0`。现有自动化检查是独立脚本，不包含完整页面或端到端覆盖：
-
-```sh
-pnpm test:time     # 系统时间与报告工具测试
-pnpm test:reports  # 报告工具测试（已包含在 test:time 中）
-pnpm test:targets  # 扫描目标校验测试
-pnpm test:theme    # 主题工具测试
-pnpm build
-```
-
-按改动选择相关脚本；页面行为变更还需手动检查受影响路由、加载/空状态和错误状态。依赖版本以 `package.json` 为准。
+业务请求复用 `src/utils/http.js`：
+
+- 使用 `withCredentials: true`。
+- 同源 `/api` 和 `/logout` 请求附加 `X-CSRF-Token`，`/api/login` 除外。
+- 会话相关 401 响应清除 CSRF cookie，并通过 `session-expired` 事件通知页面；登录页的登录和 TOTP 验证失败单独处理。
+
+页面处理业务错误和 403 权限状态，不应重复实现全局会话过期逻辑。成功 HTTP 状态之外，还需检查接口约定的业务成功标志和数据结构。分页与筛选参数遵循具体接口，不能将所有列表统一假设为页码分页。
+
+有轮询、筛选请求或路由切换的页面，应在卸载时停止定时器并取消未完成请求，避免旧响应覆盖新状态。参考 `src/views/reports.vue` 的取消与轮询处理。
+
+## 共享组件与工具
+
+| 组件 / 工具 | 用途 |
+| --- | --- |
+| `AppAlert.vue` | 成功、错误、警告与信息通知 |
+| `EmptyState.vue` | 空数据和首次加载失败 |
+| `AssetTags.vue` | 资产标签展示与管理 |
+| `SystemDateTimeInput.vue` | 系统时区下的日期时间输入 |
+| `ScannerDiagnostics.vue` | 扫描器错误、日志采集与告警 |
+| `useUnsavedChanges` | 未保存变更的离开提示 |
+| `systemTime` / `systemPreferences` | 系统时间格式及偏好加载 |
+| `useTheme` / `useChartTheme` | 页面主题和图表主题 |
+
+### 通知组件
+
+`AppAlert` 必填 `title`；`type` 支持 `info`、`success`、`warning`、`error`，默认为 `info`。可选 `description` 默认空，`closable` 默认 `true`，`timeout` 默认 7000 毫秒；非正值关闭自动计时。组件通过 `close` 事件请求移除，悬停或聚焦时暂停计时。
+
+页面负责保存和移除通知状态，通知容器沿用周围页面的布局。
+
+### 空状态组件
+
+`EmptyState` 用于空数据和错误提示；必填 `title`，可选 `message`，`type` 默认为 `info`，支持 `error`。加载、无结果和请求失败需要分别处理，不能以同一空列表掩盖三种状态。
+
+## 交互与样式
+
+- 页面使用 `<script setup>`，复用现有 Tailwind CSS、daisyUI 和本地组件。
+- 保持相邻页面的布局、间距、控件尺寸和语义颜色；主题规则见[外观主题](theme-guide.md)。
+- 初次异步加载可使用骨架屏或加载指示，保留标题和必要操作入口；静态内容无需人为延迟。
+- 后台刷新保留已有数据，请求失败时提示刷新失败；不要把旧数据误标为本次空结果。
+- 提交期间防止重复操作，在完成或失败后恢复状态。字段校验和错误说明应靠近对应输入。
+- 涉及删除、重签凭据等操作时，复用既有确认交互。含未保存变更的配置页使用离开保护。
+
+IPv4/IPv6 就绪表示节点内核可为对应地址族选择路由与源地址，不要求公网 IP 查询成功。前端能力提示和目标校验用于改善输入体验，服务端仍执行最终校验。
+
+## 功能文档边界
+
+页面说明集中在[功能指南](FEATURES.md)，不在本页重复字段清单和按钮布局。扫描器诊断的权限、离线提示及下载验证见[诊断面板](scanner-diagnostics.md)。搜索语法、扫描计划和结果协议由服务端定义，修改时同步对应服务端文档。
+
+Nuclei 结果只展示结构化字段；引用链接使用 `rel="noopener noreferrer"`。不新增原始请求和响应渲染。
+
+## 变更检查
+
+1. 检查路由、标题、菜单以及独立入口是否齐全。
+2. 检查请求成功、首次失败、空结果、后台刷新失败和权限不足状态。
+3. 检查重复提交、请求取消、轮询清理及未保存变更处理。
+4. 检查主题、窄屏、键盘操作和焦点状态。
+5. 运行相关工具测试及 `pnpm build`；手动验证受影响页面，并在提交说明中记录结果。

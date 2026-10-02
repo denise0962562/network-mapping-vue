@@ -9,7 +9,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [Web 控制台功能指南](FEATURES.md) | 功能入口、交互约束与配置示例 |
-| [network-mapping-vue 维护与扩展指南](maintenance-guide.md) | 路由、组件、HTTP 与开发检查 |
+| [前端开发指南](maintenance-guide.md) | 路由、组件、HTTP 与开发检查 |
 
 ## 主题与诊断
 
