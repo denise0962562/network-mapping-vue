@@ -805,7 +805,7 @@ onMounted(() => {
                 <h4 class="font-medium">扫描器掉线通知</h4>
                 <input v-model="notificationPrefs.scannerOfflineEnabled" type="checkbox" class="toggle" />
               </div>
-              <p class="text-xs opacity-60 mt-2">扫描器超过配置的掉线告警时间没有心跳时，通过邮件通知所有启用中的管理员。时间可在“运行时配置 → 扫描器在线与告警”中调整。</p>
+              <p class="text-xs opacity-60 mt-2">扫描器超过配置的掉线告警时间没有心跳时，通过邮件通知所有启用中的管理员。时间可在“运行策略 → 扫描器状态与告警”中调整。</p>
               <label class="mt-3 flex items-center gap-2 text-sm" :class="notificationPrefs.scannerOfflineEnabled ? '' : 'opacity-50'">
                 <input v-model="notificationPrefs.scannerRecoveryEnabled" type="checkbox" class="checkbox checkbox-sm" :disabled="!notificationPrefs.scannerOfflineEnabled" />
                 恢复连接后发送通知

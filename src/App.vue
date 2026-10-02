@@ -17,10 +17,18 @@ const isAdmin = ref(false)
 const frontendVersion = packageInfo.version
 const serverVersion = ref('')
 const maintenanceStatus = ref(null)
-const taskMenuOpen = ref(route.path === '/create_scan' || route.path.startsWith('/task'))
-const analysisMenuOpen = ref(route.path.startsWith('/analysis'))
-const logsMenuOpen = ref(route.path === '/audit' || route.path.startsWith('/requests'))
-const settingsMenuOpen = ref(route.path.startsWith('/setting') || route.path === '/admin/tags')
+const activeMenuGroup = computed(() => {
+  const path = route.path
+  if (path === '/create_scan' || path === '/task' || path.startsWith('/task/')) return 'task'
+  if (path === '/analysis' || path.startsWith('/analysis/')) return 'analysis'
+  if (path === '/audit' || path === '/requests' || path.startsWith('/requests/')) return 'logs'
+  if (path === '/setting' || path.startsWith('/setting/') || path === '/admin/tags') return 'settings'
+  return null
+})
+const taskMenuOpen = ref(activeMenuGroup.value === 'task')
+const analysisMenuOpen = ref(activeMenuGroup.value === 'analysis')
+const logsMenuOpen = ref(activeMenuGroup.value === 'logs')
+const settingsMenuOpen = ref(activeMenuGroup.value === 'settings')
 let maintenanceRefreshTimer = null
 
 const maintenancePhaseLabel = computed(() => (
@@ -29,13 +37,17 @@ const maintenancePhaseLabel = computed(() => (
 
 watch(
   () => route.path,
-  (path) => {
-    if (path === '/create_scan' || path.startsWith('/task')) taskMenuOpen.value = true
-    if (path.startsWith('/analysis')) analysisMenuOpen.value = true
-    if (path === '/audit' || path.startsWith('/requests')) logsMenuOpen.value = true
-    if (path.startsWith('/setting') || path === '/admin/tags') settingsMenuOpen.value = true
+  () => {
+    if (activeMenuGroup.value === 'task') taskMenuOpen.value = true
+    if (activeMenuGroup.value === 'analysis') analysisMenuOpen.value = true
+    if (activeMenuGroup.value === 'logs') logsMenuOpen.value = true
+    if (activeMenuGroup.value === 'settings') settingsMenuOpen.value = true
   },
 )
+
+function isParentMenuActive(group, menuOpen) {
+  return activeMenuGroup.value === group && (!drawerOpen.value || !menuOpen)
+}
 
 async function loadServerVersion() {
   try {
@@ -225,7 +237,9 @@ async function handleLogout() {
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="任务"
-              :aria-expanded="taskMenuOpen"
+              :class="{ active: isParentMenuActive('task', taskMenuOpen) }"
+              :aria-current="isParentMenuActive('task', taskMenuOpen) ? 'true' : undefined"
+              :aria-expanded="drawerOpen && taskMenuOpen"
               aria-controls="task-submenu"
               @click="toggleTaskMenu"
             >
@@ -266,7 +280,9 @@ async function handleLogout() {
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="数据分析"
-              :aria-expanded="analysisMenuOpen"
+              :class="{ active: isParentMenuActive('analysis', analysisMenuOpen) }"
+              :aria-current="isParentMenuActive('analysis', analysisMenuOpen) ? 'true' : undefined"
+              :aria-expanded="drawerOpen && analysisMenuOpen"
               aria-controls="analysis-submenu"
               @click="toggleAnalysisMenu"
             >
@@ -307,7 +323,9 @@ async function handleLogout() {
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="日志"
-              :aria-expanded="logsMenuOpen"
+              :class="{ active: isParentMenuActive('logs', logsMenuOpen) }"
+              :aria-current="isParentMenuActive('logs', logsMenuOpen) ? 'true' : undefined"
+              :aria-expanded="drawerOpen && logsMenuOpen"
               aria-controls="logs-submenu"
               @click="toggleLogsMenu"
             >
@@ -390,7 +408,9 @@ async function handleLogout() {
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
               data-tip="设置"
-              :aria-expanded="settingsMenuOpen"
+              :class="{ active: isParentMenuActive('settings', settingsMenuOpen) }"
+              :aria-current="isParentMenuActive('settings', settingsMenuOpen) ? 'true' : undefined"
+              :aria-expanded="drawerOpen && settingsMenuOpen"
               aria-controls="settings-submenu"
               @click="toggleSettingsMenu"
             >
@@ -434,7 +454,7 @@ async function handleLogout() {
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/runtime">
-                    <span class="whitespace-nowrap">运行时配置</span>
+                    <span class="whitespace-nowrap">运行策略</span>
                   </router-link>
                 </li>
                 <li>
@@ -527,6 +547,11 @@ async function handleLogout() {
 </template>
 
 <style scoped>
+.drawer-side .menu li > button.active {
+  background-color: var(--color-base-300);
+  color: var(--color-base-content);
+}
+
 .drawer-side .menu li > a,
 .drawer-side .menu li > button {
   min-height: 2.5rem;
