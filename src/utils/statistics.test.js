@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { availableCharts, chartRows, chartSeries, queryBody, statisticsCsv } from './statistics.js'
+import { availableCharts, chartRows, chartSeries, queryBody, statisticsCsv, enrichStatistics, metricDifference } from './statistics.js'
 import { timeSettings } from './systemTime.js'
 
 test('calendar date ranges use exclusive local midnight across DST', () => {
@@ -47,4 +47,32 @@ test('full exports retain precision, filters, summary and formula-safe labels', 
   assert.ok(csv.includes('搜索生成'))
   assert.ok(csv.includes('不是资产存量'))
   assert.ok(csv.includes('"汇总：数量（个）","3"'))
+})
+
+
+test('derived metrics retain distinct totals, include empty days and exclude cancellations from rates', () => {
+  const source = { meta: { data_type: 'discovery', group_by: 'day' }, data: { rows: [{ count: 4 }, { count: 0 }, { count: 2 }], summary: { unique_ips: 4 } } }
+  const enriched = enrichStatistics(source)
+  assert.deepEqual(enriched.data.summary, { unique_ips: 4, observed_days: 2, peak_count: 4, mean_count: 2 })
+  assert.deepEqual(source.data.summary, { unique_ips: 4 })
+  const summary = enrichStatistics({ meta: { data_type: 'tasks' }, data: { rows: [], summary: { succeeded: 7, failed: 2, partial: 1, cancelled: 5 } } }).data.summary
+  assert.equal(summary.failure_rate, 20)
+  assert.equal(summary.partial_rate, 10)
+  const empty = enrichStatistics({ meta: { data_type: 'tasks' }, data: { rows: [], summary: { succeeded: 0, failed: 0, partial: 0, cancelled: 5 } } })
+  assert.equal(empty.data.summary.failure_rate, null)
+})
+
+test('scanner ranking uses the selected metric and puts missing durations last', () => {
+  const rows = [{ label: 'fast', completed: 100, p95_ms: 10 }, { label: 'slow', completed: 1, p95_ms: 100 }, { label: 'none', completed: 200, p95_ms: null }]
+  assert.deepEqual(chartRows(rows, { data_type: 'scanners', group_by: 'scanner' }, 2, 'p95_ms').map(r => r.label), ['slow', 'fast'])
+  assert.equal(rows[0].label, 'fast')
+  assert.equal(metricDifference(20, 10, 'failure_rate'), '+10 个百分点')
+  assert.equal(metricDifference(20, 0, 'count'), '+20')
+  assert.equal(metricDifference(20, null, 'count'), '--')
+})
+
+test('concentration uses the complete distribution, including categories outside Top N', () => {
+  const rows = [1, 2, 3, 4, 5, 6].map(count => ({ count }))
+  const result = enrichStatistics({ meta: { data_type: 'port' }, data: { rows, summary: { count: 21 } } })
+  assert.equal(result.data.summary.top5_share, 20 / 21 * 100)
 })

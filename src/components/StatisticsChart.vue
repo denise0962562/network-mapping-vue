@@ -5,6 +5,7 @@ import { chartLabels, chartSeries, downloadBlob, imageCaption, metrics, rowLabel
 import { renderChartTooltip } from '@/utils/chartTooltip'
 import { formatDateTime } from '@/utils/systemTime'
 
+const emit = defineEmits(['select'])
 const props = defineProps({
   rows: { type: Array, required: true }, meta: { type: Object, required: true },
   metric: { type: String, required: true }, type: { type: String, required: true }, title: { type: String, required: true },
@@ -30,7 +31,7 @@ function buildOptions() {
   const labels = props.rows.map((row) => rowLabel(row.label, props.meta.group_by))
   const horizontal = props.type === 'bar' && !['day', 'week', 'month'].includes(props.meta.group_by)
   return {
-    chart: { type: apexType.value, stacked: props.type === 'stacked', toolbar: { show: false }, animations: { enabled: false }, fontFamily: 'Arial, "Microsoft YaHei", sans-serif' },
+    chart: { events: { dataPointSelection: (_event, _chart, selection) => { const row = props.rows[selection.dataPointIndex]; if (row && props.type !== 'heatmap') emit('select', row) } }, type: apexType.value, stacked: props.type === 'stacked', toolbar: { show: false }, animations: { enabled: false }, fontFamily: 'Arial, "Microsoft YaHei", sans-serif' },
     colors: props.type === 'stacked' ? ['#22c55e', '#ef4444', '#f59e0b', '#94a3b8'] : ['#3b82f6', '#14b8a6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'],
     labels,
     xaxis: { categories: props.type === 'heatmap' ? [] : labels, labels: { rotate: -35, hideOverlappingLabels: true }, tickAmount: 12, title: { text: horizontal ? metrics[props.metric].unit : '' } },

@@ -7,7 +7,8 @@ export const metrics = {
   count: { label: '数量', unit: '个' }, unique_ips: { label: '周期去重 IP', unit: '个' }, categories: { label: '类别数', unit: '类' },
   percentage: { label: '占比', unit: '%' }, created: { label: '新建任务', unit: '个' }, completed: { label: '完成数量（含取消）', unit: '个' },
   succeeded: { label: '成功', unit: '个' }, failed: { label: '失败', unit: '个' }, partial: { label: '部分完成', unit: '个' }, cancelled: { label: '取消', unit: '个' },
-  success_rate: { label: '成功率', unit: '%' }, avg_duration_ms: { label: '平均耗时', unit: 'ms' }, p95_ms: { label: 'P95 耗时', unit: 'ms' },
+  success_rate: { label: '成功率', unit: '%' }, avg_duration_ms: { label: '平均耗时', unit: 'ms' }, p95_ms: { label: 'P95 耗时', unit: 'ms' }, p50_ms: { label: 'P50 耗时', unit: 'ms' },
+  observed_days: { label: '有观测天数', unit: '天' }, peak_count: { label: '单日峰值', unit: '个' }, mean_count: { label: '每日去重 IP 均值', unit: '个' }, top5_share: { label: 'Top 5 集中度', unit: '%' }, failure_rate: { label: '失败率', unit: '%' }, partial_rate: { label: '部分完成率', unit: '%' },
 }
 const sourceLabels = { manual: '手动任务', automatic: '自动任务', search: '搜索生成' }
 
@@ -17,7 +18,7 @@ export function rowLabel(label, group) {
 
 export function defaultFilters(now = Date.now()) {
   const end = calendarDate(now)
-  return { data_type: 'discovery', group_by: 'day', range: '30', start_date: addCalendarDays(end, -29), end_date: end, scanner_id: '', task_source: '' }
+  return { data_type: 'discovery', group_by: 'day', range: '30', start_date: addCalendarDays(end, -29), end_date: end, scanner_id: '', task_source: '', comparison: false, percentiles: false }
 }
 
 export function queryBody(filters, timezone) {
@@ -28,6 +29,7 @@ export function queryBody(filters, timezone) {
   return {
     data_type: filters.data_type, group_by: filters.group_by, timezone,
     start_at: calendarMidnight(filters.start_date), end_at: calendarMidnight(addCalendarDays(filters.end_date, 1)),
+    ...(filters.comparison ? { comparison: 'previous' } : {}),
     ...(filters.scanner_id ? { scanner_id: filters.scanner_id } : {}),
     ...(filters.task_source ? { task_source: filters.task_source } : {}),
   }
@@ -43,9 +45,16 @@ export function availableCharts(definition, group, metric) {
   })
 }
 
-export function chartRows(rows, meta, topN) {
+export function chartRows(rows, meta, topN, metric) {
   if (['day', 'week', 'month'].includes(meta.group_by)) return rows
-  const ordered = [...rows].sort((a, b) => (b.count ?? b.completed ?? 0) - (a.count ?? a.completed ?? 0) || String(a.label).localeCompare(String(b.label)))
+  const rankingMetric = metric === 'percentage' ? 'count' : metric
+  const ordered = [...rows].sort((a, b) => {
+    const av = rankingMetric ? a[rankingMetric] : (a.count ?? a.completed)
+    const bv = rankingMetric ? b[rankingMetric] : (b.count ?? b.completed)
+    if (av == null) return bv == null ? 0 : 1
+    if (bv == null) return -1
+    return bv - av || String(a.label).localeCompare(String(b.label))
+  })
   const shown = ordered.slice(0, topN)
   if (['port', 'service'].includes(meta.data_type) && ordered.length > topN) {
     const rest = ordered.slice(topN)
@@ -76,7 +85,7 @@ export function chartSeries(rows, meta, metric, type) {
 
 export function formatMetric(value, key) {
   if (value === null || value === undefined) return '--'
-  return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: ['percentage', 'success_rate'].includes(key) ? 1 : 2 })
+  return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: ['percentage', 'success_rate', 'failure_rate', 'partial_rate', 'top5_share'].includes(key) ? 1 : 2 })
 }
 
 export function statisticsCsv(result, definition, rows = result.data.rows, metricKeys = definition.metrics) {
@@ -86,6 +95,7 @@ export function statisticsCsv(result, definition, rows = result.data.rows, metri
     ['时区', meta.timezone], ['扫描器', meta.scanner_id || '全部'], ['任务来源', sourceLabels[meta.task_source] || '全部'],
     ['生成时间', meta.generated_at], ['处理水位', meta.data_as_of || '--'], ['数据模式', meta.mode], ['口径版本', meta.metric_version],
     ...Object.entries(data.summary).filter(([key]) => metrics[key]).map(([key, value]) => [`汇总：${metrics[key].label}（${metrics[key].unit}）`, value]),
+    ...(result.comparison ? [['对比开始时间', result.comparison.meta.start_at], ['对比结束时间', result.comparison.meta.end_at], ['对比说明', result.comparison.note], ...Object.entries(result.comparison.data.summary).filter(([key]) => metrics[key]).map(([key, value]) => [`上期：${metrics[key].label}`, value])] : []),
     ...(meta.notes || []).map((note) => ['统计说明', note]), [],
     [groupLabels[meta.group_by], ...metricKeys.map((key) => `${metrics[key].label}（${metrics[key].unit}）`)],
     ...rows.map((row) => [rowLabel(row.label, meta.group_by), ...metricKeys.map((key) => row[key] ?? null)]),
@@ -104,4 +114,28 @@ export function downloadBlob(blob, filename) {
   anchor.download = filename.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
   document.body.appendChild(anchor)
   try { anchor.click() } finally { anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000) }
+}
+
+export function enrichStatistics(result) {
+  const { rows, summary } = result.data
+  const enriched = { ...summary }
+  if (result.meta.data_type === 'discovery' && result.meta.group_by === 'day') {
+    enriched.observed_days = rows.filter((r) => r.count > 0).length
+    enriched.peak_count = rows.length ? Math.max(...rows.map((r) => r.count)) : null
+    enriched.mean_count = rows.length ? rows.reduce((n, r) => n + r.count, 0) / rows.length : null
+  }
+  if (['port', 'service'].includes(result.meta.data_type)) {
+    enriched.top5_share = summary.count ? [...rows].sort((a, b) => b.count - a.count).slice(0, 5).reduce((n, r) => n + r.count, 0) / summary.count * 100 : null
+  }
+  if (['tasks', 'scanners'].includes(result.meta.data_type)) {
+    const denominator = summary.succeeded + summary.failed + summary.partial
+    enriched.failure_rate = denominator ? summary.failed / denominator * 100 : null
+    enriched.partial_rate = denominator ? summary.partial / denominator * 100 : null
+  }
+  return { ...result, data: { ...result.data, summary: enriched }, ...(result.comparison ? { comparison: enrichStatistics(result.comparison) } : {}) }
+}
+export function metricDifference(current, previous, key) {
+  if (current == null || previous == null) return '--'
+  const delta = current - previous
+  return `${delta > 0 ? '+' : ''}${formatMetric(delta, key)}${['success_rate', 'failure_rate', 'partial_rate', 'top5_share', 'percentage'].includes(key) ? ' 个百分点' : ''}`
 }

@@ -6,6 +6,8 @@ import { normalizeMonitor, policyDiff, scannerHealthDefaults, scannerHealthField
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
+import StatisticsCachePanel from '@/components/StatisticsCachePanel.vue'
+import { cacheDefaults, validateCache } from '@/utils/statisticsCache'
 
 const namespaces = [
   { key: 'requests', title: '请求日志', description: '控制访问日志采集和在线保留期。' },
@@ -14,13 +16,14 @@ const namespaces = [
   { key: 'automatic_target', title: '自动扫描策略', description: '管理搜索触发与周期生成的扫描任务，以及授权范围和任务参数。' },
   { key: 'dns_follow_up', title: 'DNS 解析后扫描', description: '控制 DNS 解析结果自动创建端口扫描任务的范围。' },
   { key: 'dns_resolvers', title: 'DNS 解析服务器', description: '维护创建域名扫描任务时可选择的常用 DNS 解析服务器。' },
+  { key: 'statistics_cache', title: '统计缓存', description: '配置缓存有效期、容量及查询结果复用，查看实例状态。' },
   { key: 'analytics_snapshot', title: '分析模式与快照', description: '选择分析数据的读取模式与后台快照处理间隔。' },
 ]
 
 const namespaceGroups = [
   { title: '日志与监控', keys: ['requests', 'monitor', 'scanner_health'] },
   { title: '扫描与解析', keys: ['automatic_target', 'dns_follow_up', 'dns_resolvers'] },
-  { title: '数据分析', keys: ['analytics_snapshot'] },
+  { title: '数据分析', keys: ['analytics_snapshot', 'statistics_cache'] },
 ].map((group) => ({ ...group, items: group.keys.map((key) => namespaces.find((item) => item.key === key)) }))
 
 const scannerHealthSections = [
@@ -77,6 +80,7 @@ const defaults = {
   dns_follow_up: { enabled: false, authorized_cidrs: [], excluded_cidrs: [], max_targets_per_task: 100 },
   dns_resolvers: { resolvers: [] },
   analytics_snapshot: { mode: 'realtime', interval_minutes: 30 },
+  statistics_cache: cacheDefaults,
 }
 
 defaults.monitor = normalizeMonitor(defaults.monitor)
@@ -234,6 +238,7 @@ async function loadCatalogue() {
 }
 
 function validationError(namespace) {
+  if (namespace === 'statistics_cache') return validateCache(settings.statistics_cache)
   if (namespace === 'monitor') {
     if (catalogueLoading.value || catalogueError.value || !catalogue.value.length) return '请先成功加载操作目录'
     return validateMonitor(settings.monitor, catalogue.value)
@@ -387,9 +392,9 @@ onMounted(loadAll)
         </div>
 
         <div v-if="loading[activeItem.key]" class="flex items-center gap-2 py-8 text-sm opacity-60" role="status"><span class="loading loading-spinner loading-sm"></span>正在读取策略...</div>
-        <div v-if="conflicts[activeItem.key]" class="alert alert-warning mb-4" role="alert">
+        <div v-if="conflicts[activeItem.key]" class="alert alert-warning mb-4 flex flex-col items-start sm:flex-row sm:items-center" role="alert">
           <div><p>策略已被其他管理员更新，本地草稿已保留。</p><p class="mt-1 text-xs">请对照最新版本检查差异，再保存更改。</p></div>
-          <button type="button" class="btn btn-sm" :disabled="navigationDisabled || loading[activeItem.key]" @click="reviewConflict(activeItem.key)">对照最新策略</button>
+          <button type="button" class="btn btn-sm shrink-0" :disabled="navigationDisabled || loading[activeItem.key]" @click="reviewConflict(activeItem.key)">对照最新策略</button>
         </div>
         <div v-if="!loading[activeItem.key] && !revisions[activeItem.key]" class="alert alert-error mb-4" role="alert">策略尚未成功加载，请点击底部的“重新加载”后编辑。</div>
 
@@ -685,6 +690,7 @@ onMounted(loadAll)
             </section>
           </template>
 
+          <StatisticsCachePanel v-else-if="activeItem.key === 'statistics_cache'" v-model="settings.statistics_cache" :revision="revisions.statistics_cache" :dirty="isDirty('statistics_cache')" @cleared="(data) => applyDocument('statistics_cache', data.document, data.revision)" />
           <template v-else-if="activeItem.key === 'analytics_snapshot'">
             <section class="space-y-3 rounded-lg border border-base-300 p-4">
               <div>
@@ -726,7 +732,7 @@ onMounted(loadAll)
             <p v-else-if="!revisions[activeItem.key]">加载后可编辑并保存。</p>
             <p v-else-if="saving[activeItem.key]">正在保存更改...</p>
             <p v-else>{{ isDirty(activeItem.key) ? '有未保存的更改' : '所有更改已保存' }}</p>
-            <p class="mt-1">保存后应用到当前进程，其他实例通常在 5 秒内同步监控策略。</p>
+            <p class="mt-1">保存后应用到当前进程，其他实例通常在 5 秒内同步监控及统计缓存策略。</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <button type="button" class="btn btn-ghost btn-sm rounded-lg" :disabled="loading[activeItem.key] || navigationDisabled" @click="loadNamespace(activeItem.key)">重新加载</button>
