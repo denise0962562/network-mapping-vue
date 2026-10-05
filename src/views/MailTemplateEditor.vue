@@ -376,6 +376,14 @@ function formatVariable(variableKey) {
   return `{{ ${variableKey} }}`
 }
 
+function useDefaultTemplate() {
+  if (!currentTemplate.value?.defaultSource) return
+  if (hasUnsavedChanges.value && !window.confirm('载入默认模板将替换当前未保存的编辑内容，是否继续？')) return
+  source.value = cloneSource(currentTemplate.value.defaultSource)
+  preview.value = null
+  pushAlert('info', '已载入默认模板', '请校验预览，再保存草稿并发布。现有归档报告不会改变。')
+}
+
 function safePreviewDocument(htmlBody) {
   const clean = DOMPurify.sanitize(htmlBody || '', {
     WHOLE_DOCUMENT: true,
@@ -387,12 +395,15 @@ function safePreviewDocument(htmlBody) {
   documentValue.querySelectorAll('link, base').forEach((element) => element.remove())
   documentValue.querySelectorAll('[src]').forEach((element) => {
     const value = element.getAttribute('src') || ''
-    if (!value.startsWith('data:image/')) element.removeAttribute('src')
+    const sampleUrl = new URL('/mail/report-images/sample/trend.png', window.location.origin).href
+    if (value === '/mail/report-images/sample/trend.png' || value === sampleUrl) element.setAttribute('src', sampleUrl)
+    else if (!value.startsWith('data:image/')) element.removeAttribute('src')
+    element.removeAttribute('srcset')
   })
   documentValue.querySelectorAll('a').forEach((element) => element.removeAttribute('href'))
   const policy = documentValue.createElement('meta')
   policy.setAttribute('http-equiv', 'Content-Security-Policy')
-  policy.setAttribute('content', "default-src 'none'; style-src 'unsafe-inline'; img-src data:")
+  policy.setAttribute('content', `default-src 'none'; style-src 'unsafe-inline'; img-src data: ${window.location.origin}/mail/report-images/sample/trend.png`)
   documentValue.head.prepend(policy)
   return `<!DOCTYPE html>${documentValue.documentElement.outerHTML}`
 }
@@ -431,6 +442,7 @@ onMounted(initialize)
         <p class="text-xs opacity-60">使用 Tera 语法编辑邮件；草稿发布后才会影响实际通知。</p>
       </div>
       <div class="flex flex-wrap gap-2">
+        <button class="btn btn-outline btn-sm" :disabled="loading || !currentTemplate?.defaultSource || saving || publishing" @click="useDefaultTemplate">载入默认模板</button>
         <button class="btn btn-outline btn-sm" :disabled="loading || previewing" @click="validateAndPreview({ showSuccess: true })">
           <span v-if="previewing" class="loading loading-spinner loading-xs"></span>
           校验并预览

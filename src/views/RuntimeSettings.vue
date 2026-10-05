@@ -17,13 +17,14 @@ const namespaces = [
   { key: 'dns_follow_up', title: 'DNS 解析后扫描', description: '控制 DNS 解析结果自动创建端口扫描任务的范围。' },
   { key: 'dns_resolvers', title: 'DNS 解析服务器', description: '维护创建域名扫描任务时可选择的常用 DNS 解析服务器。' },
   { key: 'statistics_cache', title: '统计缓存', description: '配置缓存有效期、容量及查询结果复用，查看实例状态。' },
+  { key: 'report_mail', title: '报告邮件', description: '配置报告详情地址、远程趋势图片和扫描器展示数量。' },
   { key: 'analytics_snapshot', title: '分析模式与快照', description: '选择分析数据的读取模式与后台快照处理间隔。' },
 ]
 
 const namespaceGroups = [
   { title: '日志与监控', keys: ['requests', 'monitor', 'scanner_health'] },
   { title: '扫描与解析', keys: ['automatic_target', 'dns_follow_up', 'dns_resolvers'] },
-  { title: '数据分析', keys: ['analytics_snapshot', 'statistics_cache'] },
+  { title: '数据分析', keys: ['analytics_snapshot', 'statistics_cache', 'report_mail'] },
 ].map((group) => ({ ...group, items: group.keys.map((key) => namespaces.find((item) => item.key === key)) }))
 
 const scannerHealthSections = [
@@ -79,6 +80,7 @@ const defaults = {
   },
   dns_follow_up: { enabled: false, authorized_cidrs: [], excluded_cidrs: [], max_targets_per_task: 100 },
   dns_resolvers: { resolvers: [] },
+  report_mail: { public_base_url: '', remote_images_enabled: false, image_lifetime_days: 365, scanner_row_limit: 20 },
   analytics_snapshot: { mode: 'realtime', interval_minutes: 30 },
   statistics_cache: cacheDefaults,
 }
@@ -691,6 +693,23 @@ onMounted(loadAll)
           </template>
 
           <StatisticsCachePanel v-else-if="activeItem.key === 'statistics_cache'" v-model="settings.statistics_cache" :revision="revisions.statistics_cache" :dirty="isDirty('statistics_cache')" @cleared="(data) => applyDocument('statistics_cache', data.document, data.revision)" />
+          <template v-else-if="activeItem.key === 'report_mail'">
+            <section class="space-y-3 rounded-lg border border-base-300 p-4">
+              <h4 class="font-semibold">报告链接与趋势图片</h4>
+              <fieldset class="fieldset min-w-0">
+                <legend class="fieldset-legend"><label for="report-mail-url">平台外部 HTTPS 地址</label></legend>
+                <input id="report-mail-url" v-model="settings.report_mail.public_base_url" type="url" class="input input-bordered w-full" placeholder="https://reports.example.com" />
+                <p class="label whitespace-normal opacity-60">可包含部署路径。用于邮件中的完整报告链接和趋势图片；地址需要能被收件人的邮箱访问。</p>
+              </fieldset>
+              <label class="flex items-center gap-3 text-sm"><input v-model="settings.report_mail.remote_images_enabled" type="checkbox" class="toggle toggle-neutral" />在新报告邮件中加载远程趋势图</label>
+              <p class="text-xs opacity-60">趋势图展示每日任务数量。图片未加载时仍可阅读每日统计表；完整报告需要登录。关闭此设置不撤销已归档图片。</p>
+            </section>
+            <section class="grid gap-4 rounded-lg border border-base-300 p-4 sm:grid-cols-2">
+              <fieldset class="fieldset min-w-0"><legend class="fieldset-legend"><label for="report-mail-lifetime">图片有效期（天）</label></legend><input id="report-mail-lifetime" v-model.number="settings.report_mail.image_lifetime_days" type="number" min="1" max="3650" class="input input-bordered" /><p class="label whitespace-normal opacity-60">重发会延长未撤销图片的有效期。已归档报告保留生成时的有效期设置。</p></fieldset>
+              <fieldset class="fieldset min-w-0"><legend class="fieldset-legend"><label for="report-mail-scanners">扫描器展示上限</label></legend><input id="report-mail-scanners" v-model.number="settings.report_mail.scanner_row_limit" type="number" min="1" max="100" class="input input-bordered" /><p class="label whitespace-normal opacity-60">超出时显示剩余数量，可登录查看完整列表。</p></fieldset>
+            </section>
+            <p class="text-sm opacity-60">设置只影响新生成报告。邮件模板编辑器可载入新版默认模板，再保存并发布；已有报告使用归档正文。</p>
+          </template>
           <template v-else-if="activeItem.key === 'analytics_snapshot'">
             <section class="space-y-3 rounded-lg border border-base-300 p-4">
               <div>

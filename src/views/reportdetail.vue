@@ -102,6 +102,17 @@ async function send() {
   finally { actionLoading.value = false }
 }
 
+async function revokeImage() {
+  if (!window.confirm('撤销后将停止从服务器加载这份报告的趋势图，待发送邮件会取消。邮箱已缓存的图像无法收回。是否继续？')) return
+  actionLoading.value = true
+  try {
+    await http.post(`/api/reports/${report.value.id}/mail-image/revoke`)
+    alert('success', '报告趋势图片已撤销')
+    await load({ silent: true })
+  } catch (e) { alert('error', e.response?.data?.message || '撤销失败，请稍后重试') }
+  finally { actionLoading.value = false }
+}
+
 function exportCsv() {
   const url = URL.createObjectURL(new Blob([reportCsv(report.value)], { type: 'text/csv;charset=utf-8' }))
   const link = document.createElement('a')
@@ -127,7 +138,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
         <button v-if="report && ['ready', 'failed'].includes(report.status)" class="btn btn-sm" :disabled="actionLoading" @click="action('revisions')">生成修订版</button>
         <template v-if="report?.status === 'ready'">
           <button class="btn btn-sm" @click="exportCsv">导出 CSV</button><button class="btn btn-sm" @click="printReport">打印</button>
-          <button class="btn btn-sm btn-neutral" :disabled="actionLoading || deliveries.some((d) => ['pending', 'sending'].includes(d.status))" @click="prepareSend">发送邮件</button>
+          <button class="btn btn-sm btn-neutral" :disabled="actionLoading || !!report.mail_image?.revoked_at || deliveries.some((d) => ['pending', 'sending'].includes(d.status))" @click="prepareSend">发送邮件</button>
         </template>
       </div>
     </div>
@@ -143,7 +154,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
       <div v-if="report.status !== 'ready'" role="status" class="alert" :class="report.status === 'failed' ? 'alert-error' : 'alert-info'">
         <span>{{ report.last_error || '报告已排队，正在等待生成。' }}<span v-if="report.quality?.current"> · 统计执行 {{ report.quality.current.ready }} / {{ report.quality.current.expected }}</span></span>
       </div>
-      <div v-if="report.quality?.mail_error" role="alert" class="alert alert-warning"><span>报告已归档，邮件摘要不可用：{{ report.quality.mail_error }}。检查邮件模板后可生成修订版。</span></div>
+      <div v-if="report.quality?.mail_error" role="alert" class="alert alert-warning"><span>报告已归档，邮件内容不可用：{{ report.quality.mail_error }}。检查邮件模板后可生成修订版。</span></div>
       <template v-if="payload">
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><div v-for="card in cards" :key="card.title" class="card border border-base-300 bg-base-100 p-5"><div class="text-sm opacity-60">{{ card.title }}</div><div class="mt-2 break-words text-2xl font-semibold">{{ card.value }}</div></div></div>
         <div class="grid gap-4 lg:grid-cols-2">
@@ -156,9 +167,10 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
         <div class="card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">处理建议</h2><ul v-if="payload.recommendations.length" class="mt-3 list-inside list-disc space-y-2 text-sm"><li v-for="item in payload.recommendations" :key="item">{{ item }}</li></ul><p v-else class="mt-3 text-sm opacity-60">本期未发现需要提示的任务异常。</p></div>
         <div class="card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">统计口径与完整性</h2><p class="mt-3 text-sm">成功执行统计已完成：{{ report.quality.current.ready }} / {{ report.quality.current.expected }}</p><p v-for="note in payload.notes" :key="note" class="mt-2 text-xs opacity-60">{{ note }}</p><p class="mt-3 break-all font-mono text-xs opacity-50">SHA-256：{{ report.content_checksum }}</p></div>
       </template>
+      <div v-if="report.mail_image" class="report-controls card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">邮件趋势图片</h2><p class="mt-3 text-sm">{{ report.mail_image.revoked_at ? '图片已撤销' : `有效期至 ${reportDate(report.mail_image.expires_at, true)}` }}</p><p class="mt-2 text-xs opacity-60">图片与当前报告版本固定对应；撤销后需要生成修订版才能再次发送。邮箱已缓存的图像可能继续显示。</p><button v-if="!report.mail_image.revoked_at" class="btn btn-sm btn-outline mt-3 self-start" :disabled="actionLoading" @click="revokeImage">撤销图片访问</button></div>
       <div class="report-controls card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">邮件投递记录</h2><p v-if="deliveryError" class="mt-3 text-sm text-error">{{ deliveryError }}</p><div v-else-if="deliveries.length" class="mt-3 overflow-x-auto"><table class="table table-sm"><thead><tr><th>收件人</th><th>批次</th><th>状态</th><th>尝试次数</th><th>说明</th></tr></thead><tbody><tr v-for="delivery in deliveries" :key="delivery.id"><td>{{ delivery.recipient }}</td><td>#{{ delivery.dispatch_seq }}</td><td>{{ deliveryStatuses[delivery.status] || delivery.status }}</td><td>{{ delivery.attempts }}</td><td class="max-w-sm break-words text-xs">{{ delivery.last_error || reportDate(delivery.sent_at, true) }}</td></tr></tbody></table></div><p v-else class="mt-3 text-sm opacity-60">尚无投递记录。手动生成与修订版默认只归档。</p></div>
     </template>
-    <dialog ref="sendDialog" class="modal"><div class="modal-box"><h2 class="text-lg font-semibold">发送报告邮件</h2><p class="mt-2 text-sm opacity-60">发送当前归档版本的摘要。邮件发送失败会自动重试；重发会创建新投递批次。</p><form class="mt-4" @submit.prevent="send"><label v-for="user in recipients" :key="user.id" class="mt-3 flex items-center gap-2 text-sm"><input v-model="selectedRecipients" type="checkbox" class="checkbox checkbox-sm" :value="user.id" />{{ user.username }} · {{ user.email }}</label><p v-if="!recipients.length" class="text-sm text-warning">没有可用管理员邮箱，请先完善个人信息。</p><div class="modal-action"><button type="button" class="btn" @click="sendDialog.close()">取消</button><button class="btn btn-neutral" :disabled="!selectedRecipients.length || actionLoading">确认发送</button></div></form></div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
+    <dialog ref="sendDialog" class="modal"><div class="modal-box"><h2 class="text-lg font-semibold">发送报告邮件</h2><p class="mt-2 text-sm opacity-60">发送当前版本的归档邮件。邮件内容取决于生成时的模板；配置远程趋势图后，图片从平台加载。发送失败会自动重试，重发会延长未撤销图片的有效期。</p><form class="mt-4" @submit.prevent="send"><label v-for="user in recipients" :key="user.id" class="mt-3 flex items-center gap-2 text-sm"><input v-model="selectedRecipients" type="checkbox" class="checkbox checkbox-sm" :value="user.id" />{{ user.username }} · {{ user.email }}</label><p v-if="!recipients.length" class="text-sm text-warning">没有可用管理员邮箱，请先完善个人信息。</p><div class="modal-action"><button type="button" class="btn" @click="sendDialog.close()">取消</button><button class="btn btn-neutral" :disabled="!selectedRecipients.length || actionLoading">确认发送</button></div></form></div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
   </div>
 </template>
 

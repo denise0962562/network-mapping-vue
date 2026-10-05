@@ -130,6 +130,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
       <div v-if="settings" class="space-y-3">
         <div v-if="!settings.analytics_ready" class="alert alert-warning"><span>分析快照尚未启用。请在<router-link class="link" to="/setting/runtime">运行策略</router-link>中选择 shadow 或 snapshot 并完成回填；报告会等待统计完整。</span></div>
         <div v-if="!settings.mail_ready" class="alert alert-info"><span>SMTP 配置不完整，报告可以归档；发送前请完善<router-link class="link" to="/setting">邮件设置</router-link>。</span></div>
+        <p v-if="settings.mail_images_ready === false" class="text-sm text-base-content/60">远程趋势图尚未启用，邮件仍包含文字统计。可在<router-link class="link" to="/setting/runtime">运行策略 → 报告邮件</router-link>中设置外部 HTTPS 地址并启用图片。</p>
         <div class="grid gap-4 lg:grid-cols-2">
           <form v-for="plan in plans" :key="plan.period_type" class="card border border-base-300 bg-base-100 p-5" @submit.prevent="savePlan(plan)">
             <div class="flex items-center justify-between gap-3"><h2 class="font-semibold">{{ plan.period_type === 'weekly' ? '自动周报' : '自动月报' }}</h2><label class="flex items-center gap-2 text-sm"><input v-model="plan.enabled" type="checkbox" class="toggle toggle-neutral toggle-sm" />启用</label></div>

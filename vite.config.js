@@ -76,6 +76,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/mail/report-images': {
+        target: 'https://localhost:9999',
+        changeOrigin: true,
+        secure: false,
+      },
       '/logout': {
         target: 'https://localhost:9999',
         changeOrigin: true,
