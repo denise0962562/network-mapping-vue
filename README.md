@@ -46,6 +46,8 @@ pnpm dev
 pnpm build
 ```
 
+GitHub 自动构建及服务端 Docker 镜像集成见 [Docker 集成指南](docs/DOCKER.md)。
+
 构建产物位于 `dist/`，由 Network Mapping 服务端托管。服务端配置示例：
 
 ```toml

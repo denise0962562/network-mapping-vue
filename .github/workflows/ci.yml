@@ -1,0 +1,40 @@
+name: Frontend CI
+on:
+  push:
+    branches: [main, dev, 'dev/**', 'feature/**', 'fix/**', 'release/**']
+  pull_request:
+    branches: [main, dev, 'dev/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: node:24.16.0-bookworm-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Install locked frontend dependencies
+        run: |
+          npm install --global pnpm@11.9.0
+          pnpm install --frozen-lockfile
+      - name: Test and build
+        run: |
+          node --test src/utils/*.test.js
+          pnpm test:targets
+          pnpm build
+          test -f dist/index.html && test -f dist/login.html && test -f dist/search.html && test -f dist/asset.html && test -d dist/assets
+      - name: Save frontend build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frontend-dist-${{ github.sha }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 14
