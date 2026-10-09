@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import GeneralSettings from '@/components/GeneralSettings.vue'
+import ConfigCheckPanel from '@/components/ConfigCheckPanel.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
@@ -522,6 +523,7 @@ onMounted(() => {
     </div>
 
     <div class="grid grid-cols-1 gap-5">
+      <ConfigCheckPanel endpoint="/api/config/check" />
       <GeneralSettings ref="generalSettings" @dirty="generalDirty = $event" />
       <div class="card bg-base-100 card-border border-base-300 p-4">
         <div class="mb-3 flex items-start justify-between gap-3">

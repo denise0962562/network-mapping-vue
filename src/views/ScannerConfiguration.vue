@@ -3,6 +3,7 @@ import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
+import ConfigCheckPanel from '@/components/ConfigCheckPanel.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
@@ -18,6 +19,7 @@ const scannerName = ref('')
 const configStatus = ref(null)
 const configError = ref(null)
 const reportedAt = ref(null)
+const localConfigCheck = ref(null)
 const changeReason = ref('')
 const alerts = ref([])
 const savedDocument = ref(null)
@@ -73,6 +75,7 @@ function applyData(data) {
   configStatus.value = data.status || null
   configError.value = data.error || null
   reportedAt.value = data.reported_at || null
+  localConfigCheck.value = data.local_config_check || null
   savedDocument.value = documentValue()
 }
 
@@ -188,6 +191,7 @@ onMounted(loadConfiguration)
         </div>
         <div v-if="configError" class="alert alert-error mt-3"><span class="break-all">{{ configError }}</span></div>
       </section>
+      <ConfigCheckPanel :report="localConfigCheck" title="扫描器本地配置检查" />
 
       <section class="card bg-base-100 card-border border-base-300 p-4">
         <h3 class="font-semibold">端口扫描</h3>
