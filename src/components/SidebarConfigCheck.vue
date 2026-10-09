@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useConfigCheck } from '@/composables/useConfigCheck'
+import { deploymentConfigItems } from '@/utils/configCheck'
 
 const props = defineProps({ expanded: { type: Boolean, default: true } })
 const { snapshot, loading, error, load } = useConfigCheck(() => '/api/config/check')
@@ -11,9 +12,10 @@ const hovering = ref(false)
 const focused = ref(false)
 const dismissed = ref(false)
 const tooltipStyle = ref({})
-const defaults = computed(() => snapshot.value?.items.filter((item) => item.kind === 'default').length || 0)
-const required = computed(() => snapshot.value?.items.filter((item) => item.kind === 'required').length || 0)
-const optional = computed(() => snapshot.value?.items.filter((item) => item.kind === 'optional').length || 0)
+const items = computed(() => deploymentConfigItems(snapshot.value))
+const defaults = computed(() => items.value.filter((item) => item.kind === 'default').length)
+const required = computed(() => items.value.filter((item) => item.kind === 'required').length)
+const optional = computed(() => items.value.filter((item) => item.kind === 'optional').length)
 const showIndicator = computed(() => Boolean(error.value) || defaults.value > 0 || required.value > 0)
 const tooltipVisible = computed(() => showIndicator.value && (hovering.value || focused.value) && !dismissed.value)
 const label = computed(() => {
@@ -28,7 +30,7 @@ const summary = computed(() => {
   if (error.value) return `${error.value} 点击进入配置检查页面重试。`
   if (!snapshot.value) return '尚未收到配置检查结果，点击进入配置检查页面查看。'
   if (required.value) return `${required.value} 个必需参数缺失，需要按字段说明补齐；另有 ${defaults.value} 个字段采用缺省处理。`
-  if (defaults.value) return `${defaults.value} 个字段未显式配置，当前采用兼容默认值或数据库初始化种子，可按需补充。`
+  if (defaults.value) return `${defaults.value} 个部署字段未显式配置，当前采用兼容默认值，可按需补充。`
   return optional.value ? `没有需要补充的启动参数。${optional.value} 个未启用功能的可选参数无需补齐。` : '当前没有需要补充的启动参数。'
 })
 
@@ -77,8 +79,7 @@ onBeforeUnmount(() => {
     <router-link
       ref="anchor"
       to="/setting"
-      class="flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-sm hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      :class="required ? 'text-warning' : 'text-info'"
+      class="flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-sm opacity-60 hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       :aria-label="`${label}，点击查看启动配置检查`"
       :aria-describedby="tooltipVisible ? tooltipId : undefined"
       @mouseenter="activate('hover')"
@@ -99,7 +100,7 @@ onBeforeUnmount(() => {
         <div :id="tooltipId" role="tooltip" class="tooltip-content p-3 text-left leading-5" style="position: static; width: 100%; max-width: none; transform: none;">
           <p class="font-semibold">启动配置检查</p>
           <p class="mt-1">{{ summary }}</p>
-          <p class="mt-2 text-xs opacity-80">文件部署与 Docker 挂载配置均适用。检查不会改写配置文件；修改后需重启对应进程。</p>
+          <p class="mt-2 text-xs opacity-80">仅提示部署文件参数，Web 管理的数据库参数不列入提示。文件与 Docker 部署均适用；修改文件后需重启对应进程。</p>
           <p class="mt-2 text-xs opacity-80">点击查看字段、内置缺省值和处理说明。扫描器配置请在对应扫描器的配置页面查看。</p>
         </div>
       </div>
