@@ -3,18 +3,19 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } fro
 import { useConfigCheck } from '@/composables/useConfigCheck'
 
 const props = defineProps({ expanded: { type: Boolean, default: true } })
-const { snapshot, loading, error, previewMode, load } = useConfigCheck(() => '/api/config/check')
+const { snapshot, loading, error, load } = useConfigCheck(() => '/api/config/check')
 const anchor = ref(null)
 const tooltip = ref(null)
 const tooltipId = useId()
 const hovering = ref(false)
 const focused = ref(false)
 const dismissed = ref(false)
-const tooltipVisible = computed(() => (hovering.value || focused.value) && !dismissed.value)
 const tooltipStyle = ref({})
 const defaults = computed(() => snapshot.value?.items.filter((item) => item.kind === 'default').length || 0)
 const required = computed(() => snapshot.value?.items.filter((item) => item.kind === 'required').length || 0)
 const optional = computed(() => snapshot.value?.items.filter((item) => item.kind === 'optional').length || 0)
+const showIndicator = computed(() => Boolean(error.value) || defaults.value > 0 || required.value > 0)
+const tooltipVisible = computed(() => showIndicator.value && (hovering.value || focused.value) && !dismissed.value)
 const label = computed(() => {
   if (loading.value) return '配置检查中'
   if (error.value || !snapshot.value) return '配置检查待确认'
@@ -30,10 +31,6 @@ const summary = computed(() => {
   if (defaults.value) return `${defaults.value} 个字段未显式配置，当前采用兼容默认值或数据库初始化种子，可按需补充。`
   return optional.value ? `没有需要补充的启动参数。${optional.value} 个未启用功能的可选参数无需补齐。` : '当前没有需要补充的启动参数。'
 })
-const destination = computed(() => ({
-  path: '/setting',
-  query: previewMode.value ? { 'config-check-preview': '1' } : {},
-}))
 
 async function updatePosition() {
   if (!tooltipVisible.value) return
@@ -58,7 +55,12 @@ function activate(kind) {
 }
 
 watch([tooltipVisible, () => props.expanded, summary], updatePosition)
-watch(previewMode, () => load())
+watch(showIndicator, (visible) => {
+  if (visible) return
+  hovering.value = false
+  focused.value = false
+  dismissed.value = false
+})
 onMounted(() => {
   load()
   window.addEventListener('resize', updatePosition)
@@ -71,12 +73,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="w-full px-2 pb-2">
+  <div v-if="showIndicator" class="w-full px-2 pb-2">
     <router-link
       ref="anchor"
-      :to="destination"
-      class="flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      :class="[expanded ? '' : 'justify-center', required ? 'text-warning' : 'text-info']"
+      to="/setting"
+      class="flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-sm hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      :class="required ? 'text-warning' : 'text-info'"
       :aria-label="`${label}，点击查看启动配置检查`"
       :aria-describedby="tooltipVisible ? tooltipId : undefined"
       @mouseenter="activate('hover')"
@@ -95,7 +97,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div v-if="tooltipVisible" ref="tooltip" class="tooltip tooltip-right tooltip-open pointer-events-none z-[60] after:hidden" :style="tooltipStyle">
         <div :id="tooltipId" role="tooltip" class="tooltip-content p-3 text-left leading-5" style="position: static; width: 100%; max-width: none; transform: none;">
-          <p class="font-semibold">启动配置检查<span v-if="previewMode" class="ml-2 text-xs opacity-70">演示</span></p>
+          <p class="font-semibold">启动配置检查</p>
           <p class="mt-1">{{ summary }}</p>
           <p class="mt-2 text-xs opacity-80">文件部署与 Docker 挂载配置均适用。检查不会改写配置文件；修改后需重启对应进程。</p>
           <p class="mt-2 text-xs opacity-80">点击查看字段、内置缺省值和处理说明。扫描器配置请在对应扫描器的配置页面查看。</p>

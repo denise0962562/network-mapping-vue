@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useConfigCheck } from '@/composables/useConfigCheck'
 import { formatDateTime } from '@/utils/systemTime'
 
@@ -8,10 +8,9 @@ const props = defineProps({
   report: { type: Object, default: null },
   title: { type: String, default: '启动配置检查' },
 })
-const { snapshot, loading, error, previewMode, previewScenario, load, loadPreview } = useConfigCheck(() => props.endpoint)
+const { snapshot, loading, error, load } = useConfigCheck(() => props.endpoint)
 const showOptional = ref(false)
-const development = import.meta.env.DEV
-const report = computed(() => previewMode.value ? snapshot.value : props.report || snapshot.value)
+const report = computed(() => props.report || snapshot.value)
 const items = computed(() => report.value?.items || [])
 const defaults = computed(() => items.value.filter((item) => item.kind === 'default'))
 const required = computed(() => items.value.filter((item) => item.kind === 'required'))
@@ -26,7 +25,6 @@ const sourceLabels = {
 }
 
 onMounted(() => load())
-watch(previewMode, () => load())
 </script>
 
 <template>
@@ -37,15 +35,8 @@ watch(previewMode, () => load())
         <p class="mt-1 text-xs opacity-60">读取最近一次启动时的配置快照；修改文件后需要重启对应进程。</p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
-        <a v-if="development && !previewMode" href="?config-check-preview=1" class="btn btn-ghost btn-sm">预览效果</a>
         <button v-if="endpoint" class="btn btn-ghost btn-sm" :disabled="loading" @click="load(true)">重新读取</button>
         <span v-else class="badge badge-ghost badge-sm">只读</span>
-      </div>
-    </div>
-    <div v-if="previewMode" class="mb-4 rounded-lg border border-base-300 bg-base-200/50 p-3">
-      <p class="mb-2 text-xs opacity-70">开发环境演示 · 下方为模拟数据，与实际配置无关。</p>
-      <div class="flex flex-wrap gap-2">
-        <button v-for="scenario in [{ id: 'defaults', label: '缺省参数' }, { id: 'complete', label: '配置完整' }, { id: 'required', label: '必需参数缺失' }, { id: 'error', label: '加载失败' }]" :key="scenario.id" class="btn btn-sm" :class="previewScenario === scenario.id ? 'btn-neutral' : 'btn-ghost'" :disabled="loading" @click="loadPreview(scenario.id)">{{ scenario.label }}</button>
       </div>
     </div>
     <div v-if="loading" role="status" class="flex items-center gap-2 py-3 text-sm opacity-60">
@@ -63,7 +54,7 @@ watch(previewMode, () => load())
       </div>
       <p v-else role="status" class="text-sm">配置检查通过，当前没有需要补充的启动参数。</p>
       <p class="mt-3 text-xs leading-5 opacity-60">程序版本 {{ report.version }} · 检查时间 {{ checkedAt }}。下方展示内置缺省值，不代表数据库或远程策略的当前值。</p>
-      <details v-if="items.length" :open="previewMode" class="mt-3 rounded-lg border border-base-300">
+      <details v-if="items.length" class="mt-3 rounded-lg border border-base-300">
         <summary class="cursor-pointer px-3 py-2 text-sm font-medium">查看配置详情（{{ defaults.length + required.length }} 项提示，{{ optional.length }} 项未启用功能的可选参数）</summary>
         <div class="px-3 pb-3">
           <label v-if="optional.length" class="mb-3 flex cursor-pointer items-center gap-2 text-sm">
