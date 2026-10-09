@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import http from '@/utils/http'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useConfigCheck } from '@/composables/useConfigCheck'
 import { formatDateTime } from '@/utils/systemTime'
 
 const props = defineProps({
@@ -8,14 +8,10 @@ const props = defineProps({
   report: { type: Object, default: null },
   title: { type: String, default: '启动配置检查' },
 })
-const snapshot = ref(null)
-const loading = ref(false)
-const error = ref('')
+const { snapshot, loading, error, previewMode, previewScenario, load, loadPreview } = useConfigCheck(() => props.endpoint)
 const showOptional = ref(false)
 const development = import.meta.env.DEV
-const previewMode = development && new URLSearchParams(window.location.search).get('config-check-preview') === '1'
-const previewScenario = ref('defaults')
-const report = computed(() => previewMode ? snapshot.value : props.report || snapshot.value)
+const report = computed(() => previewMode.value ? snapshot.value : props.report || snapshot.value)
 const items = computed(() => report.value?.items || [])
 const defaults = computed(() => items.value.filter((item) => item.kind === 'default'))
 const required = computed(() => items.value.filter((item) => item.kind === 'required'))
@@ -29,44 +25,8 @@ const sourceLabels = {
   remote_override: '可被远程策略调整',
 }
 
-async function load() {
-  if (previewMode) {
-    await loadPreview(previewScenario.value)
-    return
-  }
-  if (!props.endpoint || loading.value) return
-  loading.value = true
-  error.value = ''
-  try {
-    const response = await http.get(props.endpoint)
-    if (!response.data?.success || !Array.isArray(response.data.data?.items)) {
-      throw new Error('服务器未返回有效配置检查结果')
-    }
-    snapshot.value = response.data.data
-  } catch (failure) {
-    error.value = failure.response?.status === 404
-      ? '当前服务端版本暂不支持配置检查。'
-      : failure.response?.data?.message || '配置检查结果加载失败，请重试。'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function loadPreview(scenario) {
-  if (!import.meta.env.DEV) return
-  previewScenario.value = scenario
-  loading.value = true
-  error.value = ''
-  try {
-    const { configCheckPreview } = await import('@/utils/configCheckPreview')
-    snapshot.value = scenario === 'error' ? null : configCheckPreview(scenario)
-    if (scenario === 'error') error.value = '演示：配置检查结果加载失败，请重试。'
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(load)
+onMounted(() => load())
+watch(previewMode, () => load())
 </script>
 
 <template>
@@ -78,7 +38,7 @@ onMounted(load)
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <a v-if="development && !previewMode" href="?config-check-preview=1" class="btn btn-ghost btn-sm">预览效果</a>
-        <button v-if="endpoint" class="btn btn-ghost btn-sm" :disabled="loading" @click="load">重新读取</button>
+        <button v-if="endpoint" class="btn btn-ghost btn-sm" :disabled="loading" @click="load(true)">重新读取</button>
         <span v-else class="badge badge-ghost badge-sm">只读</span>
       </div>
     </div>
@@ -92,7 +52,7 @@ onMounted(load)
       <span class="loading loading-spinner loading-sm" />正在读取配置检查结果...
     </div>
     <div v-else-if="error" role="alert" class="alert alert-error">
-      <span>{{ error }}</span><button class="btn btn-sm" @click="load">重试</button>
+      <span>{{ error }}</span><button class="btn btn-sm" @click="load(true)">重试</button>
     </div>
     <template v-else-if="report">
       <div v-if="required.length" role="alert" class="alert alert-warning">

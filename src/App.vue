@@ -6,9 +6,11 @@ import http from './utils/http'
 import ReLoginModal from './components/ReLoginModal.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import SidebarVersionUpdates from '@/components/SidebarVersionUpdates.vue'
+import SidebarConfigCheck from '@/components/SidebarConfigCheck.vue'
 import packageInfo from '../package.json'
 
 const route = useRoute()
+const configCheckPreview = computed(() => import.meta.env.DEV && route.query['config-check-preview'] === '1')
 const navbarTitle = computed(() => route.meta?.title || '仪表盘')
 const logoutLoading = ref(false)
 const drawerOpen = ref(true)
@@ -489,6 +491,7 @@ async function handleLogout() {
           </li>
         </ul>
 
+        <SidebarConfigCheck v-if="isAdmin || configCheckPreview" :expanded="drawerOpen" />
         <SidebarVersionUpdates
           class="w-full px-4 pb-1 is-drawer-close:px-2"
           :expanded="drawerOpen"
