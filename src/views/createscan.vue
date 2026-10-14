@@ -95,7 +95,7 @@ const dispatchModeSummary = computed(() => {
 const targetAddressFamily = computed(() => {
   if (targetType.value === 'ipv4') return 'ipv4'
   if (targetType.value === 'ipv6') return 'ipv6'
-  if (targetType.value === 'domain') return selectedDnsResolvers.value.length > 0 && selectedDnsResolvers.value.every(r => r.ip?.includes(':')) ? 'ipv6' : 'ipv4'
+  if (targetType.value === 'domain') return 'ipv4'
   return null
 })
 
