@@ -15,7 +15,8 @@
     "test:monitor": "node --test src/utils/monitorRules.test.js",
     "test:theme": "node --test src/utils/theme.test.js",
     "test:versions": "node --test src/utils/versionUpdates.test.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:routing": "node --test src/utils/scanRouting.test.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

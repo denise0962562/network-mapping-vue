@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import http from '@/utils/http'
 import { formatLocation } from '@/utils/location'
+import { routingLocation, routingSummary } from '@/utils/scanRouting'
 import { isProjectionPending, projectionMessage } from '@/utils/projectionStatus'
 
 const route = useRoute()
@@ -375,6 +376,14 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <div v-if="task.task_group?.length > 1" class="card bg-base-100 card-border border-base-300 p-4 mb-5 text-sm"><h3 class="font-semibold mb-2">扫描任务组</h3><p class="mb-2 opacity-70">共 {{ task.task_group.length }} 个独立任务，已完成 {{ task.task_group.filter(t => t.status === 'succeeded').length }} 个。</p><div class="flex flex-wrap gap-2"><router-link v-for="child in task.task_group" :key="child.task_id" :to="`/task/${child.task_id}`" class="btn btn-outline btn-xs">{{ child.target_count }} 个目标 · {{ statusText[child.status] || child.status }}</router-link></div></div>
+    <div v-if="task.routing || currentExecution?.routing_decision || currentExecution?.performance" class="card bg-base-100 card-border border-base-300 p-4 mb-5 text-sm">
+      <h3 class="font-semibold mb-2">扫描器分配</h3>
+      <p v-if="task.routing || currentExecution?.routing_decision">{{ routingSummary(currentExecution?.routing_decision || task.routing) }}</p>
+      <p class="mt-1 opacity-70">目标地域：{{ routingLocation((currentExecution?.routing_decision || task.routing)?.target_geo) }}</p>
+      <p v-if="currentExecution?.performance" class="mt-1 opacity-70">执行耗时：{{ (currentExecution.performance.elapsed_ms / 1000).toFixed(1) }} 秒 · 目标连接样本：{{ currentExecution.performance.connections?.length || 0 }}</p>
+      <div v-if="currentExecution?.performance?.connections?.length" class="overflow-x-auto mt-2"><table class="table table-sm"><thead><tr><th>目标</th><th>连接耗时</th><th>结果</th></tr></thead><tbody><tr v-for="sample in currentExecution.performance.connections" :key="`${sample.ip}:${sample.port}`"><td>{{ sample.ip }}:{{ sample.port }}</td><td>{{ sample.elapsed_ms }} ms</td><td>{{ ({connected: '连接成功', refused: '连接被拒绝', timeout: '超时', route_error: '路由错误', other_error: '连接异常'})[sample.outcome] || '未知' }}</td></tr></tbody></table></div>
+    </div>
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
       <div class="xl:col-span-2 flex flex-col gap-5">
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">

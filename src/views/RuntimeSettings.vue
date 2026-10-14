@@ -13,6 +13,7 @@ const namespaces = [
   { key: 'requests', title: '请求日志', description: '控制访问日志采集和在线保留期。' },
   { key: 'monitor', title: '服务监控与告警', description: '按服务和具体操作管理耗时阈值、告警级别及冷却时间。' },
   { key: 'scanner_health', title: '扫描器状态与告警', description: '管理心跳判定、掉线告警、维护宽限期和通信延迟标识。' },
+  { key: 'scan_routing', title: '智能扫描器分配', description: '根据地域、节点状态和目标执行反馈自动选择扫描器。' },
   { key: 'automatic_target', title: '自动扫描策略', description: '管理搜索触发与周期生成的扫描任务，以及授权范围和任务参数。' },
   { key: 'dns_follow_up', title: 'DNS 解析后扫描', description: '控制 DNS 解析结果自动创建端口扫描任务的范围。' },
   { key: 'dns_resolvers', title: 'DNS 解析服务器', description: '维护创建域名扫描任务时可选择的常用 DNS 解析服务器。' },
@@ -23,7 +24,7 @@ const namespaces = [
 
 const namespaceGroups = [
   { title: '日志与监控', keys: ['requests', 'monitor', 'scanner_health'] },
-  { title: '扫描与解析', keys: ['automatic_target', 'dns_follow_up', 'dns_resolvers'] },
+  { title: '扫描与解析', keys: ['scan_routing', 'automatic_target', 'dns_follow_up', 'dns_resolvers'] },
   { title: '数据分析', keys: ['analytics_snapshot', 'statistics_cache', 'report_mail'] },
 ].map((group) => ({ ...group, items: group.keys.map((key) => namespaces.find((item) => item.key === key)) }))
 
@@ -54,6 +55,7 @@ const defaults = {
     alert_cooldown_seconds: 300,
   },
   scanner_health: scannerHealthDefaults,
+  scan_routing: { enabled: true, preference_seconds: 15, candidate_limit: 64, feedback_max_age_hours: 168 },
   automatic_target: {
     search_generation: {
       enabled: false, stale_after_days: 7, cooldown_minutes: 1440,
@@ -77,6 +79,8 @@ const defaults = {
     ipv6_pending_high_watermark: 2,
     common_ports: '',
     repeat_after_seconds: 604800,
+    failure_backoff_seconds: 300,
+    change_refresh_seconds: 3600,
   },
   dns_follow_up: { enabled: false, authorized_cidrs: [], excluded_cidrs: [], max_targets_per_task: 100 },
   dns_resolvers: { resolvers: [] },
@@ -475,6 +479,17 @@ onMounted(loadAll)
             <p class="text-xs opacity-60">修改阈值不会重复创建已有掉线事件；任务租约时间独立管理。自定义心跳周期较长时，请相应提高在线判定和告警时间。</p>
           </template>
 
+          <template v-else-if="activeItem.key === 'scan_routing'">
+            <section class="space-y-4 rounded-lg border border-base-300 p-4">
+              <label class="flex items-center justify-between gap-4"><span><span class="block font-semibold">智能分配</span><span class="block text-xs opacity-60">自动识别出口与目标地域，并结合忙闲状态、同类任务和目标连接质量选择节点。</span></span><input v-model="settings.scan_routing.enabled" type="checkbox" class="toggle" /></label>
+              <div class="grid gap-3 md:grid-cols-3">
+                <fieldset class="fieldset"><legend class="fieldset-legend">优先领取有效期（秒）</legend><input v-model.number="settings.scan_routing.preference_seconds" type="number" min="5" max="60" class="input input-bordered" /><p class="text-xs opacity-60">到期后其他兼容节点可以领取，默认 15 秒。</p></fieldset>
+                <fieldset class="fieldset"><legend class="fieldset-legend">每轮调度任务数</legend><input v-model.number="settings.scan_routing.candidate_limit" type="number" min="1" max="256" class="input input-bordered" /></fieldset>
+                <fieldset class="fieldset"><legend class="fieldset-legend">执行反馈有效期（小时）</legend><input v-model.number="settings.scan_routing.feedback_max_age_hours" type="number" min="1" max="720" class="input input-bordered" /></fieldset>
+              </div>
+              <p class="text-xs opacity-60">地域未知时按能力与状态分配。零开放端口和单次超时不会被视为不可达；目标连接指标独立于扫描器到服务端的通信延迟。</p>
+            </section>
+          </template>
           <template v-else-if="activeItem.key === 'automatic_target'">
             <div class="alert alert-warning alert-soft text-sm" role="status">自动扫描会创建实际任务。只允许填写已获得明确授权的网段；启用前请复核范围、端口和优先级。</div>
             <section class="space-y-3 rounded-lg border border-base-300 p-4">
@@ -608,7 +623,11 @@ onMounted(loadAll)
                 </fieldset>
                 <fieldset class="fieldset min-w-0">
                   <legend class="fieldset-legend"><label for="policy-settings-automatic-target-repeat-after-seconds">重复扫描间隔（秒）</label></legend>
+                  <select v-model="settings.automatic_target.strategy" class="select select-bordered mb-2" aria-label="目标生成策略"><option value="sequential_subnet">顺序覆盖扫描</option><option value="smart_refresh">智能刷新：首次、过期与失败退避</option></select>
                   <input id="policy-settings-automatic-target-repeat-after-seconds" v-model.number="settings.automatic_target.repeat_after_seconds" type="number" class="input input-bordered" min="1" />
+                  <p class="mt-1 text-xs opacity-60">智能刷新从最近成功完成计算有效期，成功但没有开放端口也计入。</p>
+                  <label class="fieldset-legend mt-2">失败退避起始时间（秒）</label><input v-model.number="settings.automatic_target.failure_backoff_seconds" type="number" class="input input-bordered" min="30" max="86400" />
+                  <label class="fieldset-legend mt-2">资产变化后复核间隔（秒）</label><input v-model.number="settings.automatic_target.change_refresh_seconds" type="number" class="input input-bordered" min="30" max="86400" /><p class="text-xs opacity-60">发现端口、服务或漏洞模板变化后，提前复核；稳定后恢复正常刷新间隔。</p>
                 </fieldset>
               </div>
             </section>
