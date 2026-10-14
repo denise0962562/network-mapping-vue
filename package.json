@@ -16,7 +16,8 @@
     "test:theme": "node --test src/utils/theme.test.js",
     "test:versions": "node --test src/utils/versionUpdates.test.js",
     "preview": "vite preview",
-    "test:routing": "node --test src/utils/scanRouting.test.js"
+    "test:routing": "node --test src/utils/scanRouting.test.js",
+    "test:open-api": "node --test src/utils/openApi.test.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
