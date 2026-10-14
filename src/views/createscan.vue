@@ -4,6 +4,7 @@ import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 import { parseScanTargets, targetTypeLabel } from '@/utils/scanTargets'
+import { routingLocation, routingReason } from '@/utils/scanRouting'
 
 const LEGACY_DRAFT_KEY = 'createscan_draft'
 const scanProfiles = [
@@ -44,6 +45,9 @@ const dispatchMode = ref('automatic')
 const scannerIds = ref([])
 const scanners = ref([])
 const scannersLoading = ref(false)
+const placement = ref(null)
+const placementLoading = ref(false)
+let placementRequest = 0
 const scanProfile = ref('vulnerability_scan')
 const dnsResolverMode = ref('system')
 const dnsResolvers = ref([])
@@ -91,7 +95,7 @@ const dispatchModeSummary = computed(() => {
 const targetAddressFamily = computed(() => {
   if (targetType.value === 'ipv4') return 'ipv4'
   if (targetType.value === 'ipv6') return 'ipv6'
-  if (targetType.value === 'domain') return 'ipv4'
+  if (targetType.value === 'domain') return selectedDnsResolvers.value.length > 0 && selectedDnsResolvers.value.every(r => r.ip?.includes(':')) ? 'ipv6' : 'ipv4'
   return null
 })
 
@@ -237,6 +241,21 @@ function showAlert(type, title, description = '', timeout = 5000) {
   })
 }
 
+watch([targetInput, port, scanProfile, dnsResolverMode, selectedDnsResolvers], () => { placement.value = null; placementRequest++ })
+async function previewPlacement() {
+  const targets = targetValidation.value
+  if (!targets.valid || targets.targets.length > 100) { showAlert('warning', '请先填写有效目标', '分配预览支持最多 100 个明确目标。'); return }
+  const request = ++placementRequest
+  placementLoading.value = true
+  try {
+    const response = await http.post('/api/task/placement-preview', {
+      targets: targets.targets, scan_profile: isDnsTask.value ? 'dns_records' : scanProfile.value,
+      port: port.value.trim() || (isDnsTask.value ? '53' : '1-65535'), dns_resolvers: isDnsTask.value ? selectedDnsResolvers.value : []
+    })
+    if (request === placementRequest) placement.value = response.data?.data || null
+  } catch (error) { if (request === placementRequest) showAlert('warning', '分配预览暂不可用', error.response?.data?.message || '请稍后重试。') }
+  finally { placementLoading.value = false }
+}
 async function submitTask() {
   if (submitting.value) return false
   if (scanSettingsLoading.value) return false
@@ -319,7 +338,7 @@ async function submitTask() {
 
     if (response.status === 200) {
       resetForm()
-      showAlert('success', submittingDnsTask ? '创建 DNS 任务成功' : '创建扫描任务成功', '任务已提交到扫描队列。', 5000)
+      showAlert('success', submittingDnsTask ? '创建 DNS 任务成功' : '创建扫描任务成功', response.data?.data?.task_ids?.length > 1 ? `已按地域拆分为 ${response.data.data.task_ids.length} 个独立任务。` : '任务已提交到扫描队列。', 5000)
       return true
     } else {
       showAlert('error', '创建扫描失败', '服务器未接受本次创建请求。', 7000)
@@ -474,7 +493,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                 <div class="grid gap-2 md:grid-cols-3">
                   <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
                     <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="automatic" />
-                    <span><span class="block font-medium">自动分配</span><span class="text-xs opacity-60">任意可用扫描器执行一次</span></span>
+                    <span><span class="block font-medium">自动分配</span><span class="text-xs opacity-60">按地域、能力和历史反馈分配</span></span>
                   </label>
                   <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
                     <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="selected" />
@@ -484,6 +503,19 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                     <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="all" />
                     <span><span class="block font-medium">全部扫描器</span><span class="text-xs opacity-60">所有已启用扫描器各执行一次，离线设备上线后执行</span></span>
                   </label>
+                </div>
+                <div v-if="dispatchMode === 'automatic'" class="mt-3 space-y-2">
+                  <button type="button" class="btn btn-outline btn-sm" :disabled="placementLoading || !targetValidation.valid" @click="previewPlacement"><span v-if="placementLoading" class="loading loading-spinner loading-xs"></span>预览扫描器分配</button>
+                  <div v-if="placement" class="rounded-lg bg-base-200/50 p-3 text-sm">
+                    <p>目标地域：{{ routingLocation(placement.target_geo) }}</p>
+                    <p v-if="!placement.enabled" class="mt-1 opacity-70">智能分配已关闭，任务由兼容扫描器领取。</p>
+                    <p v-else-if="!placement.preferred_scanner_id" class="mt-1 opacity-70">当前暂无空闲兼容节点，任务提交后排队等待。</p>
+                    <div v-for="candidate in placement.candidates.slice(0, 5)" :key="candidate.scanner_id" class="mt-2 flex flex-wrap gap-2">
+                      <span class="font-medium">{{ candidate.name }}</span><span v-if="candidate.scanner_id === placement.preferred_scanner_id && placement.enabled" class="badge badge-sm badge-success">推荐</span>
+                      <span class="opacity-70">{{ routingLocation(candidate.geo) }} · {{ candidate.reasons.map(routingReason).join('、') }}</span>
+                    </div>
+                    <p class="mt-2 text-xs opacity-60">预览基于当前状态，实际领取时重新校验。</p>
+                  </div>
                 </div>
                 <div v-if="dispatchMode === 'selected'" class="mt-3 rounded-lg border border-base-300 p-3">
                   <div v-if="scannersLoading" class="flex items-center gap-2 text-sm opacity-70"><span class="loading loading-spinner loading-xs"></span>加载扫描器...</div>
