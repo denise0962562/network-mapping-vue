@@ -1,19 +1,33 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive, toRaw, watch } from 'vue'
 import SystemDateTimeInput from './SystemDateTimeInput.vue'
 import { localToIso, toLocalInputValue } from '../utils/systemTime'
 
 const props = defineProps({ modelValue: { type: Object, required: true }, catalog: { type: Object, required: true }, disabled: Boolean })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'validity-change'])
 const policy = computed(() => props.modelValue)
-function update(key, value) { emit('update:modelValue', { ...props.modelValue, [key]: value }) }
+const dateValues = reactive({ from_at: '', to_at: '' })
+let emittedPolicy = null
+function update(key, value) { emittedPolicy = { ...props.modelValue, [key]: value }; emit('update:modelValue', emittedPolicy) }
+watch(() => props.modelValue, (value, previous) => {
+  for (const key of ['from_at', 'to_at']) {
+    if (toRaw(value) !== emittedPolicy || value[key] !== previous?.[key]) dateValues[key] = value[key] == null ? '' : toLocalInputValue(value[key])
+  }
+}, { immediate: true })
+const validDates = computed(() => {
+  try { for (const value of Object.values(dateValues)) if (value) localToIso(value); return true } catch { return false }
+})
+watch(validDates, value => emit('validity-change', value), { immediate: true })
 function toggle(key, value, checked) {
   const items = new Set(props.modelValue[key] || [])
   if (checked) items.add(value); else items.delete(value)
   update(key, [...items])
 }
 function list(key, value) { update(key, [...new Set(value.split(/[\n,]+/).map(v => v.trim()).filter(Boolean))]) }
-function date(key, value) { update(key, value ? new Date(localToIso(value)).getTime() : null) }
+function date(key, value) {
+  dateValues[key] = value
+  try { update(key, value ? new Date(localToIso(value)).getTime() : null) } catch { /* Keep the wall time so its offset can be selected. */ }
+}
 const limits = [
   ['requests_per_minute', '每分钟调用', 1000000], ['requests_per_day', '每日调用', 1000000],
   ['searches_per_minute', '每分钟搜索', 1000000], ['statistics_per_minute', '每分钟统计', 1000000],
@@ -43,8 +57,8 @@ const scopeNames = {
     <div><p class="mb-2 text-sm font-medium">可返回字段</p><div class="flex flex-wrap gap-3"><label v-for="field in catalog.fields || []" :key="field" class="flex items-center gap-1 text-xs"><input class="checkbox checkbox-xs" type="checkbox" :checked="policy.fields?.includes(field)" @change="toggle('fields', field, $event.target.checked)" />{{ field }}</label></div></div>
     <div class="grid gap-4 md:grid-cols-2">
       <label v-for="[key, label, hint] in [['cidrs', '允许 IP/CIDR', '读取为空时沿用所属数据；提交 IP 扫描必须明确授权'], ['excluded_cidrs', '排除 IP/CIDR', '扫描与排除网段相交时拒绝整个目标'], ['domains', '允许域名', '按标签边界允许子域名；域名扫描必须明确授权'], ['ip_allowlist', '调用来源 CIDR', '为空表示不附加来源限制'] ]" :key="key" class="form-control"><span class="label-text mb-1">{{ label }}</span><textarea class="textarea textarea-bordered" rows="3" :value="(policy[key] || []).join('\n')" @change="list(key, $event.target.value)" /><span class="mt-1 text-xs opacity-60">{{ hint }}</span></label>
-      <label class="form-control"><span class="label-text mb-1">数据起始时间</span><SystemDateTimeInput class="input input-bordered w-full" :model-value="policy.from_at ? toLocalInputValue(policy.from_at) : ''" @update:model-value="date('from_at', $event)" /></label>
-      <label class="form-control"><span class="label-text mb-1">数据结束时间（不含）</span><SystemDateTimeInput class="input input-bordered w-full" :model-value="policy.to_at ? toLocalInputValue(policy.to_at) : ''" @update:model-value="date('to_at', $event)" /></label>
+      <label class="form-control"><span class="label-text mb-1">数据起始时间</span><SystemDateTimeInput class="input input-bordered w-full" :model-value="dateValues.from_at" @update:model-value="date('from_at', $event)" /></label>
+      <label class="form-control"><span class="label-text mb-1">数据结束时间（不含）</span><SystemDateTimeInput class="input input-bordered w-full" :model-value="dateValues.to_at" @update:model-value="date('to_at', $event)" /></label>
     </div>
     <div><p class="mb-2 text-sm font-medium">扫描模式</p><div class="flex flex-wrap gap-4"><label v-for="[id, label] in [['port_only', '端口发现'], ['service_inventory', '服务识别'], ['dns_records', '仅 DNS'], ['vulnerability_scan', '漏洞扫描']]" :key="id" class="flex items-center gap-2 text-sm"><input type="checkbox" class="checkbox checkbox-sm" :checked="policy.profiles?.includes(id)" @change="toggle('profiles', id, $event.target.checked)" />{{ label }}</label></div></div>
     <details class="rounded-lg border border-base-300 p-3"><summary class="cursor-pointer text-sm font-medium">配额设置</summary><div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><label v-for="[key, label, max] in limits" :key="key" class="form-control"><span class="label-text mb-1">{{ label }}</span><input type="number" min="1" :max="max" class="input input-bordered input-sm" :value="policy[key]" @change="update(key, Number($event.target.value))" /></label></div></details>
