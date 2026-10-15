@@ -4,6 +4,13 @@ export function apiError(error, fallback = '操作失败，请稍后重试。') 
 }
 // Policy documents contain JSON values; this also accepts Vue reactive proxies.
 export function cloneDocument(value) { return JSON.parse(JSON.stringify(value)) }
+export function redactInvocationResult(value) {
+  if (Array.isArray(value)) return value.map(redactInvocationResult)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+    ['signing_secret', 'token', 'secret_hash'].includes(key) ? '[REDACTED]' : redactInvocationResult(item),
+  ]))
+}
 export function endpointPath(template, parameters, encoded = false) {
   return template.replace(/\{([^}]+)\}/g, (_, key) => {
     const value = parameters[key] || `{${key}}`

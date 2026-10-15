@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import http from '../utils/http'
 import { formatDateTime } from '../utils/systemTime'
 import OpenApiPolicyEditor from '../components/OpenApiPolicyEditor.vue'
-import { apiError, applicationStatus, cloneDocument, curlExample, endpointPath, isMutation, samplePayload } from '../utils/openApi'
+import { apiError, applicationStatus, cloneDocument, curlExample, endpointPath, isMutation, redactInvocationResult, samplePayload } from '../utils/openApi'
 
 const route = useRoute(), router = useRouter()
 const role = ref('developer'), catalog = ref({ scopes: [], fields: [], endpoints: [] }), initialized = ref(false)
@@ -20,7 +20,7 @@ const secret = ref(''), secretTitle = ref(''), verification = ref({ password: ''
 const webhookForm = ref({ url: '', event_types: [], enabled: true }), applicationJobs = ref([])
 const endpointIndex = ref(0), credentialId = ref(''), payloadText = ref('{}'), parameterValues = ref({}), invocationResult = ref(''), invocationBusy = ref(false)
 const documentText = ref(''), documentKind = ref('integration'), approvalReason = ref(''), clock = ref(Date.now())
-let pendingAction = null, timer = null
+let pendingAction = null, timer = null, applicationSequence = 0, subscriptionSequence = 0
 
 const section = computed(() => route.path === '/developer/open-api' ? 'apps' : route.path.split('/')[2] || 'overview')
 const isAdmin = computed(() => role.value === 'admin'), isAuditor = computed(() => role.value === 'auditor')
@@ -39,7 +39,7 @@ const codeExample = computed(() => { try { return curlExample(window.location.or
 const canInvoke = computed(() => details.value?.application?.status === 'active' && activeCredentials.value.length && !isAuditor.value)
 const scopeSet = computed(() => new Set(details.value?.application?.policy?.scopes || []))
 const policyChanges = computed(() => {
-  const before = details.value?.application?.policy || {}, after = approvalPolicy.value || policyDraft.value || {}
+  const before = details.value?.application?.policy || {}, after = policyDraft.value || {}
   return Object.keys(after).filter(k => JSON.stringify(before[k]) !== JSON.stringify(after[k])).map(k => ({ key: k, before: before[k], after: after[k] }))
 })
 const appStats = computed(() => ({ active: applications.value.filter(a => a.status === 'active').length, pending: applications.value.filter(a => a.status === 'pending').length }))
@@ -73,18 +73,26 @@ function cancelVerification() { verification.value = { password: '', totp: '' };
 async function loadApplications() { applications.value = (await api('GET', 'apps'))?.items || [] }
 async function loadApp(id, refreshDraft = true) {
   if (!id) return
+  const sequence = ++applicationSequence
+  if (selected.value !== id) {
+    ++subscriptionSequence; subscriptions.value = []; details.value = null; credentialId.value = ''; invocationResult.value = ''; clearSecret()
+  }
   const result = await api('GET', `apps/${id}`)
+  if (sequence !== applicationSequence) return
   selected.value = id; details.value = result
   if (refreshDraft) { policyDraft.value = structuredClone(result.application.status === 'pending' ? result.application.requested_policy : result.application.policy); metadataDraft.value = { name: result.application.name, purpose: result.application.purpose } }
   if (!activeCredentials.value.some(k => k.id === credentialId.value)) credentialId.value = activeCredentials.value[0]?.id || ''
   const [u, l, j] = await Promise.all([api('GET', 'usage', undefined, { params: { client_id: id } }), api('GET', 'logs', undefined, { params: { client_id: id } }), api('GET', 'jobs', undefined, { params: { client_id: id } })])
+  if (sequence !== applicationSequence) return
   usage.value = u?.items || []; calls.value = l?.items || []; applicationJobs.value = j?.items || []
 }
 async function selectApp(id) {
+  if (acting.value) return
+  const sequence = applicationSequence + 1
   loading.value = true
-  try { await loadApp(id); await router.replace({ path: route.path, query: { ...route.query, app: id } }) }
-  catch (error) { const info = apiError(error); notify('error', info.message, info.requestId) }
-  finally { loading.value = false }
+  try { await loadApp(id); if (sequence === applicationSequence) await router.replace({ path: route.path, query: { ...route.query, app: id } }) }
+  catch (error) { if (sequence === applicationSequence) { const info = apiError(error); notify('error', info.message, info.requestId) } }
+  finally { if (sequence === applicationSequence) loading.value = false }
 }
 async function loadSection(after = null) {
   if (!initialized.value) return
@@ -145,6 +153,7 @@ function review(item) {
   approval.value = item; approvalPolicy.value = cloneDocument(item.requested_policy); approvalNote.value = ''
   approvalDialog.value?.showModal()
 }
+function clearApprovalDraft() { approval.value = null; approvalPolicy.value = null; approvalNote.value = '' }
 async function submitReview(approved) {
   await act(async () => { await api('POST', `approvals/${approval.value.id}/review`, { approved, ...(approved ? { policy: approvalPolicy.value } : {}), note: approvalNote.value }); approvalDialog.value?.close(); await loadSection(); await loadApplications() }, approved ? '申请已批准。' : '申请已驳回。')
 }
@@ -160,8 +169,14 @@ async function runExample() {
   try { payload = JSON.parse(payloadText.value) } catch { notify('error', '请求参数必须为有效 JSON。'); return }
   if (isMutation(endpoint.value.method, endpoint.value.path) && !window.confirm(`执行 ${endpoint.value.summary} 会变更当前应用的业务资源。确定执行吗？`)) return
   invocationBusy.value = true
-  try { const result = await invoke(endpoint.value.method, invocationPath.value, payload); invocationResult.value = pretty(result); if (result?.signing_secret) if (result.signing_secret) showSecret(result.signing_secret, '事件签名密钥已生成') }
-  catch (error) { const info = apiError(error, error.message); invocationResult.value = pretty({ error: info.message, request_id: info.requestId }); notify('error', info.message, info.requestId) }
+  const client = selected.value, credential = credentialId.value
+  try {
+    const result = await invoke(endpoint.value.method, invocationPath.value, payload)
+    if (client !== selected.value || credential !== credentialId.value) return
+    invocationResult.value = pretty(redactInvocationResult(result))
+    if (result?.signing_secret) showSecret(result.signing_secret, '事件签名密钥已生成')
+  }
+  catch (error) { if (client === selected.value && credential === credentialId.value) { const info = apiError(error, error.message); invocationResult.value = pretty({ error: info.message, request_id: info.requestId }); notify('error', info.message, info.requestId) } }
   finally { invocationBusy.value = false }
 }
 async function downloadJob(job) {
@@ -181,17 +196,27 @@ async function retryDelivery(item) {
   if (!window.confirm('确定重新投递此事件吗？接收方需要按事件 ID 去重。')) return
   await act(async () => { if (selected.value !== item.client_id) await loadApp(item.client_id); await invoke('POST', `/webhook-deliveries/${item.id}/retry`); await loadSection() }, '投递已重新入队。')
 }
-async function loadSubscriptions() { await act(async () => { subscriptions.value = (await invoke('GET', '/webhooks'))?.items || [] }) }
+async function fetchSubscriptions() {
+  const client = selected.value, credential = credentialId.value, sequence = ++subscriptionSequence
+  subscriptions.value = []
+  const result = await invoke('GET', '/webhooks')
+  if (client === selected.value && credential === credentialId.value && sequence === subscriptionSequence) subscriptions.value = result?.items || []
+}
+async function loadSubscriptions() {
+  const client = selected.value, credential = credentialId.value
+  try { await fetchSubscriptions() }
+  catch (error) { if (client === selected.value && credential === credentialId.value) { const info = apiError(error); notify('error', info.message, info.requestId) } }
+}
 function editWebhook(hook) { webhookForm.value = { id: hook.id, url: hook.url, event_types: cloneDocument(hook.event_types), enabled: hook.enabled }; webhookDialog.value?.showModal() }
 function newWebhook() { webhookForm.value = { url: '', event_types: [], enabled: true }; webhookDialog.value?.showModal() }
-async function createWebhook() { await act(async () => { const { id, ...payload } = webhookForm.value; const result = await invoke(id ? 'PATCH' : 'POST', id ? `/webhooks/${id}` : '/webhooks', payload); webhookDialog.value?.close(); subscriptions.value = (await invoke('GET', '/webhooks'))?.items || []; if (result.signing_secret) showSecret(result.signing_secret, '事件签名密钥已生成') }) }
-async function webhookAction(hook, action) { if (action === 'delete' && !window.confirm('确定停用此事件订阅吗？')) return; await act(async () => { await invoke(action === 'delete' ? 'DELETE' : 'POST', `/webhooks/${hook.id}${action === 'test' ? '/test' : ''}`); subscriptions.value = (await invoke('GET', '/webhooks'))?.items || [] }, action === 'test' ? '测试事件已入队。' : '订阅已停用。') }
+async function createWebhook() { await act(async () => { const { id, ...payload } = webhookForm.value; const result = await invoke(id ? 'PATCH' : 'POST', id ? `/webhooks/${id}` : '/webhooks', payload); webhookDialog.value?.close(); await fetchSubscriptions(); if (result.signing_secret) showSecret(result.signing_secret, '事件签名密钥已生成') }) }
+async function webhookAction(hook, action) { if (isAuditor.value || !canInvoke.value) return; if (action === 'delete' && !window.confirm('确定停用此事件订阅吗？')) return; await act(async () => { await invoke(action === 'delete' ? 'DELETE' : 'POST', `/webhooks/${hook.id}${action === 'test' ? '/test' : ''}`); await fetchSubscriptions() }, action === 'test' ? '测试事件已入队。' : '订阅已停用。') }
 async function saveSettings() { await act(async () => { settings.value.document.webhook_allowed_hosts = allowedHostsText.value.split(/[\n,]+/).map(v => v.trim()).filter(Boolean); await api('PUT', 'settings', { document: settings.value.document, expected_revision: settings.value.revision }); await loadSection() }, '平台设置已发布。') }
 async function saveRole() { await act(async () => { await api('PUT', `roles/${Number(roleForm.value.user_id)}`, { role: roleForm.value.role }); await loadSection() }, '开放平台管理权限已更新。') }
 async function exportOpenApi() { const response = await http.get('/api/open-platform/openapi.json'); const url = URL.createObjectURL(new Blob([pretty(response.data)], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = 'network-mapping-openapi.json'; a.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000) }
 
 watch(section, () => { textFilter.value = ''; rows.value = []; loadSection() })
-watch(appTab, () => { if (appTab.value === 'webhooks' && canInvoke.value) loadSubscriptions() })
+watch([selected, credentialId, appTab], () => { ++subscriptionSequence; subscriptions.value = []; if (appTab.value === 'webhooks' && canInvoke.value) loadSubscriptions() })
 watch(documentKind, () => { if (section.value === 'docs') loadSection() })
 onMounted(async () => {
   try { const [s, c] = await Promise.all([api('GET', 'session'), api('GET', 'catalog')]); role.value = s.role; catalog.value = c; await loadApplications(); initialized.value = true; await loadSection() }
@@ -225,7 +250,7 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer); clearSecret(); c
         <div v-if="appTab === 'keys'"><div class="mb-4 flex justify-between"><p class="text-sm opacity-60">密钥只在生成时显示。应用暂停、到期或凭据撤销后，新调用将被拒绝。</p><button v-if="!isAuditor" class="btn btn-primary btn-sm" :disabled="details.application.status !== 'active'" @click="openKey()">创建凭据</button></div><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>名称</th><th>状态</th><th>到期</th><th>最近调用</th><th>权限</th><th /></tr></thead><tbody><tr v-for="key in details.credentials" :key="key.id"><td>{{ key.name }}<p class="font-mono text-[10px] opacity-50">{{ key.id }}</p></td><td>{{ key.revoked_at ? '已撤销' : new Date(key.expires_at).getTime() < clock ? '已过期' : '有效' }}</td><td class="text-xs">{{ time(key.expires_at) }}</td><td class="text-xs">{{ time(key.last_used_at) }}</td><td class="max-w-xs break-words text-xs">{{ key.scopes.join(', ') }}</td><td><div v-if="!isAuditor && !key.revoked_at" class="flex gap-1"><button class="btn btn-xs" @click="openKey(key)">轮换</button><button class="btn btn-xs btn-ghost text-error" @click="revokeKey(key)">撤销</button></div></td></tr></tbody></table><p v-if="!details.credentials.length" class="p-5 text-center text-sm opacity-60">暂无凭据。</p></div></div>
         <div v-if="appTab === 'usage'" class="space-y-4"><h3 class="text-sm font-semibold">配额消耗</h3><div class="max-h-72 overflow-auto"><table class="table table-sm"><thead><tr><th>类别</th><th>周期起点</th><th>已用额度</th></tr></thead><tbody><tr v-for="(item, index) in usage" :key="index"><td class="font-mono text-xs">{{ item.category }}</td><td>{{ time(item.bucket_start) }}</td><td>{{ item.units }}</td></tr></tbody></table></div><h3 class="text-sm font-semibold">最近调用</h3><div class="max-h-72 overflow-auto"><table class="table table-xs"><thead><tr><th>接口</th><th>状态</th><th>耗时</th><th>原因</th><th>请求 ID</th></tr></thead><tbody><tr v-for="item in calls" :key="item.id"><td class="font-mono">{{ item.method }} {{ item.route }}</td><td>{{ item.status }}</td><td>{{ item.duration_ms }} ms</td><td>{{ item.reason_code || '—' }}</td><td class="font-mono">{{ item.request_id }}</td></tr></tbody></table></div></div>
         <div v-if="appTab === 'jobs'" class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>类型</th><th>任务</th><th>状态</th><th>到期</th><th /></tr></thead><tbody><tr v-for="job in applicationJobs" :key="job.id"><td>{{ job.kind === 'report' ? '报告' : '导出' }}</td><td class="font-mono text-xs">{{ job.id }}</td><td>{{ job.status }}</td><td>{{ time(job.expires_at) }}</td><td><button v-if="job.status === 'succeeded' && !isAuditor" class="btn btn-xs" :disabled="!activeCredentials.length" @click="downloadJob(job)">下载</button><button v-if="job.kind === 'export' && ['queued', 'running'].includes(job.status) && !isAuditor" class="btn btn-xs ml-1" :disabled="acting" @click="jobAction(job, 'cancel')">取消</button><button v-if="job.kind === 'export' && job.status !== 'deleted' && !isAuditor" class="btn btn-xs btn-ghost text-error ml-1" :disabled="acting" @click="jobAction(job, 'delete')">删除生成物</button></td></tr></tbody></table><p v-if="!applicationJobs.length" class="p-5 text-center text-sm opacity-60">暂无导出或报告。从接口调试可提交生成请求。</p></div>
-        <div v-if="appTab === 'webhooks'" class="space-y-4"><div class="flex flex-wrap items-center gap-2"><select v-model="credentialId" class="select select-bordered select-sm"><option v-for="key in activeCredentials" :key="key.id" :value="key.id">{{ key.name }}</option></select><button class="btn btn-sm" :disabled="!canInvoke" @click="loadSubscriptions">刷新订阅</button><button class="btn btn-primary btn-sm" :disabled="!canInvoke || !scopeSet.has('webhooks:manage')" @click="newWebhook">创建订阅</button></div><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>回调地址</th><th>事件</th><th>状态</th><th /></tr></thead><tbody><tr v-for="hook in subscriptions" :key="hook.id"><td class="max-w-xs break-all">{{ hook.url }}</td><td class="text-xs">{{ hook.event_types.join(', ') }}</td><td>{{ hook.enabled ? '启用' : '暂停' }}</td><td><div class="flex gap-1"><button class="btn btn-xs" :disabled="acting || !canInvoke" @click="editWebhook(hook)">编辑</button><button class="btn btn-xs" :disabled="acting || !canInvoke || !hook.enabled" @click="webhookAction(hook, 'test')">测试</button><button class="btn btn-xs btn-ghost text-error" @click="webhookAction(hook, 'delete')">停用</button></div></td></tr></tbody></table><p v-if="!subscriptions.length" class="p-5 text-center text-sm opacity-60">暂无订阅；需批准事件权限及回调域名。</p></div></div>
+        <div v-if="appTab === 'webhooks'" class="space-y-4"><div class="flex flex-wrap items-center gap-2"><select v-model="credentialId" class="select select-bordered select-sm"><option v-for="key in activeCredentials" :key="key.id" :value="key.id">{{ key.name }}</option></select><button class="btn btn-sm" :disabled="!canInvoke" @click="loadSubscriptions">刷新订阅</button><button class="btn btn-primary btn-sm" :disabled="!canInvoke || !scopeSet.has('webhooks:manage')" @click="newWebhook">创建订阅</button></div><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>回调地址</th><th>事件</th><th>状态</th><th /></tr></thead><tbody><tr v-for="hook in subscriptions" :key="hook.id"><td class="max-w-xs break-all">{{ hook.url }}</td><td class="text-xs">{{ hook.event_types.join(', ') }}</td><td>{{ hook.enabled ? '启用' : '暂停' }}</td><td><div v-if="!isAuditor" class="flex gap-1"><button class="btn btn-xs" :disabled="acting || !canInvoke" @click="editWebhook(hook)">编辑</button><button class="btn btn-xs" :disabled="acting || !canInvoke || !hook.enabled" @click="webhookAction(hook, 'test')">测试</button><button class="btn btn-xs btn-ghost text-error" :disabled="acting || !canInvoke" @click="webhookAction(hook, 'delete')">停用</button></div></td></tr></tbody></table><p v-if="!subscriptions.length" class="p-5 text-center text-sm opacity-60">暂无订阅；需批准事件权限及回调域名。</p></div></div>
       </div>
     </template>
 
@@ -249,7 +274,7 @@ onBeforeUnmount(() => { if (timer) window.clearInterval(timer); clearSecret(); c
     <dialog ref="keyDialog" class="modal"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="issueKey"><h2 class="text-xl font-semibold">{{ keyForm.rotate ? '轮换凭据' : '创建凭据' }}</h2><label class="form-control"><span class="label-text mb-1">名称</span><input v-model="keyForm.name" class="input input-bordered" required maxlength="100" /></label><div class="grid gap-3 sm:grid-cols-2"><label class="form-control"><span class="label-text mb-1">有效天数</span><input v-model.number="keyForm.expires_days" type="number" min="1" max="365" required class="input input-bordered" /></label><label v-if="keyForm.rotate" class="form-control"><span class="label-text mb-1">旧凭据重叠小时数</span><input v-model.number="keyForm.overlap_hours" type="number" min="0" max="24" class="input input-bordered" /></label></div><label class="form-control"><span class="label-text mb-1">来源 CIDR</span><textarea v-model="keyForm.ip_allowlist" class="textarea textarea-bordered" rows="3" /></label><div class="grid gap-2 sm:grid-cols-2"><label v-for="scope in details?.application?.policy?.scopes || []" :key="scope" class="flex items-center gap-2 text-xs"><input v-model="keyForm.scopes" :value="scope" type="checkbox" class="checkbox checkbox-sm" />{{ scope }}</label></div><div class="modal-action"><button type="button" class="btn btn-sm" @click="keyDialog.close()">取消</button><button class="btn btn-primary btn-sm" :disabled="acting">生成凭据</button></div></form><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
     <dialog ref="secretDialog" class="modal" @close="clearSecret"><div class="modal-box max-w-2xl"><h2 class="text-xl font-semibold">{{ secretTitle }}</h2><p class="my-4 text-sm">请保存到调用方的密钥管理系统。关闭后无法再次查看。</p><textarea :value="secret" readonly class="textarea textarea-bordered w-full break-all font-mono text-xs" rows="4" aria-label="一次性密钥" /><div class="modal-action"><button class="btn btn-sm" @click="copy(secret)">复制</button><button class="btn btn-primary btn-sm" @click="secretDialog.close()">已保存，关闭</button></div></div></dialog>
     <dialog ref="verificationDialog" class="modal" @close="cancelVerification"><form class="modal-box space-y-4" @submit.prevent="verify"><h2 class="text-xl font-semibold">验证身份</h2><p class="text-sm opacity-60">凭据和授权变更需要重新验证。验证有效期为 5 分钟。</p><label class="form-control"><span class="label-text mb-1">当前密码</span><input v-model="verification.password" type="password" autocomplete="current-password" required class="input input-bordered" /></label><label class="form-control"><span class="label-text mb-1">2FA 验证码（已启用时必填）</span><input v-model="verification.totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="input input-bordered" /></label><div class="modal-action"><button type="button" class="btn btn-sm" @click="verificationDialog.close()">取消</button><button class="btn btn-primary btn-sm" :disabled="acting">验证并继续</button></div></form></dialog>
-    <dialog ref="approvalDialog" class="modal"><div class="modal-box max-w-5xl space-y-4"><h2 class="text-xl font-semibold">{{ approval?.name }} · 申请详情</h2><p class="text-sm">{{ approval?.reason }}</p><OpenApiPolicyEditor v-if="approvalPolicy" v-model="approvalPolicy" :catalog="catalog" :disabled="!isAdmin || approval?.status !== 'pending'" /><label v-if="isAdmin && approval?.status === 'pending'" class="form-control"><span class="label-text mb-1">审批意见</span><textarea v-model="approvalNote" class="textarea textarea-bordered" maxlength="2000" /></label><div class="modal-action"><button class="btn btn-sm" @click="approvalDialog.close()">关闭</button><template v-if="isAdmin && approval?.status === 'pending'"><button class="btn btn-sm btn-outline btn-error" :disabled="acting" @click="submitReview(false)">驳回</button><button class="btn btn-primary btn-sm" :disabled="acting" @click="submitReview(true)">批准并发布授权</button></template></div></div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
+    <dialog ref="approvalDialog" class="modal" @close="clearApprovalDraft"><div class="modal-box max-w-5xl space-y-4"><h2 class="text-xl font-semibold">{{ approval?.name }} · 申请详情</h2><p class="text-sm">{{ approval?.reason }}</p><OpenApiPolicyEditor v-if="approvalPolicy" v-model="approvalPolicy" :catalog="catalog" :disabled="!isAdmin || approval?.status !== 'pending'" /><label v-if="isAdmin && approval?.status === 'pending'" class="form-control"><span class="label-text mb-1">审批意见</span><textarea v-model="approvalNote" class="textarea textarea-bordered" maxlength="2000" /></label><div class="modal-action"><button class="btn btn-sm" @click="approvalDialog.close()">关闭</button><template v-if="isAdmin && approval?.status === 'pending'"><button class="btn btn-sm btn-outline btn-error" :disabled="acting" @click="submitReview(false)">驳回</button><button class="btn btn-primary btn-sm" :disabled="acting" @click="submitReview(true)">批准并发布授权</button></template></div></div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
     <dialog ref="webhookDialog" class="modal"><form class="modal-box space-y-4" @submit.prevent="createWebhook"><h2 class="text-xl font-semibold">{{ webhookForm.id ? '编辑事件订阅' : '创建事件订阅' }}</h2><label class="form-control"><span class="label-text mb-1">回调 HTTPS 地址</span><input v-model="webhookForm.url" type="url" required class="input input-bordered" placeholder="https://hooks.example.com/network-events" /></label><div class="grid gap-2"><label v-for="kind in catalog.event_types || []" :key="kind" class="flex items-center gap-2 text-sm"><input v-model="webhookForm.event_types" :value="kind" type="checkbox" class="checkbox checkbox-sm" />{{ kind }}</label></div><label class="flex items-center gap-2 text-sm"><input v-model="webhookForm.enabled" type="checkbox" class="toggle toggle-sm" />启用投递</label><div class="modal-action"><button type="button" class="btn btn-sm" @click="webhookDialog.close()">取消</button><button class="btn btn-primary btn-sm" :disabled="acting">{{ webhookForm.id ? '保存订阅' : '创建订阅' }}</button></div></form><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
   </main>
 </template>

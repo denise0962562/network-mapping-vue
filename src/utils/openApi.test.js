@@ -2,8 +2,20 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { apiError, cloneDocument, curlExample, endpointPath, isMutation, samplePayload } from './openApi.js'
+import { apiError, cloneDocument, curlExample, endpointPath, isMutation, redactInvocationResult, samplePayload } from './openApi.js'
 import { reactive } from 'vue'
+
+test('debugger output redacts one-time secrets without changing dialog input', () => {
+  const response = { id: 'hook', signing_secret: 'one-time-signing-value', data: [{ token: 'one-time-token', secret_hash: 'private-hash' }], enabled: true }
+  const output = redactInvocationResult(response)
+  assert.equal(output.signing_secret, '[REDACTED]')
+  assert.equal(output.data[0].token, '[REDACTED]')
+  assert.equal(output.data[0].secret_hash, '[REDACTED]')
+  assert.ok(!JSON.stringify(output).includes('one-time'))
+  assert.equal(response.signing_secret, 'one-time-signing-value')
+  assert.equal(output.id, 'hook')
+  assert.equal(output.enabled, true)
+})
 
 test('application and approval forms can copy reactive policy documents', () => {
   const policy = reactive({ scopes: ['assets:read'], quotas: { requests: 10 } })
