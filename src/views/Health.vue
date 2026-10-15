@@ -11,6 +11,7 @@ const alerts = ref([])
 const items = ref([])
 const loading = ref(false)
 const loadFailed = ref(false)
+const failedQuery = ref(null)
 const forbidden = ref(false)
 const hasLoaded = ref(false)
 const lastLoadedAt = ref(null)
@@ -87,11 +88,13 @@ async function loadItems(nextPage = page.value, nextFilters = appliedFilters.val
     appliedFilters.value = snapshot
     if (!data.items.some((item) => item.id === expandedId.value)) expandedId.value = null
     loadFailed.value = false
+    failedQuery.value = null
     forbidden.value = false
     hasLoaded.value = true
     lastLoadedAt.value = new Date()
   } catch (error) {
     if (sequence !== requestSequence || error.code === 'ERR_CANCELED') return
+    failedQuery.value = { page: nextPage, filters: snapshot }
     forbidden.value = error.response?.status === 403
     loadFailed.value = true
     if (forbidden.value) {
@@ -105,6 +108,12 @@ async function loadItems(nextPage = page.value, nextFilters = appliedFilters.val
   } finally {
     if (sequence === requestSequence) loading.value = false
   }
+}
+
+function retryLoad() {
+  if (loading.value) return
+  const query = failedQuery.value
+  return query ? loadItems(query.page, query.filters) : loadItems()
 }
 
 function applyFilters() {
@@ -222,14 +231,14 @@ onBeforeUnmount(() => { requestSequence += 1; controller?.abort() })
       </div>
       <div v-if="loadFailed && hasLoaded" role="alert" class="flex flex-wrap items-center justify-between gap-2 border-b border-warning/30 bg-warning/10 px-4 py-3 text-sm">
         <span>刷新失败，以下仍为上次成功加载的数据。{{ errorMessage }}</span>
-        <button class="btn btn-sm btn-ghost" :disabled="loading" @click="loadItems()">重试</button>
+        <button class="btn btn-sm btn-ghost" :disabled="loading" @click="retryLoad()">重试</button>
       </div>
       <div v-if="loading && !hasLoaded" class="space-y-3 p-5" aria-label="正在加载告警">
         <div class="skeleton h-64 w-full rounded-box"></div>
       </div>
       <div v-else-if="loadFailed && !hasLoaded" class="pb-5 text-center">
         <EmptyState type="error" :title="forbidden ? '无权查看健康告警' : '加载数据失败'" :message="errorMessage" />
-        <button class="btn btn-outline btn-sm" :disabled="loading" @click="loadItems()">重新加载</button>
+        <button class="btn btn-outline btn-sm" :disabled="loading" @click="retryLoad()">重新加载</button>
       </div>
       <EmptyState v-else-if="items.length === 0" title="暂无健康告警" message="当前筛选条件下没有告警记录，可调整时间范围或告警类型后重新查询。历史记录不代表服务的实时健康状态。" />
       <div v-else>
