@@ -68,6 +68,14 @@
 
 有轮询、筛选请求或路由切换的页面，应在卸载时停止定时器并取消未完成请求，避免旧响应覆盖新状态。参考 `src/views/reports.vue` 的取消与轮询处理。
 
+### 版本更新检查与 CSP
+
+`src/utils/versionUpdates.js` 在浏览器中直接请求 `https://api.github.com/repos/{repository}/tags`，检查前端、服务端和扫描端的最新稳定标签。请求不携带站点凭据或 CSRF Token；成功结果缓存 1 小时，失败结果缓存 5 分钟，完整刷新页面可清除内存缓存。
+
+托管页面的服务端在 `network-mapping/src/middlewares/hmiddleware.rs` 下发 CSP，必须包含 `connect-src 'self' https://api.github.com`。只有 `default-src 'self'` 时，浏览器会按该默认规则拦截 GitHub API。此修复需要更新并重启服务端，单独重新构建前端不能改变响应头。
+
+如果反向代理也下发 CSP，应确保每一条生效策略都允许上述连接；浏览器会同时执行多条策略，额外添加一个宽松响应头不能覆盖原有严格策略。验收时检查页面文档响应的 `Content-Security-Policy`，刷新页面后确认 GitHub tags 请求返回成功。无需将 GitHub 域名加入 `default-src` 或脚本来源。
+
 ## 共享组件与工具
 
 | 组件 / 工具 | 用途 |
