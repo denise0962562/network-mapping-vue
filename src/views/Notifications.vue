@@ -14,7 +14,8 @@ const historyLoading = ref(false), historyFailed = ref(false), lastRefresh = ref
 const browsingHistory = ref(false)
 const dirty = computed(() => Boolean(editor.value?.open) && JSON.stringify(form.value) !== savedForm.value)
 useUnsavedChanges(dirty, save)
-let sequence = 0, timer
+let sequence = 0, timer, disposed = false
+const readControllers = new Set()
 
 function notify(type, title, description = '') {
   alerts.value.unshift({ id: crypto.randomUUID(), type, title, description, timeout: 7000 })
@@ -25,20 +26,32 @@ function dataOf(response) {
 }
 function errorText(error) { return error.response?.data?.message || '操作失败，请检查网络连接后重试。' }
 async function loadChannels() {
+  if (disposed) return
+  const controller = new AbortController()
+  readControllers.add(controller)
   loading.value = true
   try {
-    const data = dataOf(await http.get('/api/notifications/channels'))
+    const response = await http.get('/api/notifications/channels', { signal: controller.signal })
+    if (disposed) return
+    const data = dataOf(response)
     if (!Array.isArray(data)) throw new Error('渠道列表无效')
     channels.value = data
     loadFailed.value = false
     forbidden.value = false
   } catch (error) {
+    if (disposed || controller.signal.aborted) return
     loadFailed.value = true
     forbidden.value = error.response?.status === 403
     if (forbidden.value) { channels.value = []; deliveries.value = [] }
-  } finally { loading.value = false }
+  } finally {
+    readControllers.delete(controller)
+    if (!disposed) loading.value = false
+  }
 }
 async function loadHistory(append = false) {
+  if (disposed) return
+  const controller = new AbortController()
+  readControllers.add(controller)
   browsingHistory.value = append
   const request = ++sequence
   historyLoading.value = true
@@ -47,18 +60,22 @@ async function loadHistory(append = false) {
   if (filterStatus.value) params.status = filterStatus.value
   if (append && nextBefore.value) params.before = nextBefore.value
   try {
-    const data = dataOf(await http.get('/api/notifications/deliveries', { params }))
-    if (request !== sequence) return
+    const response = await http.get('/api/notifications/deliveries', { params, signal: controller.signal })
+    if (disposed || request !== sequence) return
+    const data = dataOf(response)
     if (!Array.isArray(data?.items)) throw new Error('投递记录无效')
     deliveries.value = append ? [...deliveries.value, ...data.items] : data.items
     nextBefore.value = data.next_before
     historyFailed.value = false
     lastRefresh.value = new Date()
   } catch (error) {
-    if (request !== sequence) return
+    if (disposed || controller.signal.aborted || request !== sequence) return
     historyFailed.value = true
     if (error.response?.status === 403) { forbidden.value = true; deliveries.value = [] }
-  } finally { if (request === sequence) historyLoading.value = false }
+  } finally {
+    readControllers.delete(controller)
+    if (!disposed && request === sequence) historyLoading.value = false
+  }
 }
 function openEditor(channel) {
   form.value = channelForm(channel)
@@ -120,14 +137,21 @@ async function retry(item) {
   } catch (error) { notify('error', '重试失败', errorText(error)) }
   finally { busy.value = false }
 }
-async function refresh() { await loadChannels(); if (!forbidden.value) await loadHistory() }
+async function refresh() { await loadChannels(); if (!disposed && !forbidden.value) await loadHistory() }
 onMounted(async () => {
   await refresh()
+  if (disposed) return
   timer = window.setInterval(() => {
-    if (!document.hidden && !busy.value && !historyLoading.value && !forbidden.value && !browsingHistory.value) loadHistory()
+    if (!disposed && !document.hidden && !busy.value && !historyLoading.value && !forbidden.value && !browsingHistory.value) loadHistory()
   }, 15000)
 })
-onBeforeUnmount(() => { ++sequence; window.clearInterval(timer) })
+onBeforeUnmount(() => {
+  disposed = true
+  ++sequence
+  window.clearInterval(timer)
+  for (const controller of readControllers) controller.abort()
+  readControllers.clear()
+})
 </script>
 
 <template>

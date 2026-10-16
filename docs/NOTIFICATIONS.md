@@ -20,6 +20,7 @@
 - 并发编辑返回 409 时，刷新后重新编辑，避免覆盖他人修改。
 - 测试须先保存并启用，同渠道两次测试至少间隔 30 秒。「测试已入队」不代表飞书已接受。
 - 投递记录可按渠道和状态筛选，每页 50 条；自动刷新最新一页，也可加载更早记录。
+- 离开页面会取消未完成的读取请求并停止自动刷新；迟到的响应不会重新启动轮询或覆盖页面状态。
 - failed 记录可手动重试；消息可能重复，请结合事件 ID 排查。取消或过期事件不直接恢复。
 - Scanner 恢复只通知同一目标已成功接收掉线消息的渠道，修改 Webhook 后不会向新群发送旧 incident 的恢复。
 - 非管理员进入页面显示权限提示；服务端也验证管理员权限。
@@ -33,7 +34,7 @@
 
 ```bash
 # 在前端仓库执行
-node --test src/utils/notifications.test.js
+node --test src/utils/notifications.test.js src/views/Notifications.test.js
 pnpm build
 ```
 
