@@ -129,15 +129,15 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
       <div v-if="settingsError" role="alert" class="alert alert-warning"><span>{{ settingsError }}</span><button class="btn btn-sm" @click="loadSettings">重试</button></div>
       <div v-if="settings" class="space-y-3">
         <div v-if="!settings.analytics_ready" class="alert alert-warning"><span>分析快照尚未启用。请在<router-link class="link" to="/setting/runtime">运行策略</router-link>中选择 shadow 或 snapshot 并完成回填；报告会等待统计完整。</span></div>
-        <div v-if="!settings.mail_ready" class="alert alert-info"><span>SMTP 配置不完整，报告可以归档；发送前请完善<router-link class="link" to="/setting">邮件设置</router-link>。</span></div>
+        <div v-if="!settings.mail_ready" class="alert alert-info"><span>手动发送完整报告邮件需要配置邮件渠道；飞书和 Telegram 通知可独立订阅。配置入口：<router-link class="link" to="/setting/notifications">通知渠道</router-link>。</span></div>
         <p v-if="settings.mail_images_ready === false" class="text-sm text-base-content/60">远程趋势图尚未启用，邮件仍包含文字统计。可在<router-link class="link" to="/setting/runtime">运行策略 → 报告邮件</router-link>中设置外部 HTTPS 地址并启用图片。</p>
         <div class="grid gap-4 lg:grid-cols-2">
           <form v-for="plan in plans" :key="plan.period_type" class="card border border-base-300 bg-base-100 p-5" @submit.prevent="savePlan(plan)">
             <div class="flex items-center justify-between gap-3"><h2 class="font-semibold">{{ plan.period_type === 'weekly' ? '自动周报' : '自动月报' }}</h2><label class="flex items-center gap-2 text-sm"><input v-model="plan.enabled" type="checkbox" class="toggle toggle-neutral toggle-sm" />启用</label></div>
             <p class="mt-2 text-xs text-base-content/60">{{ plan.period_type === 'weekly' ? '周一发送上一周报告' : '每月 1 日发送上一自然月报告' }}。启用后从下一周期开始，不补发启用前的历史。</p>
-            <p v-if="plan.enabled && !settings.notifications[plan.period_type]" class="mt-2 text-sm text-warning">通知设置已暂停此计划；保存启用计划可恢复通知。</p>
+            <p v-if="plan.enabled && !settings.notifications[plan.period_type]" class="mt-2 text-sm text-warning">尚无启用渠道订阅此类报告，报告仍会生成；请在通知渠道中选择接收方式。</p>
             <div class="mt-4 flex items-center gap-2"><span class="text-sm">发送时间</span><input v-model="plan.send_hour" type="number" min="0" max="23" required class="input input-bordered input-sm w-20" aria-label="发送小时" /><span>:</span><input v-model="plan.send_minute" type="number" min="0" max="59" required class="input input-bordered input-sm w-20" aria-label="发送分钟" /></div>
-            <fieldset class="mt-4"><legend class="text-sm font-medium">收件管理员</legend><p class="mt-1 text-xs opacity-60">不勾选时发送给所有有有效邮箱的启用中管理员。</p>
+            <fieldset class="mt-4"><legend class="text-sm font-medium">邮件默认收件管理员（选填）</legend><p class="mt-1 text-xs opacity-60">仅影响未指定收件人的邮件渠道；不勾选时使用所有有效管理员邮箱。飞书和 Telegram 使用各自配置的目标。</p>
               <label v-for="user in settings.recipients" :key="user.id" class="mt-2 flex items-center gap-2 text-sm"><input v-model="plan.recipient_ids" type="checkbox" class="checkbox checkbox-sm" :value="user.id" :disabled="!user.email" /><span>{{ user.username }} · {{ user.email || '未设置邮箱' }}</span></label>
             </fieldset>
             <div class="mt-4 flex flex-wrap items-center justify-between gap-2"><span class="text-xs opacity-60">下次：{{ reportDate(plan.next_run_at, true, plan.timezone) }}</span><button class="btn btn-sm btn-neutral" :disabled="!!saving || (plan.enabled && !settings.analytics_ready)">{{ saving === plan.period_type ? '保存中…' : '保存计划' }}</button></div>

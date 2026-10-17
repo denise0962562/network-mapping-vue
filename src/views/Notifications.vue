@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { formatDateTime } from '@/utils/systemTime'
-import { channelForm, channelPayload, deliveryReason, deliveryStatuses, eventLabel, notificationEvents, validateChannel } from '@/utils/notifications'
+import { channelForm, channelPayload, deliveryReason, deliveryStatuses, eventLabel, notificationEvents, notificationProviders, providerLabel, validateChannel } from '@/utils/notifications'
 import http from '@/utils/http'
 
 const channels = ref([]), deliveries = ref([]), alerts = ref([])
@@ -158,22 +158,23 @@ onBeforeUnmount(() => {
   <div class="space-y-6 p-4 md:p-6">
     <AppAlert v-for="item in alerts" :key="item.id" v-bind="item" @close="alerts = alerts.filter(value => value.id !== item.id)" />
     <div class="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 class="text-2xl font-semibold">通知渠道</h1><p class="mt-2 text-sm opacity-60">将健康告警和 Scanner 状态发送到飞书群。通知渠道与邮件设置独立。</p></div>
-      <div v-if="!forbidden" class="flex gap-2"><button class="btn btn-sm" :disabled="loading || historyLoading" @click="refresh">刷新</button><button class="btn btn-primary btn-sm" :disabled="busy || loadFailed" @click="openEditor()">添加飞书渠道</button></div>
+      <div><h1 class="text-2xl font-semibold">通知渠道</h1><p class="mt-2 text-sm opacity-60">统一管理邮件、飞书和 Telegram。各渠道独立启停、订阅通知，同一事件可同时发送到多个渠道。</p></div>
+      <div v-if="!forbidden" class="flex gap-2"><button class="btn btn-sm" :disabled="loading || historyLoading" @click="refresh">刷新</button><button class="btn btn-primary btn-sm" :disabled="busy || loadFailed" @click="openEditor()">添加通知渠道</button></div>
     </div>
     <div v-if="forbidden" class="alert alert-warning" role="alert">仅管理员可以管理通知渠道和查看投递记录。</div>
     <template v-else>
       <div v-if="loadFailed" class="alert alert-error" role="alert"><span>渠道加载失败，请刷新后重试。</span><button class="btn btn-sm" @click="refresh">重试</button></div>
       <section class="rounded-xl bg-base-100 p-4 md:p-6">
-        <h2 class="text-lg font-semibold">飞书群机器人</h2>
-        <p class="mt-1 text-sm opacity-60">每个渠道对应一个群机器人；修改或停用会取消旧配置下尚未完成的投递。</p>
+        <h2 class="text-lg font-semibold">渠道与事件订阅</h2>
+        <p class="mt-1 text-sm opacity-60">三种渠道提供相同的通知类型，可以只启用一种，也可以同时启用。修改或停用会取消旧配置下尚未完成的投递。</p>
         <p v-if="loading" class="py-6" role="status">正在加载渠道…</p>
-        <p v-else-if="!channels.length && !loadFailed" class="py-8 text-center opacity-60">尚未配置渠道。添加飞书群自定义机器人后，即可启用通知。</p>
+        <p v-else-if="!channels.length && !loadFailed" class="py-8 text-center opacity-60">尚未配置渠道。添加邮件、飞书或 Telegram 渠道后，选择需要接收的通知。</p>
         <div v-else class="mt-4 grid gap-4 lg:grid-cols-2">
           <article v-for="channel in channels" :key="channel.id" class="rounded-lg border border-base-300 p-4">
             <div class="flex items-center justify-between gap-3"><h3 class="break-all font-semibold">{{ channel.name }}</h3><span class="badge badge-sm" :class="channel.enabled ? 'badge-success' : 'badge-ghost'">{{ channel.enabled ? '已启用' : '已停用' }}</span></div>
+            <span class="badge badge-outline badge-sm mt-2">{{ providerLabel(channel.provider || 'feishu') }}</span>
             <p class="mt-2 text-sm">{{ channel.event_types.map(eventLabel).join(' · ') }}</p>
-            <p class="mt-2 text-xs opacity-60">{{ channel.minimum_severity === 'critical' ? '仅严重告警' : '警告及严重告警' }} · {{ channel.signing_secret_configured ? '已配置签名' : '未配置签名' }} · 版本 {{ channel.revision }}</p>
+            <p class="mt-2 text-xs opacity-60">{{ channel.minimum_severity === 'critical' ? '仅严重通知' : '警告及严重通知' }} · {{ channel.provider === 'feishu' ? (channel.signing_secret_configured ? '已配置签名' : '未配置签名') : (channel.credential_configured ? '已配置凭据' : '待配置凭据') }} · 版本 {{ channel.revision }}</p>
             <div class="mt-4 flex flex-wrap gap-2">
               <button class="btn btn-sm" :disabled="busy || loadFailed" @click="openEditor(channel)">编辑</button>
               <button class="btn btn-sm" :disabled="busy || !channel.enabled || loadFailed" @click="action(channel, 'test')">测试发送</button>
@@ -189,7 +190,7 @@ onBeforeUnmount(() => {
         </div>
         <div v-if="historyFailed" class="alert alert-warning mt-4" role="alert"><span>投递记录刷新失败，当前显示上次结果。</span><button class="btn btn-sm" @click="loadHistory()">重试</button></div>
         <div class="mt-4 overflow-x-auto"><table class="table table-sm"><thead><tr><th>时间 / 渠道</th><th>事件</th><th>状态 / 尝试</th><th>结果</th><th /></tr></thead><tbody>
-          <tr v-for="item in deliveries" :key="item.id"><td class="whitespace-nowrap"><div>{{ formatDateTime(item.created_at) }}</div><div class="max-w-56 truncate text-xs opacity-60">{{ item.channel_name }}</div></td><td><div>{{ eventLabel(item.event_type) }}</div><div class="max-w-64 truncate text-xs opacity-60" :title="item.title">{{ item.title }}</div></td><td class="whitespace-nowrap"><span class="badge badge-sm" :class="item.status === 'sent' ? 'badge-success' : item.status === 'failed' ? 'badge-error' : 'badge-ghost'">{{ deliveryStatuses[item.status] || item.status }}</span><div class="mt-1 text-xs opacity-60">{{ item.attempts }} 次</div></td><td class="min-w-48 text-xs"><div>{{ deliveryReason(item.last_error) }}</div><div v-if="item.response_status || item.provider_code != null" class="mt-1 opacity-60">HTTP {{ item.response_status || '—' }} · 飞书 {{ item.provider_code ?? '—' }}</div><div v-if="item.status === 'pending'" class="mt-1 opacity-60">计划：{{ formatDateTime(item.available_at) }}</div></td><td><button v-if="item.status === 'failed'" class="btn btn-xs" :disabled="busy" @click="retry(item)">重试</button></td></tr>
+          <tr v-for="item in deliveries" :key="item.id"><td class="whitespace-nowrap"><div>{{ formatDateTime(item.created_at) }}</div><div class="max-w-56 truncate text-xs opacity-60">{{ item.channel_name }}</div></td><td><div>{{ eventLabel(item.event_type) }}</div><div class="max-w-64 truncate text-xs opacity-60" :title="item.title">{{ item.title }}</div></td><td class="whitespace-nowrap"><span class="badge badge-sm" :class="item.status === 'sent' ? 'badge-success' : item.status === 'failed' ? 'badge-error' : 'badge-ghost'">{{ deliveryStatuses[item.status] || item.status }}</span><div class="mt-1 text-xs opacity-60">{{ item.attempts }} 次</div></td><td class="min-w-48 text-xs"><div>{{ deliveryReason(item.last_error) }}</div><div v-if="item.response_status || item.provider_code != null" class="mt-1 opacity-60">HTTP {{ item.response_status || '—' }} · 服务码 {{ item.provider_code ?? '—' }}</div><div v-if="item.status === 'pending'" class="mt-1 opacity-60">计划：{{ formatDateTime(item.available_at) }}</div></td><td><button v-if="item.status === 'failed'" class="btn btn-xs" :disabled="busy" @click="retry(item)">重试</button></td></tr>
         </tbody></table></div>
         <p v-if="!deliveries.length && !historyLoading && !historyFailed" class="py-8 text-center text-sm opacity-60">暂无符合条件的投递记录。</p>
         <div class="mt-4 flex justify-center"><button v-if="nextBefore" class="btn btn-sm" :disabled="historyLoading" @click="loadHistory(true)">{{ historyLoading ? '正在加载…' : '加载更多' }}</button><span v-else-if="historyLoading" role="status" class="text-sm opacity-60">正在刷新…</span></div>
@@ -197,15 +198,32 @@ onBeforeUnmount(() => {
     </template>
     <dialog ref="editor" class="modal" @cancel.prevent="closeEditor">
       <form class="modal-box space-y-5" @submit.prevent="save">
-        <h2 class="text-lg font-semibold">{{ form.id ? '编辑飞书渠道' : '添加飞书渠道' }}</h2>
+        <h2 class="text-lg font-semibold">{{ form.id ? '编辑通知渠道' : '添加通知渠道' }}</h2>
+        <label class="block"><span class="mb-2 block text-sm">渠道类型</span><select aria-label="渠道类型" v-model="form.provider" :disabled="Boolean(form.id)" class="select select-bordered w-full"><option v-for="provider in notificationProviders" :key="provider.value" :value="provider.value">{{ provider.label }}</option></select></label>
         <label class="form-control block"><span class="mb-2 block text-sm">渠道名称</span><input v-model="form.name" class="input input-bordered w-full" maxlength="80" required autocomplete="off" placeholder="例如：运维告警群" /></label>
+        <template v-if="form.provider === 'feishu'">
         <label class="form-control block"><span class="mb-2 block text-sm">Webhook 地址{{ form.id ? '（留空保留）' : '' }}</span><input v-model="form.webhook_url" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" placeholder="粘贴飞书自定义机器人 Webhook" /></label>
         <label class="form-control block"><span class="mb-2 block text-sm">签名密钥{{ form.id ? '（留空保留）' : '（建议配置）' }}</span><input v-model="form.signing_secret" type="password" class="input input-bordered w-full" autocomplete="new-password" :disabled="form.clear_signing_secret" /></label>
         <label v-if="form.signing_secret_configured" class="flex items-center gap-2 text-sm"><input v-model="form.clear_signing_secret" type="checkbox" class="checkbox checkbox-sm" />清除已保存的签名密钥</label>
+        <p class="text-xs opacity-60">机器人若开启关键词校验，请允许固定前缀“Network Mapping”。</p>
+        </template>
+        <template v-else-if="form.provider === 'telegram'">
+          <label class="block"><span class="mb-2 block text-sm">Bot Token{{ form.id ? '（留空保留）' : '' }}</span><input v-model="form.bot_token" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" placeholder="从 BotFather 获取的 Token" /></label>
+          <label class="block"><span class="mb-2 block text-sm">Chat ID</span><input v-model="form.settings.chat_id" class="input input-bordered w-full" required placeholder="例如：-1001234567890 或 @channel_name" /></label>
+          <p class="text-xs opacity-60">请先将机器人加入目标群或频道并允许发送消息；私聊须先向机器人发送 /start。</p>
+        </template>
+        <template v-else-if="form.provider === 'email'">
+          <label class="block"><span class="mb-2 block text-sm">SMTP 服务器</span><input v-model="form.settings.smtp_host" class="input input-bordered w-full" required placeholder="smtp.example.com" /></label>
+          <label class="block"><span class="mb-2 block text-sm">SMTPS 端口</span><input v-model.number="form.settings.smtp_port" type="number" min="1" max="65535" class="input input-bordered w-full" required /></label>
+          <label class="block"><span class="mb-2 block text-sm">发件人邮箱 / 登录账号</span><input v-model="form.settings.smtp_sender" type="email" class="input input-bordered w-full" required /></label>
+          <label class="block"><span class="mb-2 block text-sm">发件邮箱密钥{{ form.id ? '（留空保留）' : '' }}</span><input v-model="form.smtp_password" type="password" class="input input-bordered w-full" :required="!form.id && !form.credential_configured" autocomplete="new-password" /></label>
+          <label class="block"><span class="mb-2 block text-sm">收件人（选填，每行一个或逗号分隔）</span><textarea v-model="form.recipients_text" class="textarea textarea-bordered w-full" rows="3" placeholder="留空使用事件默认收件人" /></label>
+          <p class="text-xs opacity-60">留空时，登录通知发给登录用户本人；报告按报告计划选择管理员，其余通知发给当前启用的管理员。填写后发送到指定邮箱。</p>
+        </template>
         <fieldset><legend class="mb-2 text-sm">通知事件</legend><label v-for="event in notificationEvents" :key="event.value" class="mb-2 flex items-center gap-2 text-sm"><input v-model="form.event_types" :value="event.value" type="checkbox" class="checkbox checkbox-sm" />{{ event.label }}</label></fieldset>
-        <label class="block"><span class="mb-2 block text-sm">最低通知级别</span><select v-model="form.minimum_severity" class="select select-bordered w-full"><option value="warning">警告及严重</option><option value="critical">仅严重（不发送 Scanner 掉线/恢复）</option></select></label>
+        <label class="block"><span class="mb-2 block text-sm">最低通知级别</span><select aria-label="最低通知级别" v-model="form.minimum_severity" class="select select-bordered w-full"><option value="warning">警告及严重（全部已选通知类型）</option><option value="critical">仅严重健康告警（不发送登录、Scanner 或报告通知）</option></select></label>
         <label class="flex items-center gap-2 text-sm"><input v-model="form.enabled" type="checkbox" class="toggle toggle-primary" />启用渠道</label>
-        <p class="text-xs leading-relaxed opacity-60">Webhook 和密钥保存后不会回显。飞书机器人若开启关键词校验，请允许固定前缀“Network Mapping”。测试发送需要先保存并启用渠道。</p>
+        <p class="text-xs leading-relaxed opacity-60">Webhook、邮箱密钥和 Bot Token 保存后不会回显，编辑留空保留。测试发送需要先保存并启用渠道。</p>
         <div class="modal-action"><button type="button" class="btn btn-sm" :disabled="busy" @click="closeEditor">取消</button><button class="btn btn-primary btn-sm" :disabled="busy">{{ busy ? '正在保存…' : '保存渠道' }}</button></div>
       </form>
     </dialog>

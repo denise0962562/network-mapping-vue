@@ -4,7 +4,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { computed, ref } from 'vue'
 import { compileScript, parse } from 'vue/compiler-sfc'
-import { channelForm } from '../utils/notifications.js'
+import { channelForm, channelPayload, validateChannel } from '../utils/notifications.js'
 
 const { descriptor } = parse(readFileSync(new URL('./Notifications.vue', import.meta.url), 'utf8'))
 const compiled = compileScript(descriptor, { id: 'notification-lifecycle-test' })
@@ -16,13 +16,13 @@ function deferred() {
   const promise = new Promise((done) => { resolve = done })
   return { promise, resolve }
 }
-function createPage(get) {
+function createPage(get, request = async () => ({ data: { success: true, data: {} } })) {
   let mount, dispose
   const timers = new Map()
   let nextTimer = 0
-  const page = vm.runInNewContext(`${source}\n;({ loadChannels, loadHistory, channels, deliveries, loadFailed, historyFailed })`, {
-    computed, ref, channelForm, AbortController, crypto: globalThis.crypto,
-    http: { get }, useUnsavedChanges: () => {},
+  const page = vm.runInNewContext(`${source}\n;({ loadChannels, loadHistory, channels, deliveries, loadFailed, historyFailed, form, save })`, {
+    computed, ref, channelForm, channelPayload, validateChannel, AbortController, crypto: globalThis.crypto,
+    http: Object.assign(request, { get }), useUnsavedChanges: () => {},
     onMounted: (callback) => { mount = callback },
     onBeforeUnmount: (callback) => { dispose = callback },
     document: { hidden: false },
@@ -93,4 +93,23 @@ test('a cancelled initial request does not set an error after unmount', async ()
   assert.equal(page.loadFailed.value, false)
   assert.equal(page.historyFailed.value, false)
   assert.equal(page.timers.size, 0)
+})
+
+test('the same page saves each provider with independent common event subscriptions', async () => {
+  const requests = []
+  const page = createPage(async url => url.endsWith('/channels') ? channels : history,
+    async config => { requests.push(config); return { data: { success: true, data: {} } } })
+  for (const provider of ['email', 'feishu', 'telegram']) {
+    const form = channelForm()
+    Object.assign(form, { provider, name: provider, webhook_url: 'https://open.feishu.cn/open-apis/bot/v2/hook/00000000-0000-4000-8000-000000000001',
+      bot_token: '123456:abcdefghijklmnopqrstuvwxyz_ABC-123', smtp_password: 'password' })
+    Object.assign(form.settings, { smtp_host: 'smtp.example.com', smtp_sender: 'sender@example.com', chat_id: '-1001234567890' })
+    page.form.value = form
+    await page.save()
+  }
+  assert.equal(requests.length, 3)
+  assert.deepEqual(requests.map(config => config.data.provider), ['email', 'feishu', 'telegram'])
+  assert(requests.every(config => config.data.enabled && config.data.event_types.includes('health.alert') && config.data.event_types.includes('user.login')))
+  assert(requests.every(config => config.url === '/api/notifications/channels' && config.method === 'POST'))
+  page.dispose()
 })

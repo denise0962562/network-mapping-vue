@@ -38,3 +38,36 @@ test('secret removal is explicit and errors never echo unknown provider text', (
   assert.notEqual(validateChannel(form), '')
   assert.equal(deliveryReason('https://example.invalid/leaked-secret'), '投递异常，请检查服务状态')
 })
+
+test('email and Telegram share event subscriptions and preserve credentials on edit', () => {
+  for (const provider of ['email', 'telegram']) {
+    const form = channelForm({ id: 'channel', provider, revision: 2, name: provider, credential_configured: true,
+      event_types: ['health.alert', 'user.login', 'report.weekly'],
+      settings: { smtp_host: 'smtp.example.com', smtp_port: 465, smtp_sender: 'sender@example.com', recipients: ['ops@example.com'], chat_id: '-1001234567890' } })
+    assert.equal(validateChannel(form), '')
+    const payload = channelPayload(form)
+    assert.equal(payload.provider, provider)
+    assert.equal(payload.bot_token, '')
+    assert.equal(payload.smtp_password, '')
+    assert.deepEqual(payload.event_types, ['health.alert', 'user.login', 'report.weekly'])
+    assert.deepEqual(payload.settings.recipients, ['ops@example.com'])
+  }
+})
+
+test('new provider credentials and destinations are validated before saving', () => {
+  const form = channelForm()
+  form.name = 'email'
+  form.provider = 'email'
+  form.settings = { smtp_host: 'smtp.example.com', smtp_port: 465, smtp_sender: 'sender@example.com', recipients: [], chat_id: '' }
+  assert.notEqual(validateChannel(form), '')
+  form.smtp_password = 'password'
+  form.recipients_text = 'one@example.com, two@example.com\none@example.com'
+  assert.equal(validateChannel(form), '')
+  assert.deepEqual(channelPayload(form).settings.recipients, ['one@example.com', 'two@example.com'])
+  form.provider = 'telegram'
+  form.bot_token = '123456:abcdefghijklmnopqrstuvwxyz_ABC-123'
+  form.settings.chat_id = '-1001234567890'
+  assert.equal(validateChannel(form), '')
+  form.bot_token += '/other'
+  assert.notEqual(validateChannel(form), '')
+})

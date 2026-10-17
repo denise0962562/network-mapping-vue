@@ -11,7 +11,7 @@
 | [Web 控制台功能指南](FEATURES.md) | 功能入口、交互约束与配置示例 |
 | [前端开发指南](maintenance-guide.md) | 路由、组件、HTTP 与开发检查 |
 | [登录人机验证](HUMAN_VERIFICATION.md) | 可选小组件、配套部署、错误恢复及开发验证 |
-| [飞书通知管理](NOTIFICATIONS.md) | 渠道配置、测试发送、投递记录、权限与开发检查 |
+| [统一通知渠道](NOTIFICATIONS.md) | 邮件、飞书、Telegram 的事件订阅、并行启用与投递记录 |
 
 ## 主题与诊断
 
