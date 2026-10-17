@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, useId } from 'vue'
 import { useRouter } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -7,6 +7,7 @@ import http from '@/utils/http'
 import { timeSettings } from '@/utils/systemTime'
 import { reportDate, reportPeriod, reportStatuses } from '@/utils/reports'
 
+const formFieldId = useId()
 const router = useRouter()
 const reports = ref([])
 const total = ref(0)
@@ -121,8 +122,8 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
         <h2 class="font-semibold">手动生成</h2>
         <p class="mt-1 text-sm text-base-content/60">留空日期生成上一完整周期；指定日期生成该日期所在的完整周或月。手动生成只归档，邮件在详情页发送。</p>
         <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="generate">
-          <label class="form-control"><span class="mb-1 block text-xs opacity-60">周期</span><select v-model="generation.period_type" class="select select-bordered"><option value="weekly">周报</option><option value="monthly">月报</option></select></label>
-          <label class="form-control"><span class="mb-1 block text-xs opacity-60">周期内日期（可选）</span><input v-model="generation.date" type="date" class="input input-bordered" /></label>
+          <fieldset class="fieldset min-w-0 w-full sm:w-auto"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`" class="opacity-60">周期</label></legend><select :id="`${formFieldId}-1`" v-model="generation.period_type" class="select select-bordered w-full"><option value="weekly">周报</option><option value="monthly">月报</option></select></fieldset>
+          <fieldset class="fieldset min-w-0 w-full sm:w-auto"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`" class="opacity-60">周期内日期（可选）</label></legend><input :id="`${formFieldId}-2`" v-model="generation.date" type="date" class="input input-bordered w-full" /></fieldset>
           <button class="btn btn-neutral" :disabled="generating"><span v-if="generating" class="loading loading-spinner loading-xs" />生成报告</button>
         </form>
       </div>

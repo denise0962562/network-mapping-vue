@@ -1,11 +1,12 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import VersionUpdateBadge from '@/components/VersionUpdateBadge.vue'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const scannerForm = ref({
   name: '',
   location: '',
@@ -374,25 +375,25 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           <h3 class="font-semibold mb-3">创建扫描器</h3>
 
           <div class="grid grid-cols-1 gap-3">
-            <label class="form-control w-full">
-              <span class="label-text mb-1">扫描器名称 <span class="text-error">*</span></span>
-              <input v-model="scannerForm.name" type="text" class="input input-bordered w-full" placeholder="例如：scanner-04" :disabled="submitting" />
-            </label>
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">扫描器名称 <span class="text-error">*</span></label></legend>
+              <input :id="`${formFieldId}-1`" v-model="scannerForm.name" type="text" class="input input-bordered w-full" placeholder="例如：scanner-04" :disabled="submitting" />
+            </fieldset>
 
-            <label class="form-control w-full">
-              <span class="label-text mb-1">位置</span>
-              <input v-model="scannerForm.location" type="text" class="input input-bordered w-full" placeholder="例如：华东-上海" :disabled="submitting" />
-            </label>
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">位置</label></legend>
+              <input :id="`${formFieldId}-2`" v-model="scannerForm.location" type="text" class="input input-bordered w-full" placeholder="例如：华东-上海" :disabled="submitting" />
+            </fieldset>
 
-            <label class="form-control w-full">
-              <span class="label-text mb-1">备注</span>
-              <input v-model="scannerForm.remark" type="text" class="input input-bordered w-full" placeholder="备注信息（可选）" :disabled="submitting" />
-            </label>
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">备注</label></legend>
+              <input :id="`${formFieldId}-3`" v-model="scannerForm.remark" type="text" class="input input-bordered w-full" placeholder="备注信息（可选）" :disabled="submitting" />
+            </fieldset>
 
-            <label class="form-control w-full">
-              <span class="label-text mb-1">标签</span>
-              <input v-model="scannerForm.tag" type="text" class="input input-bordered w-full" placeholder="标签（可选）" :disabled="submitting" />
-            </label>
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">标签</label></legend>
+              <input :id="`${formFieldId}-4`" v-model="scannerForm.tag" type="text" class="input input-bordered w-full" placeholder="标签（可选）" :disabled="submitting" />
+            </fieldset>
 
             <button class="btn btn-neutral w-full mt-1" :disabled="submitting || !scannerForm.name.trim()" @click="createScanner">
               {{ submitting ? '提交中...' : '提交' }}

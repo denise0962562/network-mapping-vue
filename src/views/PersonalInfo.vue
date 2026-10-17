@@ -1,10 +1,11 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const alerts = ref([])
 const userInfo = ref({
   username: '',
@@ -203,15 +204,15 @@ onMounted(() => {
       </div>
 
       <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <label class="form-control w-full">
-          <span class="label-text mb-1">用户名</span>
-          <input v-model="userInfo.username" type="text" class="input input-bordered w-full" />
-        </label>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">用户名</label></legend>
+          <input :id="`${formFieldId}-1`" v-model="userInfo.username" type="text" class="input input-bordered w-full" />
+        </fieldset>
 
-        <label class="form-control w-full">
-          <span class="label-text mb-1">邮箱</span>
-          <input v-model="userInfo.email" type="email" class="input input-bordered w-full" />
-        </label>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">邮箱</label></legend>
+          <input :id="`${formFieldId}-2`" v-model="userInfo.email" type="email" class="input input-bordered w-full" />
+        </fieldset>
 
         <div class="rounded-lg bg-base-200/60 p-3">
           <div class="text-xs opacity-60">用户类型</div>

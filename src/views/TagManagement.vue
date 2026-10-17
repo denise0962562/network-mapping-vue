@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import AssetTags from '../components/AssetTags.vue'
 import http from '../utils/http'
 
+const formFieldId = useId()
 const categories = ref([])
 const tags = ref([])
 const loading = ref(false)
@@ -383,9 +384,9 @@ onMounted(loadCatalog)
       <h3 class="text-lg font-bold">{{ categoryForm.id ? '编辑分类' : '新建分类' }}</h3>
       <div v-if="errorMessage" role="alert" class="alert alert-error mt-4 text-sm"><span>{{ errorMessage }}</span></div>
       <div class="mt-4 space-y-3">
-        <label class="form-control"><span class="label-text mb-1">名称</span><input v-model="categoryForm.name" maxlength="32" class="input input-bordered" /></label>
-        <label class="form-control"><span class="label-text mb-1">描述</span><textarea v-model="categoryForm.description" maxlength="256" rows="3" class="textarea textarea-bordered"></textarea></label>
-        <label class="form-control"><span class="label-text mb-1">排序</span><input v-model.number="categoryForm.sort_order" type="number" min="-10000" max="10000" class="input input-bordered" /></label>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`">名称</label></legend><input :id="`${formFieldId}-1`" v-model="categoryForm.name" maxlength="32" class="input input-bordered w-full" /></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label for="tagmanagement-categoryform-description">描述</label></legend><textarea id="tagmanagement-categoryform-description" v-model="categoryForm.description" maxlength="256" rows="3" class="textarea textarea-bordered w-full"></textarea></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`">排序</label></legend><input :id="`${formFieldId}-2`" v-model.number="categoryForm.sort_order" type="number" min="-10000" max="10000" class="input input-bordered w-full" /></fieldset>
       </div>
       <div class="modal-action"><button class="btn btn-ghost" :disabled="actionLoading" @click="categoryDialogRef?.close()">取消</button><button class="btn btn-neutral" :disabled="actionLoading" @click="saveCategory">保存</button></div>
     </div>
@@ -397,10 +398,10 @@ onMounted(loadCatalog)
       <h3 class="text-lg font-bold">{{ tagForm.id ? '编辑标签' : '新建标签' }}</h3>
       <div v-if="errorMessage" role="alert" class="alert alert-error mt-4 text-sm"><span>{{ errorMessage }}</span></div>
       <div class="mt-4 grid gap-3 sm:grid-cols-2">
-        <label class="form-control sm:col-span-2"><span class="label-text mb-1">名称</span><input v-model="tagForm.name" maxlength="32" class="input input-bordered" /></label>
-        <label class="form-control"><span class="label-text mb-1">分类</span><select v-model="tagForm.category_id" class="select select-bordered"><option disabled value="">请选择</option><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></label>
-        <label class="form-control"><span class="label-text mb-1">风险属性</span><select v-model="tagForm.kind" class="select select-bordered"><option value="info">普通信息</option><option value="malicious">恶意</option><option value="benign">正常</option></select></label>
-        <label class="form-control sm:col-span-2"><span class="label-text mb-1">描述</span><textarea v-model="tagForm.description" maxlength="256" rows="3" class="textarea textarea-bordered"></textarea></label>
+        <fieldset class="fieldset min-w-0 w-full sm:col-span-2"><legend class="fieldset-legend"><label :for="`${formFieldId}-3`">名称</label></legend><input :id="`${formFieldId}-3`" v-model="tagForm.name" maxlength="32" class="input input-bordered w-full" /></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-4`">分类</label></legend><select :id="`${formFieldId}-4`" v-model="tagForm.category_id" class="select select-bordered w-full"><option disabled value="">请选择</option><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-5`">风险属性</label></legend><select :id="`${formFieldId}-5`" v-model="tagForm.kind" class="select select-bordered w-full"><option value="info">普通信息</option><option value="malicious">恶意</option><option value="benign">正常</option></select></fieldset>
+        <fieldset class="fieldset min-w-0 w-full sm:col-span-2"><legend class="fieldset-legend"><label for="tagmanagement-tagform-description">描述</label></legend><textarea id="tagmanagement-tagform-description" v-model="tagForm.description" maxlength="256" rows="3" class="textarea textarea-bordered w-full"></textarea></fieldset>
       </div>
       <div class="modal-action"><button class="btn btn-ghost" :disabled="actionLoading" @click="tagDialogRef?.close()">取消</button><button class="btn btn-neutral" :disabled="actionLoading" @click="saveTag">保存</button></div>
     </div>

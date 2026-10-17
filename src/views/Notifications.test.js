@@ -21,7 +21,7 @@ function createPage(get, request = async () => ({ data: { success: true, data: {
   const timers = new Map()
   let nextTimer = 0
   const page = vm.runInNewContext(`${source}\n;({ loadChannels, loadHistory, channels, deliveries, loadFailed, historyFailed, form, save })`, {
-    computed, ref, channelForm, channelPayload, validateChannel, AbortController, crypto: globalThis.crypto,
+    computed, ref, useId: () => 'notification-test-field', channelForm, channelPayload, validateChannel, AbortController, crypto: globalThis.crypto,
     http: Object.assign(request, { get }), useUnsavedChanges: () => {},
     onMounted: (callback) => { mount = callback },
     onBeforeUnmount: (callback) => { dispose = callback },

@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import GeneralSettings from '@/components/GeneralSettings.vue'
 import ConfigCheckPanel from '@/components/ConfigCheckPanel.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const alerts = ref([])
 const generalSettings = ref(null)
 const generalDirty = ref(false)
@@ -418,9 +419,9 @@ onMounted(() => {
 
           <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div class="space-y-3">
-              <label class="form-control w-full">
-                <span class="label-text mb-1">客户端 IP 请求头</span>
-                <select v-model="trustedProxySettings.clientIpHeaderMode" class="select select-bordered w-full">
+              <fieldset class="fieldset min-w-0 w-full">
+                <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">客户端 IP 请求头</label></legend>
+                <select :id="`${formFieldId}-1`" v-model="trustedProxySettings.clientIpHeaderMode" class="select select-bordered w-full">
                   <option value="x-forwarded-for">X-Forwarded-For</option>
                   <option value="forwarded">Forwarded（RFC 7239）</option>
                   <option
@@ -430,12 +431,12 @@ onMounted(() => {
                     自定义请求头
                   </option>
                 </select>
-                <span class="label-text-alt mt-1 opacity-60">只解析选中的一种请求头，避免不同代理头之间产生歧义。</span>
-              </label>
+                <span class="label text-wrap text-xs opacity-60">只解析选中的一种请求头，避免不同代理头之间产生歧义。</span>
+              </fieldset>
 
-              <label v-if="trustedProxySettings.clientIpHeaderMode === 'custom'" class="form-control w-full">
-                <span class="label-text mb-1">自定义请求头名称</span>
-                <input
+              <fieldset v-if="trustedProxySettings.clientIpHeaderMode === 'custom'" class="fieldset min-w-0 w-full">
+                <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">自定义请求头名称</label></legend>
+                <input :id="`${formFieldId}-2`"
                   v-model="trustedProxySettings.customClientIpHeader"
                   type="text"
                   class="input input-bordered w-full font-mono"
@@ -446,25 +447,26 @@ onMounted(() => {
                   spellcheck="false"
                 />
                 <span
-                  class="label-text-alt mt-1"
+                  class="label text-wrap text-xs"
                   :class="customClientIpHeaderError ? 'text-error' : 'opacity-60'"
                 >
                   {{ customClientIpHeaderError || '支持单个 IP 或逗号分隔的 IP 代理链，例如 CF-Connecting-IP。' }}
                 </span>
-              </label>
+              </fieldset>
             </div>
 
-            <label class="form-control w-full lg:col-span-2">
-              <span class="label-text mb-1">可信代理 CIDR</span>
+            <fieldset class="fieldset min-w-0 w-full lg:col-span-2">
+              <legend class="fieldset-legend"><label for="setting-trustedproxysettings-trustedproxycidrstext">可信代理 CIDR</label></legend>
               <textarea
+                id="setting-trustedproxysettings-trustedproxycidrstext"
                 v-model="trustedProxySettings.trustedProxyCidrsText"
                 class="textarea textarea-bordered min-h-28 w-full font-mono text-sm"
                 placeholder="127.0.0.1/32&#10;::1/128"
               ></textarea>
-              <span class="label-text-alt mt-1 opacity-60">
+              <span class="label text-wrap text-xs opacity-60">
                 每行一条，也可使用逗号分隔；当前 {{ trustedProxyCidrs.length }}/{{ trustedProxyLimits.maximumCidrs }} 条。
               </span>
-            </label>
+            </fieldset>
           </div>
 
           <div class="rounded-lg bg-base-200/60 p-3 text-xs leading-5 opacity-75">
@@ -496,9 +498,9 @@ onMounted(() => {
         </div>
 
         <fieldset v-else :disabled="savingSessionSettings" class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-          <label class="form-control w-full">
-            <span class="label-text mb-1">登录会话最长有效期 <span class="text-xs opacity-60">（分钟）</span></span>
-            <input
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">登录会话最长有效期 <span class="text-xs opacity-60">（分钟）</span></label></legend>
+            <input :id="`${formFieldId}-3`"
               v-model.number="sessionSettings.sessionTtlMinutes"
               type="number"
               :min="sessionLimits.minimumMinutes"
@@ -508,10 +510,10 @@ onMounted(() => {
               placeholder="45"
               @blur="normalizeSessionTtl"
             />
-            <span class="label-text-alt opacity-60 mt-1">
+            <span class="label text-wrap text-xs opacity-60">
               允许 {{ sessionLimits.minimumMinutes }}-{{ sessionLimits.maximumMinutes }} 分钟，仅影响新登录会话。
             </span>
-          </label>
+          </fieldset>
 
           <label class="rounded-lg bg-base-200/60 p-3 flex items-start gap-3 cursor-pointer">
             <input v-model="sessionSettings.invalidateOtherSessions" type="checkbox" class="checkbox rounded-md mt-0.5" />
@@ -537,9 +539,9 @@ onMounted(() => {
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <label class="form-control w-full">
-            <span class="label-text mb-1">限制登录错误次数</span>
-            <input
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">限制登录错误次数</label></legend>
+            <input :id="`${formFieldId}-4`"
               v-model.number="securityConfig.maxLoginRetries"
               type="number"
               min="1"
@@ -549,12 +551,12 @@ onMounted(() => {
               @blur="clampLoginRetries"
               @input="clampLoginRetries"
             />
-            <span class="label-text-alt opacity-60 mt-1">仅允许输入 1-4 的整数，默认 3</span>
-          </label>
+            <span class="label text-wrap text-xs opacity-60">仅允许输入 1-4 的整数，默认 3</span>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1">锁定时间 <span class="text-xs opacity-60">（分钟）</span></span>
-            <input
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">锁定时间 <span class="text-xs opacity-60">（分钟）</span></label></legend>
+            <input :id="`${formFieldId}-5`"
               v-model.number="securityConfig.lockMinutes"
               type="number"
               min="1"
@@ -564,11 +566,11 @@ onMounted(() => {
               @blur="normalizeLockMinutes"
               @input="normalizeLockMinutes"
             />
-          </label>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1">请求速率限制（API 路径）</span>
-            <input
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-6`">请求速率限制（API 路径）</label></legend>
+            <input :id="`${formFieldId}-6`"
               v-model.number="securityConfig.apiRateLimit"
               type="number"
               min="0"
@@ -578,12 +580,12 @@ onMounted(() => {
               @blur="normalizeRateLimit('apiRateLimit')"
               @input="normalizeRateLimit('apiRateLimit')"
             />
-            <span class="label-text-alt opacity-60 mt-1">单位：次/秒，0 表示不限制</span>
-          </label>
+            <span class="label text-wrap text-xs opacity-60">单位：次/秒，0 表示不限制</span>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1">请求速率限制（普通页面）</span>
-            <input
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-7`">请求速率限制（普通页面）</label></legend>
+            <input :id="`${formFieldId}-7`"
               v-model.number="securityConfig.pageRateLimit"
               type="number"
               min="0"
@@ -593,8 +595,8 @@ onMounted(() => {
               @blur="normalizeRateLimit('pageRateLimit')"
               @input="normalizeRateLimit('pageRateLimit')"
             />
-            <span class="label-text-alt opacity-60 mt-1">单位：次/秒，0 表示不限制</span>
-          </label>
+            <span class="label text-wrap text-xs opacity-60">单位：次/秒，0 表示不限制</span>
+          </fieldset>
         </div>
       </div>
 

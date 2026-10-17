@@ -5,12 +5,13 @@ import { useTheme } from '@/composables/useTheme'
 import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
 import { calendarDate, mondayDate, addCalendarDays, calendarMidnight, timeSettings } from '@/utils/systemTime'
 import axios from 'axios'
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const { isDark } = useTheme()
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
@@ -445,45 +446,45 @@ onBeforeUnmount(() => {
     <div class="card border border-base-300 bg-base-100 shadow-sm">
       <div class="card-body gap-4 p-4">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">时间范围</span>
-            <select v-model.number="filters.weeks" class="select select-bordered w-full">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间范围</label></legend>
+            <select :id="`${formFieldId}-1`" v-model.number="filters.weeks" class="select select-bordered w-full">
               <option v-for="weeks in weekOptions" :key="weeks" :value="weeks">最近 {{ weeks }} 周</option>
             </select>
-          </label>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">扫描器</span>
-            <select v-model="filters.scannerId" class="select select-bordered w-full" :disabled="scannerLoading">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">扫描器</label></legend>
+            <select :id="`${formFieldId}-2`" v-model="filters.scannerId" class="select select-bordered w-full" :disabled="scannerLoading">
               <option value="">{{ scannerLoading ? '加载扫描器中…' : '全部扫描器' }}</option>
               <option v-for="scanner in scannerList" :key="scanner.id" :value="scanner.id">{{ scanner.name }}</option>
             </select>
-          </label>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">任务来源</span>
-            <select v-model="filters.taskSource" class="select select-bordered w-full">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">任务来源</label></legend>
+            <select :id="`${formFieldId}-3`" v-model="filters.taskSource" class="select select-bordered w-full">
               <option value="">全部来源</option>
               <option value="manual">手动任务</option>
               <option value="automatic">自动任务</option>
               <option value="search">搜索生成</option>
             </select>
-          </label>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">分布维度</span>
-            <select v-model="filters.dimension" class="select select-bordered w-full">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">分布维度</label></legend>
+            <select :id="`${formFieldId}-4`" v-model="filters.dimension" class="select select-bordered w-full">
               <option value="service">识别服务</option>
               <option value="port">开放端口</option>
             </select>
-          </label>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">显示数量</span>
-            <select v-model.number="filters.topN" class="select select-bordered w-full">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">显示数量</label></legend>
+            <select :id="`${formFieldId}-5`" v-model.number="filters.topN" class="select select-bordered w-full">
               <option v-for="item in topOptions" :key="item" :value="item">Top {{ item }}</option>
             </select>
-          </label>
+          </fieldset>
         </div>
 
         <div class="flex justify-end">

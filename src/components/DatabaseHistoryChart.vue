@@ -3,13 +3,14 @@ import { useChartTheme } from '@/composables/useChartTheme'
 import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { formatTime as formatSystemClock, toLocalInputValue as systemInputValue, parseSystemDate } from '@/utils/systemTime'
 import axios from 'axios'
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
 import SystemMaintenanceTooltip from '@/components/SystemMaintenanceTooltip.vue'
 import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
+const formFieldId = useId()
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const emit = defineEmits(['error'])
 
@@ -586,16 +587,16 @@ onBeforeUnmount(() => {
           </div>
         </details>
 
-        <label class="form-control w-36">
-          <span class="label-text mb-1 text-xs">时间范围</span>
-          <select v-model="range" class="select select-bordered select-sm w-full" :disabled="loading" @change="handleRangeChange">
+        <fieldset class="fieldset min-w-0 w-36">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间范围</label></legend>
+          <select :id="`${formFieldId}-1`" v-model="range" class="select select-bordered select-sm w-full" :disabled="loading" @change="handleRangeChange">
             <option v-for="option in rangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
           </select>
-        </label>
+        </fieldset>
 
-        <label class="form-control w-32">
-          <span class="label-text mb-1 text-xs">时间粒度</span>
-          <select v-model="granularity" class="select select-bordered select-sm w-full" :disabled="loading">
+        <fieldset class="fieldset min-w-0 w-32">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">时间粒度</label></legend>
+          <select :id="`${formFieldId}-2`" v-model="granularity" class="select select-bordered select-sm w-full" :disabled="loading">
             <option
               v-for="option in granularityOptions"
               :key="option.value"
@@ -605,7 +606,7 @@ onBeforeUnmount(() => {
               {{ option.label }}
             </option>
           </select>
-        </label>
+        </fieldset>
 
         <ChartCsvExport
           filename="database-history"
@@ -622,14 +623,14 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-if="range === 'custom'" class="grid gap-3 rounded-box bg-base-200/60 p-3 sm:grid-cols-2">
-      <label class="form-control w-full">
-        <span class="label-text mb-1 text-xs">开始时间</span>
-        <SystemDateTimeInput v-model="customStart" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
-      </label>
-      <label class="form-control w-full">
-        <span class="label-text mb-1 text-xs">结束时间</span>
-        <SystemDateTimeInput v-model="customEnd" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
-      </label>
+      <fieldset class="fieldset min-w-0 w-full">
+        <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">开始时间</label></legend>
+        <SystemDateTimeInput :id="`${formFieldId}-3`" v-model="customStart" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+      </fieldset>
+      <fieldset class="fieldset min-w-0 w-full">
+        <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">结束时间</label></legend>
+        <SystemDateTimeInput :id="`${formFieldId}-4`" v-model="customEnd" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
+      </fieldset>
     </div>
 
     <div v-if="hasLoaded" class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

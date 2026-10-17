@@ -1,10 +1,11 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const alerts = ref([])
 const users = ref([])
 const stats = ref({ total: 0, active: 0, disabled: 0, locked: 0, activeSessions: 0 })
@@ -434,10 +435,10 @@ onMounted(() => loadUsers({ page: 1 }))
       <h3 class="text-lg font-semibold">创建用户</h3>
       <p class="mt-1 text-xs opacity-60">用户名删除后不能复用；密码只在创建时提交，不会返回前端。</p>
       <div class="mt-5 grid gap-4">
-        <label class="form-control"><span class="label-text mb-1">用户名</span><input v-model="createForm.username" class="input input-bordered" maxlength="64" autocomplete="off" required /></label>
-        <label class="form-control"><span class="label-text mb-1">邮箱</span><input v-model="createForm.email" type="email" class="input input-bordered" maxlength="320" placeholder="可选" /></label>
-        <label class="form-control"><span class="label-text mb-1">初始密码</span><div class="join w-full"><input v-model="createForm.password" :type="showPassword ? 'text' : 'password'" class="input input-bordered join-item grow" minlength="12" maxlength="256" autocomplete="new-password" required /><button type="button" class="btn join-item" @click="showPassword = !showPassword">{{ showPassword ? '隐藏' : '显示' }}</button></div><span class="label-text-alt mt-1 opacity-60">12-256 个字符</span></label>
-        <label class="form-control"><span class="label-text mb-1">角色</span><select v-model.number="createForm.role" class="select select-bordered"><option :value="2">普通用户</option><option :value="1">管理员</option></select></label>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`">用户名</label></legend><input :id="`${formFieldId}-1`" v-model="createForm.username" class="input input-bordered w-full" maxlength="64" autocomplete="off" required /></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`">邮箱</label></legend><input :id="`${formFieldId}-2`" v-model="createForm.email" type="email" class="input input-bordered w-full" maxlength="320" placeholder="可选" /></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-3`">初始密码</label></legend><div class="join w-full"><input :id="`${formFieldId}-3`" v-model="createForm.password" :type="showPassword ? 'text' : 'password'" class="input input-bordered join-item grow" minlength="12" maxlength="256" autocomplete="new-password" required /><button type="button" class="btn join-item" @click="showPassword = !showPassword">{{ showPassword ? '隐藏' : '显示' }}</button></div><span class="label text-wrap text-xs opacity-60">12-256 个字符</span></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-4`">角色</label></legend><select :id="`${formFieldId}-4`" v-model.number="createForm.role" class="select select-bordered w-full"><option :value="2">普通用户</option><option :value="1">管理员</option></select></fieldset>
       </div>
       <div class="modal-action"><button type="button" class="btn" :disabled="creating" @click="closeCreateDialog">取消</button><button type="submit" class="btn btn-neutral" :disabled="creating"><span v-if="creating" class="loading loading-spinner loading-xs"></span>创建</button></div>
     </form>
@@ -502,12 +503,16 @@ onMounted(() => loadUsers({ page: 1 }))
       <p class="mt-1 text-xs opacity-60">每行填写一个 IPv4、IPv6 或 CIDR。留空保存可解除因误配置造成的登录限制。</p>
       <div v-if="allowlistLoading" class="skeleton mt-5 h-44 w-full rounded-box"></div>
       <template v-else>
-        <textarea
-          v-model="allowlistText"
-          class="textarea textarea-bordered mt-5 min-h-44 w-full font-mono text-sm"
-          placeholder="192.0.2.10&#10;10.0.0.0/8&#10;2001:db8::/48"
-          :disabled="allowlistSaving"
-        ></textarea>
+        <fieldset class="fieldset mt-5 min-w-0 w-full">
+          <legend class="fieldset-legend"><label for="user-management-allowlist">允许登录的地址</label></legend>
+          <textarea
+            id="user-management-allowlist"
+            v-model="allowlistText"
+            class="textarea textarea-bordered min-h-44 w-full font-mono text-sm"
+            placeholder="192.0.2.10&#10;10.0.0.0/8&#10;2001:db8::/48"
+            :disabled="allowlistSaving"
+          ></textarea>
+        </fieldset>
         <div class="mt-2 flex justify-between gap-2 text-xs">
           <span class="opacity-60">回环地址和内网地址也必须显式配置。</span>
           <span :class="allowlistEntries.length > maximumAllowlistEntries ? 'text-error' : 'opacity-60'">{{ allowlistEntries.length }} / {{ maximumAllowlistEntries }} 条</span>

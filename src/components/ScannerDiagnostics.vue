@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, useId } from 'vue'
 import http from '@/utils/http'
 import { formatDateTime } from '@/utils/systemTime'
 
+const formFieldId = useId()
 const props = defineProps({ scanner: { type: Object, required: true } })
 const jobs = ref([])
 const sources = ref([])
@@ -177,8 +178,8 @@ onBeforeUnmount(() => { generation += 1; controller?.abort(); window.clearInterv
       <div class="space-y-2">
         <h4 class="font-medium text-sm">错误记录</h4>
         <form class="flex flex-wrap items-end gap-2" @submit.prevent="filterErrors">
-          <label class="form-control"><span class="text-xs opacity-70 mb-1">级别</span><select v-model="level" class="select select-bordered select-sm"><option value="">全部</option><option value="ERROR">错误</option><option value="WARN">警告</option></select></label>
-          <label class="form-control flex-1 min-w-40"><span class="text-xs opacity-70 mb-1">错误码</span><input v-model="errorCode" maxlength="128" class="input input-bordered input-sm" placeholder="按错误码筛选" /></label>
+          <fieldset class="fieldset min-w-0 w-full sm:w-auto"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`" class="opacity-70">级别</label></legend><select :id="`${formFieldId}-1`" v-model="level" class="select select-bordered select-sm w-full"><option value="">全部</option><option value="ERROR">错误</option><option value="WARN">警告</option></select></fieldset>
+          <fieldset class="fieldset min-w-0 w-full sm:w-auto flex-1 min-w-40"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`" class="opacity-70">错误码</label></legend><input :id="`${formFieldId}-2`" v-model="errorCode" maxlength="128" class="input input-bordered input-sm w-full" placeholder="按错误码筛选" /></fieldset>
           <button class="btn btn-sm" :disabled="loading" type="submit">查询</button>
         </form>
         <p v-if="!errors.length && !loading && !failed" class="rounded-lg bg-base-200/60 p-3 text-sm opacity-70">暂无已上报错误。</p>
@@ -204,7 +205,7 @@ onBeforeUnmount(() => { generation += 1; controller?.abort(); window.clearInterv
         <p v-if="!supported" class="text-sm opacity-70">该扫描器尚未声明远程诊断能力，请升级并等待首次心跳。已保存日志仍可下载。</p>
         <p v-else-if="!sources.length" class="text-sm opacity-70">暂无目录清单，请先刷新目录。</p>
         <div v-if="sources.length" class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>选择</th><th>文件</th><th>大小</th><th>修改时间</th></tr></thead><tbody><tr v-for="source in sources" :key="source.source_file_id"><td><input v-model="selected" type="checkbox" class="checkbox checkbox-sm" :value="source.source_file_id" :disabled="busy || (!selected.includes(source.source_file_id) && selected.length >= 16)" :aria-label="`选择 ${source.name}`" /></td><td class="whitespace-nowrap">{{ source.name }} <span v-if="source.active" class="badge badge-ghost badge-xs">写入中</span></td><td class="whitespace-nowrap">{{ size(source.size_bytes) }}</td><td class="whitespace-nowrap">{{ formatDateTime(source.modified_at) }}</td></tr></tbody></table></div>
-        <button v-if="sources.length" class="btn btn-primary btn-sm" :disabled="busy || !supported || !selected.length || pending" @click="createJob('collect_logs')">采集选中的日志（{{ selected.length }}）</button>
+        <button v-if="sources.length" class="btn btn-neutral btn-sm" :disabled="busy || !supported || !selected.length || pending" @click="createJob('collect_logs')">采集选中的日志（{{ selected.length }}）</button>
         <p class="text-xs opacity-70">采集保存请求处理时的文件快照；原始日志仅供管理员下载。</p>
       </div>
 

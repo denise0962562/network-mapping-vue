@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { formatDateTime } from '@/utils/systemTime'
 import { channelForm, channelPayload, deliveryReason, deliveryStatuses, eventLabel, notificationEvents, notificationProviders, providerLabel, validateChannel } from '@/utils/notifications'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const channels = ref([]), deliveries = ref([]), alerts = ref([])
 const loading = ref(false), busy = ref(false), forbidden = ref(false), loadFailed = ref(false)
 const editor = ref(null), form = ref(channelForm()), savedForm = ref('')
@@ -159,7 +160,7 @@ onBeforeUnmount(() => {
     <AppAlert v-for="item in alerts" :key="item.id" v-bind="item" @close="alerts = alerts.filter(value => value.id !== item.id)" />
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div><h1 class="text-2xl font-semibold">通知渠道</h1><p class="mt-2 text-sm opacity-60">统一管理邮件、飞书和 Telegram。各渠道独立启停、订阅通知，同一事件可同时发送到多个渠道。</p></div>
-      <div v-if="!forbidden" class="flex gap-2"><button class="btn btn-sm" :disabled="loading || historyLoading" @click="refresh">刷新</button><button class="btn btn-primary btn-sm" :disabled="busy || loadFailed" @click="openEditor()">添加通知渠道</button></div>
+      <div v-if="!forbidden" class="flex gap-2"><button class="btn btn-sm" :disabled="loading || historyLoading" @click="refresh">刷新</button><button class="btn btn-neutral btn-sm" :disabled="busy || loadFailed" @click="openEditor()">添加通知渠道</button></div>
     </div>
     <div v-if="forbidden" class="alert alert-warning" role="alert">仅管理员可以管理通知渠道和查看投递记录。</div>
     <template v-else>
@@ -199,32 +200,32 @@ onBeforeUnmount(() => {
     <dialog ref="editor" class="modal" @cancel.prevent="closeEditor">
       <form class="modal-box space-y-5" @submit.prevent="save">
         <h2 class="text-lg font-semibold">{{ form.id ? '编辑通知渠道' : '添加通知渠道' }}</h2>
-        <label class="block"><span class="mb-2 block text-sm">渠道类型</span><select aria-label="渠道类型" v-model="form.provider" :disabled="Boolean(form.id)" class="select select-bordered w-full"><option v-for="provider in notificationProviders" :key="provider.value" :value="provider.value">{{ provider.label }}</option></select></label>
-        <label class="form-control block"><span class="mb-2 block text-sm">渠道名称</span><input v-model="form.name" class="input input-bordered w-full" maxlength="80" required autocomplete="off" placeholder="例如：运维告警群" /></label>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`">渠道类型</label></legend><select :id="`${formFieldId}-1`" aria-label="渠道类型" v-model="form.provider" :disabled="Boolean(form.id)" class="select select-bordered w-full"><option v-for="provider in notificationProviders" :key="provider.value" :value="provider.value">{{ provider.label }}</option></select></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`">渠道名称</label></legend><input :id="`${formFieldId}-2`" v-model="form.name" class="input input-bordered w-full" maxlength="80" required autocomplete="off" placeholder="例如：运维告警群" /></fieldset>
         <template v-if="form.provider === 'feishu'">
-        <label class="form-control block"><span class="mb-2 block text-sm">Webhook 地址{{ form.id ? '（留空保留）' : '' }}</span><input v-model="form.webhook_url" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" placeholder="粘贴飞书自定义机器人 Webhook" /></label>
-        <label class="form-control block"><span class="mb-2 block text-sm">签名密钥{{ form.id ? '（留空保留）' : '（建议配置）' }}</span><input v-model="form.signing_secret" type="password" class="input input-bordered w-full" autocomplete="new-password" :disabled="form.clear_signing_secret" /></label>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-3`">Webhook 地址{{ form.id ? '（留空保留）' : '' }}</label></legend><input :id="`${formFieldId}-3`" v-model="form.webhook_url" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" placeholder="粘贴飞书自定义机器人 Webhook" /></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-4`">签名密钥{{ form.id ? '（留空保留）' : '（建议配置）' }}</label></legend><input :id="`${formFieldId}-4`" v-model="form.signing_secret" type="password" class="input input-bordered w-full" autocomplete="new-password" :disabled="form.clear_signing_secret" /></fieldset>
         <label v-if="form.signing_secret_configured" class="flex items-center gap-2 text-sm"><input v-model="form.clear_signing_secret" type="checkbox" class="checkbox checkbox-sm" />清除已保存的签名密钥</label>
         <p class="text-xs opacity-60">机器人若开启关键词校验，请允许固定前缀“Network Mapping”。</p>
         </template>
         <template v-else-if="form.provider === 'telegram'">
-          <label class="block"><span class="mb-2 block text-sm">Bot Token{{ form.id ? '（留空保留）' : '' }}</span><input v-model="form.bot_token" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" placeholder="从 BotFather 获取的 Token" /></label>
-          <label class="block"><span class="mb-2 block text-sm">Chat ID</span><input v-model="form.settings.chat_id" class="input input-bordered w-full" required placeholder="例如：-1001234567890 或 @channel_name" /></label>
+          <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-5`">Bot Token{{ form.id ? '（留空保留）' : '' }}</label></legend><input :id="`${formFieldId}-5`" v-model="form.bot_token" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" placeholder="从 BotFather 获取的 Token" /></fieldset>
+          <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-6`">Chat ID</label></legend><input :id="`${formFieldId}-6`" v-model="form.settings.chat_id" class="input input-bordered w-full" required placeholder="例如：-1001234567890 或 @channel_name" /></fieldset>
           <p class="text-xs opacity-60">请先将机器人加入目标群或频道并允许发送消息；私聊须先向机器人发送 /start。</p>
         </template>
         <template v-else-if="form.provider === 'email'">
-          <label class="block"><span class="mb-2 block text-sm">SMTP 服务器</span><input v-model="form.settings.smtp_host" class="input input-bordered w-full" required placeholder="smtp.example.com" /></label>
-          <label class="block"><span class="mb-2 block text-sm">SMTPS 端口</span><input v-model.number="form.settings.smtp_port" type="number" min="1" max="65535" class="input input-bordered w-full" required /></label>
-          <label class="block"><span class="mb-2 block text-sm">发件人邮箱 / 登录账号</span><input v-model="form.settings.smtp_sender" type="email" class="input input-bordered w-full" required /></label>
-          <label class="block"><span class="mb-2 block text-sm">发件邮箱密钥{{ form.id ? '（留空保留）' : '' }}</span><input v-model="form.smtp_password" type="password" class="input input-bordered w-full" :required="!form.id && !form.credential_configured" autocomplete="new-password" /></label>
-          <label class="block"><span class="mb-2 block text-sm">收件人（选填，每行一个或逗号分隔）</span><textarea v-model="form.recipients_text" class="textarea textarea-bordered w-full" rows="3" placeholder="留空使用事件默认收件人" /></label>
+          <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-7`">SMTP 服务器</label></legend><input :id="`${formFieldId}-7`" v-model="form.settings.smtp_host" class="input input-bordered w-full" required placeholder="smtp.example.com" /></fieldset>
+          <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-8`">SMTPS 端口</label></legend><input :id="`${formFieldId}-8`" v-model.number="form.settings.smtp_port" type="number" min="1" max="65535" class="input input-bordered w-full" required /></fieldset>
+          <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-9`">发件人邮箱 / 登录账号</label></legend><input :id="`${formFieldId}-9`" v-model="form.settings.smtp_sender" type="email" class="input input-bordered w-full" required /></fieldset>
+          <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-10`">发件邮箱密钥{{ form.id ? '（留空保留）' : '' }}</label></legend><input :id="`${formFieldId}-10`" v-model="form.smtp_password" type="password" class="input input-bordered w-full" :required="!form.id && !form.credential_configured" autocomplete="new-password" /></fieldset>
+          <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label for="notifications-form-recipients-text">收件人（选填，每行一个或逗号分隔）</label></legend><textarea id="notifications-form-recipients-text" v-model="form.recipients_text" class="textarea textarea-bordered w-full" rows="3" placeholder="留空使用事件默认收件人" /></fieldset>
           <p class="text-xs opacity-60">留空时，登录通知发给登录用户本人；报告按报告计划选择管理员，其余通知发给当前启用的管理员。填写后发送到指定邮箱。</p>
         </template>
         <fieldset><legend class="mb-2 text-sm">通知事件</legend><label v-for="event in notificationEvents" :key="event.value" class="mb-2 flex items-center gap-2 text-sm"><input v-model="form.event_types" :value="event.value" type="checkbox" class="checkbox checkbox-sm" />{{ event.label }}</label></fieldset>
-        <label class="block"><span class="mb-2 block text-sm">最低通知级别</span><select aria-label="最低通知级别" v-model="form.minimum_severity" class="select select-bordered w-full"><option value="warning">警告及严重（全部已选通知类型）</option><option value="critical">仅严重健康告警（不发送登录、Scanner 或报告通知）</option></select></label>
-        <label class="flex items-center gap-2 text-sm"><input v-model="form.enabled" type="checkbox" class="toggle toggle-primary" />启用渠道</label>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-11`">最低通知级别</label></legend><select :id="`${formFieldId}-11`" aria-label="最低通知级别" v-model="form.minimum_severity" class="select select-bordered w-full"><option value="warning">警告及严重（全部已选通知类型）</option><option value="critical">仅严重健康告警（不发送登录、Scanner 或报告通知）</option></select></fieldset>
+        <label class="flex items-center gap-2 text-sm"><input v-model="form.enabled" type="checkbox" class="toggle toggle-neutral" />启用渠道</label>
         <p class="text-xs leading-relaxed opacity-60">Webhook、邮箱密钥和 Bot Token 保存后不会回显，编辑留空保留。测试发送需要先保存并启用渠道。</p>
-        <div class="modal-action"><button type="button" class="btn btn-sm" :disabled="busy" @click="closeEditor">取消</button><button class="btn btn-primary btn-sm" :disabled="busy">{{ busy ? '正在保存…' : '保存渠道' }}</button></div>
+        <div class="modal-action"><button type="button" class="btn btn-sm" :disabled="busy" @click="closeEditor">取消</button><button class="btn btn-neutral btn-sm" :disabled="busy">{{ busy ? '正在保存…' : '保存渠道' }}</button></div>
       </form>
     </dialog>
   </div>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { formatDateTime } from '@/utils/systemTime'
 import { alertHighlights, alertService, alertSubject, alertTypeLabel, healthAlertTypes, severityClass, severityLabel } from '@/utils/healthAlerts'
 import AppAlert from '@/components/AppAlert.vue'
@@ -7,6 +7,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import HealthAlertDetail from '@/components/HealthAlertDetail.vue'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const alerts = ref([])
 const items = ref([])
 const loading = ref(false)
@@ -189,27 +190,27 @@ onBeforeUnmount(() => { requestSequence += 1; controller?.abort() })
     <form class="card border border-base-300 bg-base-100 shadow-sm" @submit.prevent="applyFilters">
       <div class="card-body gap-4 p-4">
         <div class="grid gap-3 md:grid-cols-3">
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">时间范围</span>
-            <select v-model="filters.window" class="select select-bordered w-full" :disabled="loading">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间范围</label></legend>
+            <select :id="`${formFieldId}-1`" v-model="filters.window" class="select select-bordered w-full" :disabled="loading">
               <option v-for="option in windowOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
-          </label>
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">告警类型</span>
-            <select v-model="filters.alert_type" class="select select-bordered w-full" :disabled="loading">
+          </fieldset>
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">告警类型</label></legend>
+            <select :id="`${formFieldId}-2`" v-model="filters.alert_type" class="select select-bordered w-full" :disabled="loading">
               <option value="">全部类型</option>
               <option v-for="option in healthAlertTypes" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
-          </label>
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">级别</span>
-            <select v-model="filters.severity" class="select select-bordered w-full" :disabled="loading">
+          </fieldset>
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">级别</label></legend>
+            <select :id="`${formFieldId}-3`" v-model="filters.severity" class="select select-bordered w-full" :disabled="loading">
               <option value="">全部级别</option>
               <option value="warning">警告</option>
               <option value="critical">严重</option>
             </select>
-          </label>
+          </fieldset>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-2">
           <p class="text-xs text-base-content/50">相同告警会按冷却规则去重，记录数不等同于实际异常次数。</p>
