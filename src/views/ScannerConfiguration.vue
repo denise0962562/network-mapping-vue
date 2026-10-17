@@ -1,6 +1,6 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, useId } from 'vue'
 import { useRoute } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
 import ConfigCheckPanel from '@/components/ConfigCheckPanel.vue'
@@ -8,6 +8,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const route = useRoute()
 const scannerId = computed(() => String(route.params.id || ''))
 const loading = ref(true)
@@ -196,7 +197,7 @@ onMounted(loadConfiguration)
       <section class="card bg-base-100 card-border border-base-300 p-4">
         <h3 class="font-semibold">端口扫描</h3>
         <p class="mt-1 text-xs opacity-60">实际速率仍受扫描节点本地安全上限约束。</p>
-        <label class="form-control mt-4 max-w-md"><span class="label-text mb-1">Masscan 发包速率</span><input v-model.number="form.masscan.rate" type="number" min="1" class="input input-bordered" /></label>
+        <fieldset class="fieldset min-w-0 w-full mt-4 max-w-md"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`">Masscan 发包速率</label></legend><input :id="`${formFieldId}-1`" v-model.number="form.masscan.rate" type="number" min="1" class="input input-bordered w-full" /></fieldset>
       </section>
 
       <section class="card bg-base-100 card-border border-base-300 p-4">
@@ -206,18 +207,18 @@ onMounted(loadConfiguration)
         </div>
         <div class="mt-4 grid gap-4 lg:grid-cols-3">
           <div class="space-y-4">
-            <label class="form-control"><span class="label-text mb-1 block">扫描模式</span><select v-model="form.service_detection.strategy" class="select select-bordered"><option value="standard">standard</option><option value="adaptive">adaptive</option><option value="exhaustive">exhaustive</option></select></label>
-            <label class="form-control"><span class="label-text mb-1 block">每端点最大探针数</span><input v-model.number="form.service_detection.max_probes_per_endpoint" type="number" min="1" max="32" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1 block">置信度阈值</span><input v-model.number="form.service_detection.confidence_threshold" type="number" min="1" max="100" class="input input-bordered" /></label>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`">扫描模式</label></legend><select :id="`${formFieldId}-2`" v-model="form.service_detection.strategy" class="select select-bordered w-full"><option value="standard">standard</option><option value="adaptive">adaptive</option><option value="exhaustive">exhaustive</option></select></fieldset>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-3`">每端点最大探针数</label></legend><input :id="`${formFieldId}-3`" v-model.number="form.service_detection.max_probes_per_endpoint" type="number" min="1" max="32" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-4`">置信度阈值</label></legend><input :id="`${formFieldId}-4`" v-model.number="form.service_detection.confidence_threshold" type="number" min="1" max="100" class="input input-bordered w-full" /></fieldset>
           </div>
           <div class="space-y-4">
-            <label class="form-control"><span class="label-text mb-1 block">并发发送协程</span><input v-model.number="form.service_detection.senders" type="number" min="1" max="10000" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1 block">单目标连接速率</span><input v-model.number="form.service_detection.server_rate_limit" type="number" min="1" max="10000" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1 block">连接超时（秒）</span><input v-model.number="form.service_detection.connect_timeout_seconds" type="number" min="1" max="60" class="input input-bordered" /></label>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-5`">并发发送协程</label></legend><input :id="`${formFieldId}-5`" v-model.number="form.service_detection.senders" type="number" min="1" max="10000" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-6`">单目标连接速率</label></legend><input :id="`${formFieldId}-6`" v-model.number="form.service_detection.server_rate_limit" type="number" min="1" max="10000" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-7`">连接超时（秒）</label></legend><input :id="`${formFieldId}-7`" v-model.number="form.service_detection.connect_timeout_seconds" type="number" min="1" max="60" class="input input-bordered w-full" /></fieldset>
           </div>
           <div class="space-y-4">
-            <label class="form-control"><span class="label-text mb-1 block">目标超时（秒）</span><input v-model.number="form.service_detection.target_timeout_seconds" type="number" min="1" max="300" class="input input-bordered" /></label>
-            <label class="form-control"><span class="label-text mb-1 block">单结果上限（字节）</span><input v-model.number="form.service_detection.max_result_bytes" type="number" min="1024" max="1048576" class="input input-bordered" /></label>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-8`">目标超时（秒）</label></legend><input :id="`${formFieldId}-8`" v-model.number="form.service_detection.target_timeout_seconds" type="number" min="1" max="300" class="input input-bordered w-full" /></fieldset>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-9`">单结果上限（字节）</label></legend><input :id="`${formFieldId}-9`" v-model.number="form.service_detection.max_result_bytes" type="number" min="1024" max="1048576" class="input input-bordered w-full" /></fieldset>
           </div>
         </div>
       </section>
@@ -227,7 +228,7 @@ onMounted(loadConfiguration)
           <div class="flex items-center justify-between"><h3 class="font-semibold">DNS 查询</h3><input v-model="form.dns.enabled" type="checkbox" class="toggle" /></div>
           <div class="mt-4 space-y-4">
             <div><span class="label-text">记录类型</span><div class="mt-2 flex flex-wrap gap-x-5 gap-y-1"><label v-for="type in dnsRecordTypes" :key="type" class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" :checked="form.dns.record_types.includes(type)" @change="toggleList(form.dns.record_types, type, $event.target.checked)" /><span>{{ type }}</span></label></div></div>
-            <label class="form-control"><span class="label-text mb-1">查询超时（秒）</span><input v-model.number="form.dns.query_timeout_seconds" type="number" min="1" max="60" class="input input-bordered" /></label>
+            <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-10`">查询超时（秒）</label></legend><input :id="`${formFieldId}-10`" v-model.number="form.dns.query_timeout_seconds" type="number" min="1" max="60" class="input input-bordered w-full" /></fieldset>
           </div>
         </div>
 
@@ -236,17 +237,17 @@ onMounted(loadConfiguration)
           <label class="label mt-3 cursor-pointer justify-start gap-2"><input v-model="form.nuclei.port_fallback" type="checkbox" class="checkbox checkbox-sm" /><span>未知服务按端口回退选择模板</span></label>
           <div class="mt-3"><span class="label-text">严重级别</span><div class="mt-2 flex flex-wrap gap-x-4"><label v-for="severity in ['info', 'low', 'medium', 'high', 'critical']" :key="severity" class="label cursor-pointer justify-start gap-2"><input type="checkbox" class="checkbox checkbox-sm" :checked="form.nuclei.severities.includes(severity)" @change="toggleList(form.nuclei.severities, severity, $event.target.checked)" /><span>{{ severity }}</span></label></div></div>
           <div class="mt-4 grid gap-4 sm:grid-cols-2">
-            <label v-for="field in [
+            <fieldset v-for="field in [
               ['rate_limit', '速率限制', 1, 10000], ['bulk_size', '批大小', 1, 1000], ['concurrency', '并发数', 1, 1000],
               ['timeout_seconds', '超时（秒）', 1, 300], ['retries', '重试次数', 0, 10], ['max_runtime_seconds', '最长运行（秒）', 10, 86400],
               ['max_findings', '最大结果数', 1, 100000], ['max_result_bytes', '单结果上限（字节）', 4096, 1048576]
-            ]" :key="field[0]" class="form-control"><span class="label-text mb-1">{{ field[1] }}</span><input v-model.number="form.nuclei[field[0]]" type="number" :min="field[2]" :max="field[3]" class="input input-bordered" /></label>
+            ]" :key="field[0]" class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-11-${field[0]}`">{{ field[1] }}</label></legend><input :id="`${formFieldId}-11-${field[0]}`" v-model.number="form.nuclei[field[0]]" type="number" :min="field[2]" :max="field[3]" class="input input-bordered w-full" /></fieldset>
           </div>
         </div>
       </section>
 
       <section class="card bg-base-100 card-border border-base-300 p-4">
-        <label class="form-control"><span class="label-text mb-1 block">变更原因（可选）</span><textarea v-model="changeReason" maxlength="500" class="textarea textarea-bordered" placeholder="可选：说明本次调整目的；该内容会写入版本历史和审计日志。"></textarea></label>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label for="scannerconfiguration-changereason">变更原因（可选）</label></legend><textarea id="scannerconfiguration-changereason" v-model="changeReason" maxlength="500" class="textarea textarea-bordered w-full" placeholder="可选：说明本次调整目的；该内容会写入版本历史和审计日志。"></textarea></fieldset>
         <div class="mt-4 flex flex-wrap justify-end gap-2"><button class="btn btn-ghost" :disabled="saving || !isDirty" @click="loadConfiguration()">放弃修改</button><button class="btn btn-neutral" :disabled="saving || !isDirty" @click="saveConfiguration"><span v-if="saving" class="loading loading-spinner loading-sm"></span>发布配置</button></div>
       </section>
     </div>

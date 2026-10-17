@@ -470,6 +470,11 @@ async function handleLogout() {
                     <span class="whitespace-nowrap">运行策略</span>
                   </router-link>
                 </li>
+                <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/notifications">
+                    <span class="whitespace-nowrap">通知渠道</span>
+                  </router-link>
+                </li>
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/mail-templates">
                     <span class="whitespace-nowrap">邮件模板</span>

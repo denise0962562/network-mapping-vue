@@ -2,7 +2,7 @@
 import { useChartTheme } from '@/composables/useChartTheme'
 import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import { defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
@@ -12,6 +12,7 @@ import { renderChartTooltip } from '@/utils/chartTooltip'
 import http from '@/utils/http'
 import { buildSystemMaintenanceAnnotations, loadSystemMaintenanceHistory, useSystemMaintenanceAnnotations } from '@/utils/systemMaintenanceAnnotations'
 
+const formFieldId = useId()
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const route = useRoute()
 
@@ -411,35 +412,35 @@ onMounted(loadAll)
     <div class="card border border-base-300 bg-base-100 shadow-sm">
       <div class="card-body gap-4 p-4">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-8">
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">时间范围</span>
-            <select v-model="filters.window" class="select select-bordered w-full" @change="ensureValidGranularity">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间范围</label></legend>
+            <select :id="`${formFieldId}-1`" v-model="filters.window" class="select select-bordered w-full" @change="ensureValidGranularity">
               <option v-for="option in windowOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
-          </label>
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">时间粒度</span>
-            <select v-model="granularity" class="select select-bordered w-full">
+          </fieldset>
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">时间粒度</label></legend>
+            <select :id="`${formFieldId}-2`" v-model="granularity" class="select select-bordered w-full">
               <option v-for="option in granularityOptions" :key="option.value" :value="option.value" :disabled="granularityDisabled(option)">
                 {{ option.label }}
               </option>
             </select>
-          </label>
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">方法</span>
-            <select v-model="filters.method" class="select select-bordered w-full">
+          </fieldset>
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">方法</label></legend>
+            <select :id="`${formFieldId}-3`" v-model="filters.method" class="select select-bordered w-full">
               <option v-for="method in methodOptions" :key="method" :value="method">{{ method || '全部方法' }}</option>
             </select>
-          </label>
+          </fieldset>
           <input v-model.trim="filters.path" class="input input-bordered w-full self-end" placeholder="路径（模糊匹配）" @keyup.enter="applyFilters" />
           <input v-model.trim="filters.status" type="number" class="input input-bordered w-full self-end" placeholder="状态码" @keyup.enter="applyFilters" />
-          <label class="form-control w-full">
-            <span class="label-text mb-1 text-xs">错误类型</span>
-            <select v-model="filters.error_type" class="select select-bordered w-full">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">错误类型</label></legend>
+            <select :id="`${formFieldId}-4`" v-model="filters.error_type" class="select select-bordered w-full">
               <option value="">全部类型</option>
               <option v-for="(label, value) in errorTypeLabels" :key="value" :value="value">{{ label }}</option>
             </select>
-          </label>
+          </fieldset>
           <input v-model.trim="filters.reason_code" class="input input-bordered w-full self-end" placeholder="具体原因代码" @keyup.enter="applyFilters" />
           <input v-model.trim="filters.request_id" class="input input-bordered w-full self-end" placeholder="请求 ID (UUID)" @keyup.enter="applyFilters" />
           <label class="flex cursor-pointer items-center gap-2 self-end pb-3">

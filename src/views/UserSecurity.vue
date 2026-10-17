@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import VueQrcode from 'vue-qrcode'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 import { expireCookie } from '@/utils/csrf'
 
+const formFieldId = useId()
 const isLoading = ref(true)
 const twoFactorEnabled = ref(false)
 const twoFactorBound = ref(false)
@@ -363,15 +364,16 @@ onMounted(() => {
           <button v-if="currentIp" type="button" class="btn btn-ghost btn-xs ml-auto" @click="addCurrentIp">添加当前 IP</button>
         </div>
 
-        <label class="form-control">
-          <span class="label-text mb-1 text-sm">允许登录的地址</span>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label for="usersecurity-allowlisttext">允许登录的地址</label></legend>
           <textarea
+            id="usersecurity-allowlisttext"
             v-model="allowlistText"
             class="textarea textarea-bordered min-h-36 w-full font-mono text-sm"
             :disabled="allowlistSaving"
             placeholder="192.0.2.10&#10;10.0.0.0/8&#10;2001:db8::/48"
           ></textarea>
-        </label>
+        </fieldset>
 
         <div class="flex flex-wrap justify-between gap-2 text-xs">
           <p class="opacity-60">每行填写一个地址；留空并保存表示关闭限制。当前会话不会因修改立即失效。</p>
@@ -460,18 +462,18 @@ onMounted(() => {
       <p class="py-3 text-sm opacity-70">修改成功后，当前账户的所有登录会话都会失效，需要重新登录。</p>
 
       <div class="space-y-4">
-        <label class="form-control">
-          <span class="label-text mb-1 text-sm">当前密码</span>
-          <input v-model="currentPassword" type="password" autocomplete="current-password" class="input input-bordered w-full" required />
-        </label>
-        <label class="form-control">
-          <span class="label-text mb-1 text-sm">新密码</span>
-          <input v-model="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" class="input input-bordered w-full" required />
-        </label>
-        <label class="form-control">
-          <span class="label-text mb-1 text-sm">确认新密码</span>
-          <input v-model="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" class="input input-bordered w-full" required />
-        </label>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">当前密码</label></legend>
+          <input :id="`${formFieldId}-1`" v-model="currentPassword" type="password" autocomplete="current-password" class="input input-bordered w-full" required />
+        </fieldset>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">新密码</label></legend>
+          <input :id="`${formFieldId}-2`" v-model="newPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" class="input input-bordered w-full" required />
+        </fieldset>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">确认新密码</label></legend>
+          <input :id="`${formFieldId}-3`" v-model="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" class="input input-bordered w-full" required />
+        </fieldset>
       </div>
 
       <p class="mt-3 text-xs opacity-60">新密码长度为 12 至 128 个字符。</p>

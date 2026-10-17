@@ -1,6 +1,6 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
-import { computed, nextTick, onMounted, ref, shallowRef } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef, useId } from 'vue'
 import { autocompletion } from '@codemirror/autocomplete'
 import { html } from '@codemirror/lang-html'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
@@ -13,6 +13,7 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 import { useTheme } from '@/composables/useTheme'
 
+const formFieldId = useId()
 const { isDark } = useTheme()
 
 const alerts = ref([])
@@ -514,9 +515,9 @@ onMounted(initialize)
             <span v-if="hasUnsavedChanges" class="text-xs text-warning">存在未保存修改</span>
           </div>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1">邮件主题</span>
-            <input
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">邮件主题</label></legend>
+            <input :id="`${formFieldId}-1`"
               ref="subjectInput"
               v-model="source.subjectTemplate"
               type="text"
@@ -525,7 +526,7 @@ onMounted(initialize)
               placeholder="例如：{{ system_name }} 登录成功提醒"
               @focus="activeField = 'subject'"
             />
-          </label>
+          </fieldset>
 
           <div class="mt-4 tabs tabs-box w-fit">
             <button class="tab" :class="{ 'tab-active': editorTab === 'html' }" @click="editorTab = 'html'; activeField = 'html'">HTML</button>

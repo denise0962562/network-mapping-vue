@@ -14,7 +14,7 @@ const source = compiled.scriptSetupAst.filter((node) => node.type === 'ImportDec
 function createPage(get) {
   let dispose
   const page = vm.runInNewContext(`${source}\n;({ loadItems, retryLoad, filters, appliedFilters, page, items, loadFailed, failedQuery, loading })`, {
-    computed, ref, http: { get }, AbortController, crypto: globalThis.crypto,
+    computed, ref, useId: () => 'health-test-field', http: { get }, AbortController, crypto: globalThis.crypto,
     onMounted: () => {}, onBeforeUnmount: (callback) => { dispose = callback },
   })
   return { ...page, dispose: () => dispose() }

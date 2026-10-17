@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const projects = ref([])
 const lastReviewed = ref('')
 const isLoading = ref(false)
@@ -127,33 +128,33 @@ onMounted(fetchProjects)
         <h3 class="font-semibold mb-3">项目列表</h3>
 
         <div class="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <label class="form-control w-full xl:col-span-2">
-            <span class="label-text mb-1">搜索</span>
-            <input
+          <fieldset class="fieldset min-w-0 w-full xl:col-span-2">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">搜索</label></legend>
+            <input :id="`${formFieldId}-1`"
               v-model="searchText"
               type="search"
               class="input input-bordered w-full"
               placeholder="名称、包名、用途或许可证"
             />
-          </label>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1">所属组件</span>
-            <select v-model="selectedEcosystem" class="select select-bordered w-full">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">所属组件</label></legend>
+            <select :id="`${formFieldId}-2`" v-model="selectedEcosystem" class="select select-bordered w-full">
               <option v-for="option in ecosystemOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
               </option>
             </select>
-          </label>
+          </fieldset>
 
-          <label class="form-control w-full">
-            <span class="label-text mb-1">许可证</span>
-            <select v-model="selectedLicense" class="select select-bordered w-full">
+          <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">许可证</label></legend>
+            <select :id="`${formFieldId}-3`" v-model="selectedLicense" class="select select-bordered w-full">
               <option v-for="license in licenseOptions" :key="license" :value="license">
                 {{ license === 'all' ? '全部许可证' : license }}
               </option>
             </select>
-          </label>
+          </fieldset>
         </div>
 
         <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

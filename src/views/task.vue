@@ -1,10 +1,11 @@
 ﻿<script setup>
 import { formatDateTime as formatSystemDateTime, localToIso } from '@/utils/systemTime'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const alerts = ref([])
 const expandedRow = ref(null)
 const currentPage = ref(1)
@@ -271,19 +272,19 @@ onMounted(async () => {
       <section class="card border border-base-300 bg-base-100 shadow-sm">
         <div class="card-body gap-4 p-4">
           <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label class="form-control w-full">
-              <span class="label-text mb-1">任务 ID</span>
-              <input v-model="draftFilters.taskId" type="text" class="input input-bordered w-full" placeholder="输入任务 ID" :disabled="isLoadingData" @keyup.enter="applySearch" />
-            </label>
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">任务 ID</label></legend>
+              <input :id="`${formFieldId}-1`" v-model="draftFilters.taskId" type="text" class="input input-bordered w-full" placeholder="输入任务 ID" :disabled="isLoadingData" @keyup.enter="applySearch" />
+            </fieldset>
 
-            <label class="form-control w-full">
-              <span class="label-text mb-1">目标</span>
-              <input v-model="draftFilters.target" type="text" class="input input-bordered w-full" placeholder="IP、网段或域名" :disabled="isLoadingData" @keyup.enter="applySearch" />
-            </label>
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">目标</label></legend>
+              <input :id="`${formFieldId}-2`" v-model="draftFilters.target" type="text" class="input input-bordered w-full" placeholder="IP、网段或域名" :disabled="isLoadingData" @keyup.enter="applySearch" />
+            </fieldset>
 
-            <label class="form-control w-full">
-              <span class="label-text mb-1">状态</span>
-              <select v-model="draftFilters.status" class="select select-bordered w-full" :disabled="isLoadingData">
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">状态</label></legend>
+              <select :id="`${formFieldId}-3`" v-model="draftFilters.status" class="select select-bordered w-full" :disabled="isLoadingData">
                 <option value="">全部</option>
                 <option value="pending">待扫描</option>
                 <option value="running">扫描中</option>
@@ -292,12 +293,12 @@ onMounted(async () => {
                 <option value="cancelled">已取消</option>
                 <option value="partial">部分完成</option>
               </select>
-            </label>
+            </fieldset>
 
-            <label class="form-control w-full">
-              <span class="label-text mb-1">操作者</span>
-              <input v-model="draftFilters.operator" type="text" class="input input-bordered w-full" placeholder="输入操作者" :disabled="isLoadingData" @keyup.enter="applySearch" />
-            </label>
+            <fieldset class="fieldset min-w-0 w-full">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">操作者</label></legend>
+              <input :id="`${formFieldId}-4`" v-model="draftFilters.operator" type="text" class="input input-bordered w-full" placeholder="输入操作者" :disabled="isLoadingData" @keyup.enter="applySearch" />
+            </fieldset>
           </div>
 
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -321,29 +322,29 @@ onMounted(async () => {
             <summary class="collapse-title min-h-0 py-3 text-sm font-semibold">高级筛选</summary>
             <div class="collapse-content">
               <div class="grid gap-3 pt-1 md:grid-cols-2 xl:grid-cols-4">
-                <label class="form-control w-full">
-                  <span class="label-text mb-1">开始时间</span>
-                  <SystemDateTimeInput v-model="draftFilters.startTime" class="input input-bordered w-full" :disabled="isLoadingData" />
-                </label>
+                <fieldset class="fieldset min-w-0 w-full">
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">开始时间</label></legend>
+                  <SystemDateTimeInput :id="`${formFieldId}-5`" v-model="draftFilters.startTime" class="input input-bordered w-full" :disabled="isLoadingData" />
+                </fieldset>
 
-                <label class="form-control w-full">
-                  <span class="label-text mb-1">结束时间</span>
-                  <SystemDateTimeInput v-model="draftFilters.endTime" class="input input-bordered w-full" :disabled="isLoadingData" />
-                </label>
+                <fieldset class="fieldset min-w-0 w-full">
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-6`">结束时间</label></legend>
+                  <SystemDateTimeInput :id="`${formFieldId}-6`" v-model="draftFilters.endTime" class="input input-bordered w-full" :disabled="isLoadingData" />
+                </fieldset>
 
-                <label class="form-control w-full">
-                  <span class="label-text mb-1">扫描器 ID</span>
-                  <input v-model="draftFilters.scannerId" class="input input-bordered w-full" placeholder="输入扫描器 ID" :disabled="isLoadingData" @keyup.enter="applySearch" />
-                </label>
+                <fieldset class="fieldset min-w-0 w-full">
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-7`">扫描器 ID</label></legend>
+                  <input :id="`${formFieldId}-7`" v-model="draftFilters.scannerId" class="input input-bordered w-full" placeholder="输入扫描器 ID" :disabled="isLoadingData" @keyup.enter="applySearch" />
+                </fieldset>
 
-                <label class="form-control w-full">
-                  <span class="label-text mb-1">每页数量</span>
-                  <select v-model="selectedCount" class="select select-bordered w-full" :disabled="isLoadingData" @change="refreshWithCount">
+                <fieldset class="fieldset min-w-0 w-full">
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-8`">每页数量</label></legend>
+                  <select :id="`${formFieldId}-8`" v-model="selectedCount" class="select select-bordered w-full" :disabled="isLoadingData" @change="refreshWithCount">
                     <option value="10">10</option>
                     <option value="20">20</option>
                     <option value="50">50</option>
                   </select>
-                </label>
+                </fieldset>
               </div>
               <p class="mt-3 text-xs text-base-content/60">
                 匹配任务 {{ totalCount }} 条，本页加载 {{ itemCount }} 条

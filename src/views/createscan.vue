@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 import { parseScanTargets, targetTypeLabel } from '@/utils/scanTargets'
 import { routingLocation, routingReason } from '@/utils/scanRouting'
 
+const formFieldId = useId()
 const LEGACY_DRAFT_KEY = 'createscan_draft'
 const scanProfiles = [
   {
@@ -381,8 +382,8 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
   <div class="flex justify-center">
     <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
       <div class="grid grid-cols-1 gap-4">
-        <label class="form-control w-full">
-          <span class="label-text input_items_required">扫描目标</span>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label for="create_task_targets" class="input_items_required">扫描目标</label></legend>
           <textarea
             id="create_task_targets"
             ref="targetInputRef"
@@ -398,14 +399,14 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           ></textarea>
           <span
             id="create_task_targets_help"
-            class="label-text-alt mt-1"
+            class="label text-wrap text-xs"
             :class="targetValidationVisible && !targetValidation.valid ? 'text-error' : 'text-base-content/60'"
           >
             {{ targetValidationVisible
               ? targetSummary
               : '逗号和换行均可作为分隔符，但一次只能使用一种；域名至少包含一个点，标签限 63 字节、总长限 253 字节。' }}
           </span>
-        </label>
+        </fieldset>
 
         <div class="space-y-3">
           <details name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100" open>
@@ -536,13 +537,13 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
 
         </div>
 
-        <label v-if="scanRequiresPort" class="form-control w-full">
-          <span class="label-text input_items_required">{{ isDnsTask ? '解析 IP 的目标端口' : '目标端口' }}</span>
+        <fieldset v-if="scanRequiresPort" class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label for="create_task_port" class="input_items_required">{{ isDnsTask ? '解析 IP 的目标端口' : '目标端口' }}</label></legend>
           <input
             id="create_task_port"
             ref="portInputRef"
             v-model="port"
-            class="task_input_items peer"
+            class="task_input_items peer w-full"
             type="text"
             :placeholder="isDnsTask ? '请输入解析 IP 的目标端口，留空默认全端口' : '请输入目标端口，留空默认全端口'"
             pattern="^((6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})(-(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3}))?)(,((6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})(-(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3}))?))*$"
@@ -550,21 +551,21 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           <div class="max-h-0 overflow-hidden opacity-0 transition-all duration-200 ease-in-out peer-[&:not(:placeholder-shown):invalid]:mt-1 peer-[&:not(:placeholder-shown):invalid]:max-h-10 peer-[&:not(:placeholder-shown):invalid]:opacity-100 text-error text-xs">
             请输入正确的端口
           </div>
-        </label>
+        </fieldset>
 
-        <label class="form-control w-full">
-          <span class="label-text mb-1">优先级</span>
-          <select v-model.number="level" class="select w-full">
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">优先级</label></legend>
+          <select :id="`${formFieldId}-2`" v-model.number="level" class="select w-full">
             <option value="1">低级</option>
             <option value="0">最低（与系统自动生成扫描任务级别一致）</option>
             <option value="2">中级</option>
             <option value="3">高级</option>
             <option value="4">紧急</option>
           </select>
-        </label>
+        </fieldset>
 
-        <label class="form-control w-full">
-          <span class="label-text mb-1 text-base-content/60">备注</span>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label for="create_task_remark" class="text-base-content/60">备注</label></legend>
           <textarea
             id="create_task_remark"
             v-model="remark"
@@ -572,7 +573,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
             placeholder="备注，最长不超过 200 个字符"
             maxlength="200"
           ></textarea>
-        </label>
+        </fieldset>
       </div>
 
       <div class="flex justify-end mt-3">

@@ -329,7 +329,10 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
               <input v-model="editForm.name" class="input input-bordered w-full" placeholder="名称" :disabled="actionLoading" />
               <input v-model="editForm.location" class="input input-bordered w-full" placeholder="位置" :disabled="actionLoading" />
               <input v-model="editForm.tag" class="input input-bordered w-full" placeholder="标签" :disabled="actionLoading" />
-              <textarea v-model="editForm.remark" class="textarea textarea-bordered w-full" placeholder="备注" :disabled="actionLoading"></textarea>
+              <fieldset class="fieldset min-w-0 w-full">
+                <legend class="fieldset-legend"><label for="scanner-detail-remark">备注</label></legend>
+                <textarea id="scanner-detail-remark" v-model="editForm.remark" class="textarea textarea-bordered w-full" placeholder="备注" :disabled="actionLoading"></textarea>
+              </fieldset>
               <button class="btn btn-neutral" :disabled="actionLoading || !editForm.name.trim()" @click="saveScanner">保存信息</button>
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <button class="btn btn-outline" :disabled="actionLoading" @click="toggleScanner">{{ scannerDetail.is_enable ? '禁用' : '启用' }}</button>

@@ -4,6 +4,7 @@ import AppAlert from '@/components/AppAlert.vue'
 import http from '@/utils/http'
 import { applyTimeSettings, offsetLabel } from '@/utils/systemTime'
 
+const formFieldId = useId()
 const emit = defineEmits(['dirty'])
 const document = ref({ timezone: 'Asia/Shanghai', hourCycle: '24', dateFormat: 'YYYY-MM-DD' })
 const saved = ref(null)
@@ -145,8 +146,8 @@ onBeforeUnmount(() => {
     <div v-if="loading" class="flex items-center gap-2 py-3 text-sm opacity-60"><span class="loading loading-spinner loading-sm" />正在读取常规设置...</div>
     <div v-else-if="failed" class="alert alert-error"><span>无法读取设置</span><button class="btn btn-sm" @click="load">重新加载</button></div>
     <fieldset v-else :disabled="saving" class="grid gap-4 md:grid-cols-2">
-      <div class="form-control min-w-0 md:col-span-2">
-        <label :for="`${timezoneListId}-trigger`" class="mb-2 block text-sm font-medium">系统时区</label>
+      <fieldset class="fieldset min-w-0 w-full md:col-span-2">
+        <legend class="fieldset-legend"><label :for="`${timezoneListId}-trigger`">系统时区</label></legend>
         <div ref="timezoneDropdown" class="dropdown w-full" :class="timezoneOpen ? 'dropdown-open' : 'dropdown-close'" @focusout="timezoneFocusout">
           <button
             :id="`${timezoneListId}-trigger`"
@@ -195,9 +196,9 @@ onBeforeUnmount(() => {
             <p v-if="!options.length" role="status" class="px-3 py-4 text-sm text-base-content/60">没有匹配的时区，请尝试其他关键词。</p>
           </div>
         </div>
-      </div>
-      <label class="form-control"><span class="mb-2 text-sm font-medium">时间制式</span><select v-model="document.hourCycle" class="select select-bordered w-full"><option value="24">24 小时制</option><option value="12">12 小时制</option></select></label>
-      <label class="form-control"><span class="mb-2 text-sm font-medium">日期格式</span><select v-model="document.dateFormat" class="select select-bordered w-full"><option value="YYYY-MM-DD">YYYY-MM-DD</option><option value="YYYY/MM/DD">YYYY/MM/DD</option><option value="DD/MM/YYYY">DD/MM/YYYY</option></select></label>
+      </fieldset>
+      <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间制式</label></legend><select :id="`${formFieldId}-1`" v-model="document.hourCycle" class="select select-bordered w-full"><option value="24">24 小时制</option><option value="12">12 小时制</option></select></fieldset>
+      <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`">日期格式</label></legend><select :id="`${formFieldId}-2`" v-model="document.dateFormat" class="select select-bordered w-full"><option value="YYYY-MM-DD">YYYY-MM-DD</option><option value="YYYY/MM/DD">YYYY/MM/DD</option><option value="DD/MM/YYYY">DD/MM/YYYY</option></select></fieldset>
       <div class="text-xs leading-5 opacity-60 md:col-span-2"><p>当前时间预览：{{ preview }} · {{ document.timezone }}</p><p>{{ selected?.observesDst ? '此时区按日期自动处理夏令时；遇到重复时间时需选择 UTC 偏移。' : '此时区本年没有夏令时调整，无需切换夏令时或冬令时。' }}</p><p>偏移显示为当前日期的偏移。切换时区会重新安排未来报告计划；旧统计缺少原始观测时间时，需先重建分析快照。</p></div>
     </fieldset>
   </div>

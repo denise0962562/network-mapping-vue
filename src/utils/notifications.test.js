@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { channelForm, channelPayload, validateChannel, deliveryReason } from './notifications.js'
+
+test('editing preserves credentials and copies subscriptions without modifying the channel', () => {
+  const original = { id: 'channel', revision: 3, name: '运维', enabled: true, event_types: ['health.alert'], signing_secret_configured: true }
+  const form = channelForm(original)
+  assert.equal(form.webhook_url, '')
+  assert.equal(form.signing_secret, '')
+  assert.equal(validateChannel(form), '')
+  form.event_types.push('scanner.offline')
+  assert.deepEqual(original.event_types, ['health.alert'])
+  const payload = channelPayload(form)
+  assert.equal(payload.expected_revision, 3)
+  assert.equal(payload.signing_secret, '')
+  assert.equal('signing_secret_configured' in payload, false)
+  assert.equal('id' in payload, false)
+})
+test('new channels require the fixed Feishu HTTPS endpoint and a subscription', () => {
+  const form = channelForm()
+  form.name = '运维'
+  assert.notEqual(validateChannel(form), '')
+  form.webhook_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/00000000-0000-4000-8000-000000000001'
+  assert.equal(validateChannel(form), '')
+  const good = form.webhook_url
+  for (const bad of [good.replace('https:', 'http:'), good.replace('open.feishu.cn', 'evil.example'), `${good}?token=secret`, `${good}#fragment`, good.replace('open.feishu.cn', 'name@open.feishu.cn')]) {
+    form.webhook_url = bad
+    assert.notEqual(validateChannel(form), '')
+  }
+  form.webhook_url = good
+  form.event_types = []
+  assert.notEqual(validateChannel(form), '')
+})
+test('secret removal is explicit and errors never echo unknown provider text', () => {
+  const form = channelForm({ id: 'channel', name: '运维', revision: 1 })
+  form.signing_secret = 'replacement'
+  form.clear_signing_secret = true
+  assert.notEqual(validateChannel(form), '')
+  assert.equal(deliveryReason('https://example.invalid/leaked-secret'), '投递异常，请检查服务状态')
+})
+
+test('email and Telegram share event subscriptions and preserve credentials on edit', () => {
+  for (const provider of ['email', 'telegram']) {
+    const form = channelForm({ id: 'channel', provider, revision: 2, name: provider, credential_configured: true,
+      event_types: ['health.alert', 'user.login', 'report.weekly'],
+      settings: { smtp_host: 'smtp.example.com', smtp_port: 465, smtp_sender: 'sender@example.com', recipients: ['ops@example.com'], chat_id: '-1001234567890' } })
+    assert.equal(validateChannel(form), '')
+    const payload = channelPayload(form)
+    assert.equal(payload.provider, provider)
+    assert.equal(payload.bot_token, '')
+    assert.equal(payload.smtp_password, '')
+    assert.deepEqual(payload.event_types, ['health.alert', 'user.login', 'report.weekly'])
+    assert.deepEqual(payload.settings.recipients, ['ops@example.com'])
+  }
+})
+
+test('new provider credentials and destinations are validated before saving', () => {
+  const form = channelForm()
+  form.name = 'email'
+  form.provider = 'email'
+  form.settings = { smtp_host: 'smtp.example.com', smtp_port: 465, smtp_sender: 'sender@example.com', recipients: [], chat_id: '' }
+  assert.notEqual(validateChannel(form), '')
+  form.smtp_password = 'password'
+  form.recipients_text = 'one@example.com, two@example.com\none@example.com'
+  assert.equal(validateChannel(form), '')
+  assert.deepEqual(channelPayload(form).settings.recipients, ['one@example.com', 'two@example.com'])
+  form.provider = 'telegram'
+  form.bot_token = '123456:abcdefghijklmnopqrstuvwxyz_ABC-123'
+  form.settings.chat_id = '-1001234567890'
+  assert.equal(validateChannel(form), '')
+  form.bot_token += '/other'
+  assert.notEqual(validateChannel(form), '')
+})

@@ -1,10 +1,11 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import http from '@/utils/http'
 
+const formFieldId = useId()
 const alerts = ref([])
 const summary = ref({
   enabled: false,
@@ -575,21 +576,21 @@ journalctl -u pgbackrest-backup@full.service -n 100 --no-pager</code></pre>
       <h3 class="text-lg font-semibold">立即备份</h3>
       <p class="mt-1 text-sm text-base-content/60">任务提交后会在后台运行，同一时间只允许一个备份或检查任务。</p>
       <div class="mt-5 space-y-4">
-        <label class="form-control">
-          <span class="label-text mb-1">备份类型</span>
-          <select v-model="form.type" class="select select-bordered w-full">
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">备份类型</label></legend>
+          <select :id="`${formFieldId}-1`" v-model="form.type" class="select select-bordered w-full">
             <option value="incr">增量备份</option>
             <option value="diff">差异备份</option>
             <option value="full">全量备份</option>
           </select>
-        </label>
+        </fieldset>
         <div role="note" class="rounded-box border border-base-300 bg-base-200 p-3 text-sm text-base-content/70">
           {{ selectedBackupDescription }}
         </div>
-        <label class="form-control">
-          <span class="label-text mb-1">操作备注</span>
-          <textarea v-model="form.remark" maxlength="500" class="textarea textarea-bordered min-h-24" placeholder="例如：版本发布前备份"></textarea>
-        </label>
+        <fieldset class="fieldset min-w-0 w-full">
+          <legend class="fieldset-legend"><label for="backupmanagement-form-remark">操作备注</label></legend>
+          <textarea id="backupmanagement-form-remark" v-model="form.remark" maxlength="500" class="textarea textarea-bordered min-h-24 w-full" placeholder="例如：版本发布前备份"></textarea>
+        </fieldset>
       </div>
       <div class="modal-action">
         <form method="dialog"><button class="btn btn-ghost" :disabled="submitting">取消</button></form>
