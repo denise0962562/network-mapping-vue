@@ -1,12 +1,18 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
-import { computed, nextTick, onMounted, ref, shallowRef, useId } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import TemplateCodeEditor from '@/components/TemplateCodeEditor.vue'
+import TemplateVariables from '@/components/TemplateVariables.vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
+const props = defineProps({
+  initialTemplateKey: { type: String, default: '' },
+  externalNavigation: { type: Boolean, default: false },
+})
+const emit = defineEmits(['templates-loaded', 'selected'])
 const formFieldId = useId()
 
 const alerts = ref([])
@@ -16,6 +22,9 @@ const source = ref(emptySource())
 const savedSource = ref(emptySource())
 const versions = ref([])
 const editorTab = ref('html')
+const notificationState = ref('offline')
+const isScannerTemplate = computed(() => currentTemplate.value?.templateKey === 'scanner_outage')
+const sampleQuery = computed(() => isScannerTemplate.value ? `?notificationState=${notificationState.value}` : '')
 const previewTab = ref('html')
 const preview = ref(null)
 const previewError = ref('')
@@ -30,6 +39,10 @@ const publishing = ref(false)
 const previewing = ref(false)
 const testing = ref(false)
 const restoringVersion = ref(null)
+let previewSequence = 0
+let previewTimer
+let previewAbort
+let disposed = false
 
 function emptySource() {
   return {
@@ -50,7 +63,8 @@ function cloneSource(value) {
 const hasUnsavedChanges = computed(
   () => JSON.stringify(source.value) !== JSON.stringify(savedSource.value)
 )
-defineExpose({ hasUnsavedChanges, busy: computed(() => loading.value || saving.value || publishing.value || testing.value || restoringVersion.value !== null) })
+const actionBusy = computed(() => loading.value || saving.value || publishing.value || testing.value || restoringVersion.value !== null)
+defineExpose({ hasUnsavedChanges, selectTemplate, restoreVersion, versions, loading, busy: actionBusy })
 
 const canPublish = computed(() => currentTemplate.value?.status === 'draft' || hasUnsavedChanges.value)
 
@@ -61,15 +75,6 @@ const statusLabel = computed(() => {
     default: return '内置默认'
   }
 })
-
-const statusClass = computed(() => {
-  switch (currentTemplate.value?.status) {
-    case 'draft': return 'badge-warning'
-    case 'published': return 'badge-success'
-    default: return 'badge-info'
-  }
-})
-
 
 function pushAlert(type, title, description = '', timeout = 7000) {
   alerts.value.unshift({
@@ -86,21 +91,25 @@ function closeAlert(id) {
 }
 
 function applyTemplateDetail(detail) {
+  invalidatePreview()
   currentTemplate.value = detail
   source.value = cloneSource(detail?.source)
   savedSource.value = cloneSource(detail?.source)
   preview.value = null
   previewError.value = ''
+  emit('selected', detail.templateKey)
 }
 
 async function loadTemplateList() {
   const response = await http.get('/api/mail/templates')
   if (response.data?.success !== true) throw new Error('邮件模板列表无效')
   templates.value = response.data.data || []
+  emit('templates-loaded', templates.value)
 }
 
 async function loadTemplate(templateKey) {
   if (!templateKey) return
+  invalidatePreview()
   loading.value = true
   try {
     const [detailResponse, versionsResponse] = await Promise.all([
@@ -132,8 +141,9 @@ async function initialize() {
       http.get('/api/config/mail')
     ])
     templates.value = templateResponse.data?.data || []
+    emit('templates-loaded', templates.value)
     testRecipient.value = mailResponse.data?.data?.recipient || ''
-    const firstKey = templates.value[0]?.templateKey
+    const firstKey = templates.value.find(item => item.templateKey === props.initialTemplateKey)?.templateKey || templates.value[0]?.templateKey
     if (firstKey) await loadTemplate(firstKey)
   } catch (error) {
     console.error('initialize mail template editor failed', error)
@@ -157,7 +167,7 @@ async function selectTemplate(templateKey) {
 }
 
 async function saveDraft({ silent = false } = {}) {
-  if (!currentTemplate.value || saving.value) return false
+  if (!currentTemplate.value || actionBusy.value) return false
   saving.value = true
   try {
     const response = await http.put(
@@ -192,15 +202,32 @@ async function loadVersions() {
   versions.value = response.data?.data || []
 }
 
+function invalidatePreview() {
+  clearTimeout(previewTimer)
+  previewAbort?.abort()
+  previewSequence++
+  previewing.value = false
+  preview.value = null
+  previewError.value = ''
+}
+
 async function validateAndPreview({ showSuccess = false } = {}) {
-  if (!currentTemplate.value || previewing.value) return false
+  if (disposed || !currentTemplate.value || loading.value) return false
+  clearTimeout(previewTimer)
+  previewAbort?.abort()
+  const sequence = ++previewSequence
+  const controller = new AbortController()
+  previewAbort = controller
   previewing.value = true
+  preview.value = null
   previewError.value = ''
   try {
     const response = await http.post(
-      `/api/mail/templates/${currentTemplate.value.templateKey}/preview`,
-      source.value
+      `/api/mail/templates/${currentTemplate.value.templateKey}/preview${sampleQuery.value}`,
+      cloneSource(source.value),
+      { signal: controller.signal }
     )
+    if (disposed || sequence !== previewSequence) return false
     if (response.data?.success !== true || !response.data?.data) {
       throw new Error('服务器未返回有效预览')
     }
@@ -208,18 +235,35 @@ async function validateAndPreview({ showSuccess = false } = {}) {
     if (showSuccess) pushAlert('success', '模板校验通过', '预览已使用示例变量重新渲染。', 4000)
     return true
   } catch (error) {
+    if (disposed || sequence !== previewSequence || controller.signal.aborted) return false
     console.error('preview mail template failed', error)
     preview.value = null
     previewError.value = error?.response?.data?.message || '模板校验失败'
-    pushAlert('error', '模板校验失败', previewError.value)
+    if (showSuccess) pushAlert('error', '模板校验失败', previewError.value)
     return false
   } finally {
-    previewing.value = false
+    if (!disposed && sequence === previewSequence) previewing.value = false
   }
 }
 
+watch([source, loading], () => {
+  invalidatePreview()
+  if (!disposed && !loading.value && currentTemplate.value) previewTimer = setTimeout(validateAndPreview, 450)
+}, { deep: true, flush: 'post' })
+
+async function selectNotificationState(change) {
+  const value = change.target.value
+  if (isScannerTemplate.value && ['offline', 'recovered'].includes(value) && value !== notificationState.value
+    && !loading.value && !saving.value && !publishing.value && !testing.value && !previewing.value && restoringVersion.value === null) {
+    notificationState.value = value
+    preview.value = null
+    await validateAndPreview()
+  }
+  change.target.value = notificationState.value
+}
+
 async function publishTemplate() {
-  if (!currentTemplate.value || publishing.value) return
+  if (!currentTemplate.value || actionBusy.value) return
   const confirmed = window.confirm('确定发布当前模板吗？发布后，后续对应事件的邮件将使用这个版本；已归档报告保持原正文。')
   if (!confirmed) return
   if (hasUnsavedChanges.value) {
@@ -235,7 +279,7 @@ async function publishTemplate() {
       throw new Error('服务器未确认模板发布成功')
     }
     applyTemplateDetail(response.data.data)
-    await Promise.all([loadTemplateList(), loadVersions(), validateAndPreview()])
+    await Promise.all([loadTemplateList(), loadVersions()])
     pushAlert('success', '邮件模板已发布', '后续对应事件的邮件将使用这个版本；已归档报告保持原正文。', 5000)
   } catch (error) {
     console.error('publish mail template failed', error)
@@ -250,7 +294,7 @@ async function publishTemplate() {
 }
 
 async function restoreVersion(version) {
-  if (!currentTemplate.value || restoringVersion.value !== null) return
+  if (!currentTemplate.value || actionBusy.value) return
   const warning = hasUnsavedChanges.value ? '当前未保存修改将被覆盖。' : ''
   const confirmed = window.confirm(`${warning}确定将版本 ${version} 恢复为新草稿吗？`)
   if (!confirmed) return
@@ -274,7 +318,7 @@ async function restoreVersion(version) {
 }
 
 async function sendTestMail() {
-  if (!currentTemplate.value || testing.value) return
+  if (!currentTemplate.value || actionBusy.value) return
   if (!testRecipient.value.trim()) {
     pushAlert('warning', '请输入测试收件人', '测试邮件不会自动发布当前模板。')
     return
@@ -282,7 +326,7 @@ async function sendTestMail() {
   testing.value = true
   try {
     const response = await http.post(
-      `/api/mail/templates/${currentTemplate.value.templateKey}/test`,
+      `/api/mail/templates/${currentTemplate.value.templateKey}/test${sampleQuery.value}`,
       {
         recipient: testRecipient.value.trim(),
         source: source.value
@@ -330,16 +374,12 @@ function insertVariable(variableKey) {
   view.focus()
 }
 
-function formatVariable(variableKey) {
-  return `{{ ${variableKey} }}`
-}
-
 function useDefaultTemplate() {
-  if (!currentTemplate.value?.defaultSource) return
+  if (!currentTemplate.value?.defaultSource || actionBusy.value) return
   if (hasUnsavedChanges.value && !window.confirm('载入默认模板将替换当前未保存的编辑内容，是否继续？')) return
   source.value = cloneSource(currentTemplate.value.defaultSource)
   preview.value = null
-  pushAlert('info', '已载入默认模板', '请校验预览，再保存草稿并发布。现有归档报告不会改变。')
+  pushAlert('info', '已载入默认模板', '请确认预览，再保存草稿并发布。现有归档报告不会改变。')
 }
 
 function safePreviewDocument(htmlBody) {
@@ -377,6 +417,10 @@ function formatTime(value) {
 
 useUnsavedChanges(hasUnsavedChanges, saveDraft)
 onMounted(initialize)
+onBeforeUnmount(() => {
+  disposed = true
+  invalidatePreview()
+})
 </script>
 
 <template>
@@ -393,35 +437,13 @@ onMounted(initialize)
     />
   </div>
 
-  <div class="p-5">
-    <div class="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-      <div>
-        <h2 class="text-lg font-semibold">邮件模板编辑器</h2>
-        <p class="text-xs opacity-60">使用 Tera 语法编辑邮件；草稿发布后才会影响实际通知。</p>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <button class="btn btn-outline btn-sm" :disabled="loading || !currentTemplate?.defaultSource || saving || publishing" @click="useDefaultTemplate">载入默认模板</button>
-        <button class="btn btn-outline btn-sm" :disabled="loading || previewing" @click="validateAndPreview({ showSuccess: true })">
-          <span v-if="previewing" class="loading loading-spinner loading-xs"></span>
-          校验并预览
-        </button>
-        <button class="btn btn-outline btn-sm" :disabled="!hasUnsavedChanges || saving" @click="saveDraft()">
-          <span v-if="saving" class="loading loading-spinner loading-xs"></span>
-          保存草稿
-        </button>
-        <button class="btn btn-neutral btn-sm" :disabled="!canPublish || publishing" @click="publishTemplate">
-          <span v-if="publishing" class="loading loading-spinner loading-xs"></span>
-          发布模板
-        </button>
-      </div>
-    </div>
-
+  <div class="template-workspace min-w-0 w-full p-5">
     <div v-if="loading && !currentTemplate" class="grid min-h-80 place-items-center rounded-lg bg-base-100 border border-base-300">
       <span class="loading loading-spinner loading-md"></span>
     </div>
 
-    <div v-else class="grid grid-cols-1 gap-4 2xl:grid-cols-[220px_minmax(0,1fr)_420px]">
-      <aside class="card bg-base-100 card-border border-base-300 p-3">
+    <div v-else class="template-layout grid min-w-0 grid-cols-1 items-start gap-4" :class="externalNavigation ? 'template-layout-external' : '2xl:grid-cols-[220px_minmax(0,1fr)_minmax(280px,0.8fr)]'">
+      <aside v-if="!externalNavigation" class="card min-w-0 bg-base-100 card-border border-base-300 p-3">
         <h3 class="px-2 pb-2 text-sm font-semibold">模板</h3>
         <ul class="menu w-full p-0">
           <li v-for="item in templates" :key="item.templateKey">
@@ -462,40 +484,50 @@ onMounted(initialize)
       </aside>
 
       <main class="min-w-0 space-y-4">
-        <section class="card bg-base-100 card-border border-base-300 p-4">
+        <section class="card min-w-0 bg-base-100 card-border border-base-300 p-4">
           <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              <h3 class="font-semibold">{{ currentTemplate?.displayName || '邮件模板' }}</h3>
-              <span class="badge badge-sm" :class="statusClass">{{ statusLabel }}</span>
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
+              <h3 class="font-semibold">{{ currentTemplate?.displayName || '邮件模板' }} · {{ statusLabel }}</h3>
               <span v-if="currentTemplate?.activeVersion" class="text-xs opacity-60">已发布版本 {{ currentTemplate.activeVersion }}</span>
             </div>
             <span v-if="hasUnsavedChanges" class="text-xs text-warning">存在未保存修改</span>
           </div>
 
           <fieldset class="fieldset min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-format`">消息格式</label></legend>
+            <select :id="`${formFieldId}-format`" v-model="editorTab" class="select min-w-0 w-full max-w-full" :disabled="loading || saving || publishing" @change="activeField = editorTab">
+              <option value="html">HTML 富文本</option>
+              <option value="text">纯文本</option>
+            </select>
+          </fieldset>
+
+          <fieldset class="fieldset mt-4 min-w-0 w-full">
             <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">邮件主题</label></legend>
             <input :id="`${formFieldId}-1`"
               ref="subjectInput"
               v-model="source.subjectTemplate"
               type="text"
               maxlength="500"
-              class="input input-bordered w-full font-mono"
+              class="input input-bordered min-w-0 w-full max-w-full font-mono"
               placeholder="例如：{{ system_name }} 登录成功提醒"
               @focus="activeField = 'subject'"
             />
           </fieldset>
 
-          <div class="mt-4 tabs tabs-box w-fit">
-            <button class="tab" :class="{ 'tab-active': editorTab === 'html' }" @click="editorTab = 'html'; activeField = 'html'">HTML</button>
-            <button class="tab" :class="{ 'tab-active': editorTab === 'text' }" @click="editorTab = 'text'; activeField = 'text'">纯文本</button>
-          </div>
+          <fieldset v-if="isScannerTemplate" class="fieldset mt-4 min-w-0 w-full">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-state`">通知状态</label></legend>
+            <select :id="`${formFieldId}-state`" :value="notificationState" class="select min-w-0 w-full max-w-full" :disabled="loading || saving || publishing || testing || previewing || restoringVersion !== null" @change="selectNotificationState">
+              <option value="offline">掉线</option>
+              <option value="recovered">恢复</option>
+            </select>
+            <p class="label whitespace-normal text-xs">掉线与恢复共用此模板，所选状态用于预览和测试发送。</p>
+          </fieldset>
 
           <div class="mt-3 overflow-hidden rounded-lg border border-base-300 bg-base-100">
             <TemplateCodeEditor
               v-if="editorTab === 'html'"
               v-model="source.htmlTemplate"
               :variables="currentTemplate?.variables || []" language="html" :disabled="saving || publishing"
-              :style="{ height: '560px' }"
               :indent-with-tab="true"
               :tab-size="2"
               placeholder="输入 HTML 和 Tera 模板语法"
@@ -506,7 +538,6 @@ onMounted(initialize)
               v-else
               v-model="source.textTemplate"
               :variables="currentTemplate?.variables || []" language="text" :disabled="saving || publishing"
-              :style="{ height: '560px' }"
               :indent-with-tab="true"
               :tab-size="2"
               placeholder="输入纯文本备用正文"
@@ -514,44 +545,34 @@ onMounted(initialize)
               @focus="activeField = 'text'"
             />
           </div>
-        </section>
-
-        <section class="card bg-base-100 card-border border-base-300 p-4">
-          <h3 class="font-semibold">测试发送</h3>
-          <p class="mt-1 text-xs opacity-60">使用当前编辑内容和系统设置中的 SMTP 配置发送，不会自动保存或发布。</p>
-          <div class="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input v-model="testRecipient" type="email" class="input input-bordered grow" placeholder="测试收件人邮箱" />
-            <button class="btn btn-neutral" :disabled="testing" @click="sendTestMail">
-              <span v-if="testing" class="loading loading-spinner loading-sm"></span>
-              发送测试邮件
-            </button>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button class="btn btn-sm" :disabled="actionBusy || !currentTemplate?.defaultSource" @click="useDefaultTemplate">载入默认模板</button>
+            <button class="btn btn-sm" :disabled="actionBusy || !hasUnsavedChanges" @click="saveDraft()">保存草稿</button>
+            <button class="btn btn-neutral btn-sm" :disabled="actionBusy || !canPublish" @click="publishTemplate">{{ saving || publishing ? '处理中…' : '发布模板' }}</button>
           </div>
+          <section class="mt-5 border-t border-base-300 pt-4">
+            <h3 class="font-semibold">测试发送</h3>
+            <p class="mt-1 text-xs opacity-60">使用当前编辑内容和系统设置中的 SMTP 配置发送，不会自动保存或发布。</p>
+            <div class="mt-3 flex min-w-0 flex-wrap gap-2">
+              <input v-model="testRecipient" type="email" class="input input-bordered min-w-0 w-full max-w-full flex-1 basis-56" placeholder="测试收件人邮箱" />
+              <button class="btn btn-neutral max-w-full" :disabled="testing" @click="sendTestMail">
+                <span v-if="testing" class="loading loading-spinner loading-sm"></span>
+                发送测试邮件
+              </button>
+            </div>
+          </section>
         </section>
       </main>
 
       <aside class="min-w-0 space-y-4">
-        <section class="card bg-base-100 card-border border-base-300 p-4">
-          <div class="flex items-center justify-between gap-2">
-            <h3 class="font-semibold">模板变量</h3>
-            <span class="text-xs opacity-60">点击插入当前编辑位置</span>
-          </div>
-          <div class="mt-3 flex flex-col gap-2">
-            <button
-              v-for="variable in currentTemplate?.variables || []"
-              :key="variable.key"
-              class="rounded-lg border border-base-300 p-3 text-left transition hover:bg-base-200"
-              @click="insertVariable(variable.key)"
-            >
-              <code class="text-xs text-primary" v-text="formatVariable(variable.key)"></code>
-              <span class="mt-1 block text-xs">{{ variable.label }}</span>
-              <span class="block text-xs opacity-50">示例：{{ variable.example }}</span>
-            </button>
-          </div>
-        </section>
+        <TemplateVariables :key="currentTemplate?.templateKey" :variables="currentTemplate?.variables || []" :disabled="saving || publishing" class="card card-border border-base-300 bg-base-100 p-4" @insert="insertVariable" />
 
-        <section class="card bg-base-100 card-border border-base-300 p-4">
-          <div class="flex items-center justify-between gap-2">
+        <section class="card min-w-0 bg-base-100 card-border border-base-300 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="font-semibold">渲染预览</h3>
+            <button class="btn btn-ghost btn-sm" :disabled="actionBusy || !currentTemplate" @click="validateAndPreview()">{{ previewing ? '渲染中…' : '刷新预览' }}</button>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
             <div class="tabs tabs-box tabs-xs">
               <button class="tab" :class="{ 'tab-active': previewTab === 'html' }" @click="previewTab = 'html'">HTML</button>
               <button class="tab" :class="{ 'tab-active': previewTab === 'text' }" @click="previewTab = 'text'">纯文本</button>
@@ -568,11 +589,11 @@ onMounted(initialize)
               :srcdoc="previewDocument"
               class="h-[520px] w-full rounded-lg border border-base-300 bg-white"
             ></iframe>
-            <pre v-else class="h-[520px] overflow-auto whitespace-pre-wrap rounded-lg border border-base-300 bg-base-200 p-3 text-xs">{{ preview.textBody }}</pre>
+            <pre v-else class="h-[520px] overflow-auto whitespace-pre-wrap break-all rounded-lg border border-base-300 bg-base-200 p-3 text-xs">{{ preview.textBody }}</pre>
           </div>
           <div v-else class="mt-3 grid h-72 place-items-center rounded-lg border border-dashed border-base-300 text-center text-xs opacity-60">
             <div>
-              <p>{{ previewError || '点击“校验并预览”生成安全预览。' }}</p>
+              <p>{{ previewError || (previewing ? '正在使用示例数据渲染…' : '编辑后自动预览。') }}</p>
               <p class="mt-1">预览使用固定示例数据，不包含真实用户信息。</p>
             </div>
           </div>
@@ -583,8 +604,17 @@ onMounted(initialize)
 </template>
 
 <style scoped>
+.template-workspace {
+  container: template-editor / inline-size;
+}
+
+@container template-editor (min-width: 52rem) {
+  .template-layout-external {
+    grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 1fr);
+  }
+}
+
 :deep(.cm-editor) {
-  height: 100%;
   font-size: 13px;
 }
 

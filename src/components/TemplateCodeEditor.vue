@@ -35,7 +35,8 @@ const variableAutocomplete = autocompletion({ override: [completionSource] })
 const htmlExtension = html()
 const editorTheme = computed(() => [
   EditorView.theme({
-    '&': { backgroundColor: 'var(--color-base-100)', color: 'var(--color-base-content)' },
+    '&': { height: '480px', backgroundColor: 'var(--color-base-100)', color: 'var(--color-base-content)' },
+    '.cm-scroller': { overflow: 'auto' },
     '.cm-gutters': { backgroundColor: 'var(--color-base-200)', color: 'var(--color-base-content)', borderColor: 'var(--color-base-300)' },
     '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--color-base-200)' },
     '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-base-content)' },
@@ -56,5 +57,5 @@ const extensions = computed(() => [...(props.language === 'html' ? [htmlExtensio
 
 </script>
 <template>
-  <Codemirror v-model="model" :extensions="extensions" :disabled="disabled" :style="{height:'560px'}" :indent-with-tab="true" :tab-size="2" :placeholder="placeholder" @ready="emit('ready',$event)" @focus="emit('focus',$event)" />
+  <Codemirror v-model="model" :extensions="extensions" :disabled="disabled" :indent-with-tab="true" :tab-size="2" :placeholder="placeholder" @ready="emit('ready',$event)" @focus="emit('focus',$event)" />
 </template>

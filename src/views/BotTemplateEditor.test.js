@@ -14,17 +14,86 @@ const initial = { provider:'feishu', eventType:'health.alert', revision:0, statu
   source:{format:'text',titleTemplate:'title',bodyTemplate:'body'} }
 const response = data => ({data:{success:true,data}})
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return {promise,resolve} }
-function createPage(request = async () => response(initial), post = async () => response({htmlBody:'sample'})) {
+function createPage(request = async () => response(initial), post = async () => response({htmlBody:'sample'}), provider = 'feishu', initialEvent = '', {confirm = () => true, eventVariants = []} = {}) {
   let dispose
-  const page = vm.runInNewContext(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewError,error,hasUnsavedChanges,sendTest,channelId,channels,loadChannels,sampleSeverity,testDelivery,testNotice})`, {
-    computed, nextTick, ref, shallowRef, watch, notificationEvents, providerLabel, deliveryReason, AbortController,
-    defineProps: () => ({provider:'feishu'}), defineExpose: () => {},
+  let exposed
+  const events = []
+  const page = vm.runInNewContext(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewDocument,previewError,error,hasUnsavedChanges,sendTest,channelId,channels,loadChannels,sampleSeverity,testDelivery,testNotice,selectEvent,event,selectStateFromDropdown})`, {
+    computed, nextTick, ref, shallowRef, watch, useId: () => 'bot-template-test', notificationEvents, providerLabel, deliveryReason, AbortController,
+    defineProps: () => ({provider, initialEvent, eventVariants}), defineExpose: value => { exposed = value }, defineEmits: () => (...args) => events.push(args),
     http:Object.assign(request,{post}), setTimeout, clearTimeout,
     DOMPurify:{sanitize:value=>value}, formatDateTime:value=>value,
-    useUnsavedChanges:()=>{}, onMounted:()=>{}, onBeforeUnmount:fn=>{dispose=fn}, window:{confirm:()=>true},
+    useUnsavedChanges:()=>{}, onMounted:()=>{}, onBeforeUnmount:fn=>{dispose=fn}, window:{confirm},
   })
-  return {...page,dispose:()=>dispose()}
+  return {...page,events,exposed,dispose:()=>dispose()}
 }
+
+test('both bot state dropdowns load the selected template and revert selection when unsaved changes are kept', async () => {
+  const eventVariants = [{value:'scanner.offline'}, {value:'scanner.recovered'}]
+  for (const provider of ['feishu', 'telegram']) {
+    const calls = []
+    let accepted = true
+    const page = createPage(async config => { calls.push(config.url); return response(initial) }, undefined, provider, 'scanner.offline', {eventVariants, confirm:()=>accepted})
+    await page.selectStateFromDropdown({target:{value:'scanner.recovered'}})
+    assert.equal(page.event.value, 'scanner.recovered')
+    assert.equal(calls[0], `/api/notifications/templates/${provider}/scanner.recovered`)
+    page.source.value.bodyTemplate = '保留修改'
+    accepted = false
+    const change = {target:{value:'scanner.offline'}}
+    await page.selectStateFromDropdown(change)
+    assert.equal(change.target.value, 'scanner.recovered')
+    assert.equal(page.source.value.bodyTemplate, '保留修改')
+    assert.equal(calls.length, 1)
+    await page.selectStateFromDropdown({target:{value:'user.login'}})
+    assert.equal(page.event.value, 'scanner.recovered')
+    page.dispose()
+  }
+})
+
+test('sidebar history is reactive and restoring an archived version uses the existing restore endpoint', async () => {
+  const calls = []
+  const page = createPage(async config => { calls.push(config); return response({...initial,revision:2,versions:[{version:2,status:'draft'}]}) })
+  page.apply({...initial,revision:1,versions:[{version:1,status:'archived'}]})
+  assert.equal(page.exposed.versions.value[0].version, 1)
+  await page.exposed.restoreVersion(1)
+  assert.equal(calls[0].url, '/api/notifications/templates/feishu/health.alert/restore')
+  assert.equal(calls[0].data.version, 1)
+  assert.equal(calls[0].data.expectedRevision, 1)
+  assert.equal(page.exposed.versions.value[0].version, 2)
+  page.dispose()
+})
+
+test('grouped navigation loads the selected event and reports subsequent event changes', async () => {
+  const calls = []
+  const page = createPage(async config => {
+    calls.push(config.url)
+    return response(initial)
+  }, undefined, 'telegram', 'report.monthly')
+  await page.load()
+  assert.equal(calls[0], '/api/notifications/templates/telegram/report.monthly')
+  await page.selectEvent('user.login')
+  assert.equal(calls[1], '/api/notifications/templates/telegram/user.login')
+  assert.equal(page.event.value, 'user.login')
+  assert.deepEqual(page.events, [['selected', 'user.login']])
+  page.dispose()
+})
+
+test('Feishu card previews use the header color and keep plain text and Telegram previews separate', () => {
+  const page = createPage()
+  for (const [template, color] of [['red','#fde2e2'],['orange','#fff0d4'],['green','#dff3e5'],['blue','#e3edff']]) {
+    page.preview.value = {htmlBody:'<b>标题</b>\n<b>正文</b>',payload:{msg_type:'interactive',card:{header:{template}}}}
+    assert.ok(page.previewDocument.value.includes('<article class="message-card"><b>标题</b>'))
+    assert.ok(page.previewDocument.value.includes(`background:${color};font-size:16px`))
+    assert.ok(page.previewDocument.value.includes("default-src 'none'"))
+  }
+  page.preview.value = {htmlBody:'普通消息',payload:{msg_type:'text'}}
+  assert.equal(page.previewDocument.value.includes('<article'), false)
+  const telegram = createPage(undefined, undefined, 'telegram')
+  telegram.preview.value = {htmlBody:'<b>Telegram</b>',payload:{text:'<b>Telegram</b>',parse_mode:'HTML'}}
+  assert.equal(telegram.previewDocument.value.includes('<article'), false)
+  page.dispose()
+  telegram.dispose()
+})
 
 test('publishing unsaved changes saves the selected provider/event first and uses the returned revision', async () => {
   const calls=[]
