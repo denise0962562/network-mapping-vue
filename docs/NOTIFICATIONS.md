@@ -41,3 +41,16 @@ pnpm build
 ```
 
 页面测试覆盖三类渠道的请求字段、共享订阅、凭据保留及卸载清理。配套后端协议、升级和投递语义见后端 `docs/NOTIFICATIONS.md`。本地模拟 API 不代表真实邮件或群机器人联调成功。
+
+
+## 分渠道模板与预览
+
+入口为「设置 → 通知模板」(`/setting/notification-templates`)，旧地址 `/setting/mail-templates` 保留。邮件沿用 HTML 和备用纯文本编辑器；飞书与 Telegram 按事件独立选择纯文本或富文本，支持自动预览、草稿、发布及历史恢复。同类渠道共用其事件模板。
+
+飞书支持粗体、斜体、下划线、删除线、链接，后端转换为原生 `post`；Telegram 使用 HTML parse_mode，另支持 code、pre、blockquote 和 tg-spoiler。本编辑器不支持 CSS、图片、任意网页 HTML 或卡片 JSON。变量自动转义，事件 ID 自动附加。
+
+三个渠道均有在线预览。飞书与 Telegram 是浏览器模拟预览，未接入官方客户端原样预览；字体、主题、剧透、链接提示可能不同。效果、纯文本和最终消息数据可切换查看。预览不发消息、不加载外部资源；渠道测试仍发送固定的连通性测试消息。真实数据超长时投递记录会显示模板渲染错误。
+
+后端须同步升级，新增 API 位于 `/api/notifications/templates/{provider}/{event}`，提供 GET 详情和 POST preview/draft/publish/restore。写入使用 revision 防止覆盖其他管理员的修改。保存冲突保留本地编辑，重新加载前请备份需要保留的文本。邮件 API 不变，旧模板和已归档报告不变。
+
+详细格式、变量、消息长度和迁移约定见服务端文档：[分渠道通知模板](https://github.com/wshijiang/network-mapping/blob/main/docs/NOTIFICATION_TEMPLATES.md)。

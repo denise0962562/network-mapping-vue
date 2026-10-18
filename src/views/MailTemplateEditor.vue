@@ -57,6 +57,7 @@ function cloneSource(value) {
 const hasUnsavedChanges = computed(
   () => JSON.stringify(source.value) !== JSON.stringify(savedSource.value)
 )
+defineExpose({ hasUnsavedChanges, busy: computed(() => loading.value || saving.value || publishing.value || testing.value || restoringVersion.value !== null) })
 
 const canPublish = computed(() => currentTemplate.value?.status === 'draft' || hasUnsavedChanges.value)
 
@@ -263,7 +264,7 @@ async function validateAndPreview({ showSuccess = false } = {}) {
 
 async function publishTemplate() {
   if (!currentTemplate.value || publishing.value) return
-  const confirmed = window.confirm('确定发布当前模板吗？发布后，后续登录通知将立即使用这个版本。')
+  const confirmed = window.confirm('确定发布当前模板吗？发布后，后续对应事件的邮件将使用这个版本；已归档报告保持原正文。')
   if (!confirmed) return
   if (hasUnsavedChanges.value) {
     const saved = await saveDraft({ silent: true })
@@ -279,7 +280,7 @@ async function publishTemplate() {
     }
     applyTemplateDetail(response.data.data)
     await Promise.all([loadTemplateList(), loadVersions(), validateAndPreview()])
-    pushAlert('success', '邮件模板已发布', '后续登录通知将使用这个版本。', 5000)
+    pushAlert('success', '邮件模板已发布', '后续对应事件的邮件将使用这个版本；已归档报告保持原正文。', 5000)
   } catch (error) {
     console.error('publish mail template failed', error)
     pushAlert(
