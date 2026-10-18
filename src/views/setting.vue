@@ -601,6 +601,11 @@ onMounted(() => {
       </div>
 
       <div class="card bg-base-100 card-border border-base-300 p-4">
+        <h3 class="font-semibold">登录保护</h3>
+        <p class="mt-2 text-sm opacity-60">配置可选人机验证、允许域名与验证密钥，保护新的密码登录。</p>
+        <router-link class="btn btn-neutral btn-sm mt-4 w-fit" to="/setting/human-verification">管理登录保护</router-link>
+      </div>
+      <div class="card bg-base-100 card-border border-base-300 p-4">
         <h3 class="font-semibold">通知渠道</h3>
         <p class="mt-2 text-sm opacity-60">邮件、飞书、Telegram 的配置、启停和通知类型订阅已统一到通知渠道页面，可选择一种或同时开启。</p>
         <router-link class="btn btn-neutral btn-sm mt-4 w-fit" to="/setting/notifications">管理通知渠道</router-link>

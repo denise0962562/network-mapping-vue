@@ -471,6 +471,11 @@ async function handleLogout() {
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/human-verification">
+                    <span class="whitespace-nowrap">登录保护</span>
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/notifications">
                     <span class="whitespace-nowrap">通知渠道</span>
                   </router-link>
