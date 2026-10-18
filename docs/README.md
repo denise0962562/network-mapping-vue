@@ -20,6 +20,7 @@ Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。�
 | --- | --- |
 | [控制台功能指南](FEATURES.md) | 搜索、扫描、资产、分析与管理页面的行为 |
 | [Web 技术栈展示](WEB_DETECTION.md) | 框架组件、版本冲突、证据、搜索与 CSV |
+| [Web 技术标签图标](WEB_TECHNOLOGY_ICONS.md) | SVG 来源、许可、品牌与通用符号及扩展方法 |
 | [外观主题](theme-guide.md) | 主题设置、样式约定与组件适配 |
 | [开放平台](OPEN_PLATFORM.md) | 应用申请、审批、凭据、调试及 Web 开发约定 |
 | [统一通知渠道](NOTIFICATIONS.md) | 邮件、飞书、Telegram 的事件订阅、并行启用与投递记录 |

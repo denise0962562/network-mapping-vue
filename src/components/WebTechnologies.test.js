@@ -27,10 +27,19 @@ test('Web evidence renders safely and partial results retain their limits', asyn
     assert.match(html, /证据可能过期/)
     assert.match(html, /页面引用资源/)
     assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/)
-    assert.doesNotMatch(html, /<img/)
+    assert.match(html, /<img[^>]+src="\/assets\/web-technologies\/jquery\.svg"[^>]+alt=""[^>]+aria-hidden="true"/)
+    assert.doesNotMatch(html, /<img src=x/)
+    assert.ok(html.indexOf('jquery.svg') < html.indexOf('jQuery（版本冲突）'))
+    const unknown = await renderToString(createSSRApp(component, { value: {
+      status: 'identified', technologies: [{ id: 'https://untrusted.invalid/icon.svg', name: '<Unknown>' }],
+    } }))
+    assert.match(unknown, /src="\/assets\/web-technologies\/generic\.svg"/)
+    assert.match(unknown, /&lt;Unknown&gt;/)
+    assert.doesNotMatch(unknown, /untrusted\.invalid/)
     const pending = await renderToString(createSSRApp(component, { value: { ...value, status: 'pending' } }))
     assert.match(pending, /识别中/)
     assert.doesNotMatch(pending, /jQuery/)
+    assert.doesNotMatch(pending, /<img/)
     const empty = await renderToString(createSSRApp(component))
     assert.match(empty, /暂无识别结果/)
   } finally {
