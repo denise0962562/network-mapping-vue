@@ -42,3 +42,7 @@ SSR 测试验证证据文本转义、版本冲突、截断和过期提示及 pen
 [服务端技术目录](https://github.com/wshijiang/network-mapping/blob/main/docs/WEB_TECHNOLOGY_CATALOG.md)。
 第一批新增 MinIO、通用 S3、GitLab 等明确特征规则；可使用 `tech = minio`、`tech = s3`、
 `tech = gitlab`。S3 兼容性不等于 MinIO 产品身份，GitLab 页面也不等于已识别 Git 协议服务。
+
+第二批增加 `tech = git`，表示已观察到合法的 Git smart HTTP 广告响应。
+MinIO 与 S3、GitLab 与 Git 可分别出现或同时出现，界面不根据产品关系自动补标签。
+组合判定、支持目录和协议范围以服务端技术目录为准；本轮扩展无需更改前端字段或升级扫描器。
