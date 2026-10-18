@@ -79,3 +79,8 @@ Nuclei，且使用经过审核的本地签名模板目录。协议、上线顺�
 CSV 导出同步包含系统字段、状态、置信度、判断对象、证据时间和过期标识。
 字段来自服务端，前端不解析 Banner 或连接扫描目标。旧服务端没有 `os` 时显示“暂无识别结果”。
 完整语义见[服务端操作系统识别说明](https://github.com/wshijiang/network-mapping/blob/main/docs/OS_DETECTION.md)。
+
+## Web 技术栈
+
+搜索、任务详情和资产端口表支持框架与组件、版本及识别证据，搜索页支持 CSV 导出。
+状态、识别边界与测试命令见 [Web 技术栈展示](WEB_DETECTION.md)。

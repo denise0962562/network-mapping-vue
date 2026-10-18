@@ -136,3 +136,8 @@ Nuclei 结果只展示结构化字段；引用链接使用 `rel="noopener norefe
 接口联调核对空状态、未知、冲突、证据过期、服务环境与宿主机标签，以及 CSV 列对齐。
 执行 `pnpm test:os`、`node --test src/utils/*.test.js` 和 `pnpm build`。
 后端字段与权限约束见[识别维护说明](https://github.com/wshijiang/network-mapping/blob/main/docs/OS_DETECTION_DEVELOPMENT.md)。
+
+## Web 技术栈组件
+
+`src/components/WebTechnologies.vue` 负责统一展示，`src/utils/webDetection.js` 提供摘要和 CSV 格式。
+执行 `pnpm test:web` 检查状态和证据转义；接口与边界见 [Web 技术栈展示](WEB_DETECTION.md)。
