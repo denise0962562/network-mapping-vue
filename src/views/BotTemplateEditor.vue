@@ -1,14 +1,22 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import http from '@/utils/http'
 import { notificationEvents, providerLabel, deliveryReason } from '@/utils/notifications'
 import TemplateCodeEditor from '@/components/TemplateCodeEditor.vue'
+import TemplateVariables from '@/components/TemplateVariables.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { formatDateTime } from '@/utils/systemTime'
 
-const props = defineProps({ provider: { type: String, required: true } })
-const event = ref(notificationEvents[0].value)
+const props = defineProps({
+  provider: { type: String, required: true },
+  initialEvent: { type: String, default: '' },
+  externalNavigation: { type: Boolean, default: false },
+  eventVariants: { type: Array, default: () => [] },
+})
+const emit = defineEmits(['selected'])
+const formFieldId = useId()
+const event = ref(props.initialEvent || notificationEvents[0].value)
 const detail = ref(null)
 const source = ref({format:'text',titleTemplate:'',bodyTemplate:''})
 const saved = ref(JSON.stringify(source.value))
@@ -32,7 +40,11 @@ const titleInput = ref(null)
 const activeField = ref('body')
 const hasUnsavedChanges = computed(() => saved.value !== JSON.stringify(source.value))
 useUnsavedChanges(hasUnsavedChanges, async () => { await act('draft'); return !hasUnsavedChanges.value })
-defineExpose({ hasUnsavedChanges, busy: computed(() => busy.value || loading.value || testing.value) })
+defineExpose({
+  hasUnsavedChanges, selectEvent, restoreVersion, loading,
+  versions: computed(() => detail.value?.versions || []),
+  busy: computed(() => busy.value || loading.value || testing.value),
+})
 let disposed = false
 let timer
 let previewSequence = 0
@@ -88,9 +100,14 @@ async function selectEvent(value) {
   testDelivery.value = null
   testNotice.value = ''
   event.value = value
+  emit('selected', value)
   detail.value = null
   notice.value = ''
   await load()
+}
+async function selectStateFromDropdown(change) {
+  if (props.eventVariants.some(item => item.value === change.target.value)) await selectEvent(change.target.value)
+  change.target.value = event.value
 }
 async function refreshPreview() {
   if (disposed) return
@@ -205,6 +222,9 @@ function reset() {
   if (hasUnsavedChanges.value && !window.confirm('载入默认模板会替换未保存修改，确定继续吗？')) return
   source.value = clone(detail.value.defaultSource)
 }
+function restoreVersion(version) {
+  return act('restore', version)
+}
 function reload() {
   if (hasUnsavedChanges.value && !window.confirm('重新加载会放弃本地修改，确定继续吗？')) return
   load()
@@ -222,15 +242,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="space-y-4 p-5">
-    <div class="alert alert-info text-sm"><span>{{ providerLabel(provider) }} 支持在线模拟预览。此处未接入官方客户端原样预览，字体、主题、链接提示等以实际客户端为准。预览使用固定示例数据，不会发送消息。</span></div>
+  <div class="template-workspace min-w-0 w-full space-y-4 p-5">
+    <div class="alert alert-info text-sm alert-soft"><span>{{ providerLabel(provider) }} 支持在线模拟预览。此处未接入官方客户端原样预览，字体、主题、链接提示等以实际客户端为准。预览使用固定示例数据，不会发送消息。</span></div>
     <p v-if="error" role="alert" class="alert alert-error">{{ error }} <button v-if="!busy && !loading" class="btn btn-sm" @click="reload">重新加载</button></p>
     <p v-if="notice" role="status" class="alert alert-success">{{ notice }}</p>
-    <div class="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_minmax(320px,0.8fr)]">
-      <aside class="card card-border border-base-300 bg-base-100 p-4">
+    <div class="template-layout grid min-w-0 grid-cols-1 items-start gap-4" :class="externalNavigation ? 'template-layout-external' : '2xl:grid-cols-[220px_minmax(0,1fr)_minmax(320px,0.8fr)]'">
+      <aside v-if="!externalNavigation" class="card card-border min-w-0 border-base-300 bg-base-100 p-4">
         <h2 class="font-semibold">通知事件</h2>
         <ul class="menu mt-2 p-0"><li v-for="item in notificationEvents" :key="item.value"><button :disabled="loading || busy || testing" :class="{active:event === item.value}" @click="selectEvent(item.value)">{{ item.label }}</button></li></ul>
-        <div class="divider"></div><h2 class="font-semibold">历史版本</h2>
+        <div class="divider"></div>
+        <h2 class="font-semibold">历史版本</h2>
         <div class="mt-2 max-h-96 space-y-2 overflow-auto">
           <div v-for="version in detail?.versions || []" :key="version.version" class="rounded border border-base-300 p-2 text-xs">
             <p>版本 {{ version.version }} · {{ {draft:'草稿',published:'已发布',archived:'历史'}[version.status] }}</p>
@@ -245,38 +266,73 @@ onBeforeUnmount(() => {
         <div v-if="loading" class="py-12 text-center"><span class="loading loading-spinner"></span></div>
         <template v-else-if="detail">
           <p v-if="hasUnsavedChanges" class="mt-2 text-xs text-warning">存在未保存修改</p>
-          <fieldset :disabled="busy || testing" class="mt-3 space-y-4">
-            <label class="block text-sm">消息格式<select v-model="source.format" class="select mt-1 w-full"><option value="text">纯文本</option><option value="html">{{ provider === 'feishu' ? '消息卡片（HTML 富文本）' : 'HTML 富文本' }}</option></select></label>
-            <label class="block text-sm">消息标题<input ref="titleInput" v-model="source.titleTemplate" @focus="activeField='title'" maxlength="500" class="input mt-1 w-full font-mono" /></label>
-            <div><p class="text-sm">消息正文</p><div class="mt-1 overflow-hidden rounded-lg border border-base-300"><TemplateCodeEditor v-model="source.bodyTemplate" :variables="detail.variables" :language="source.format === 'html' ? 'html' : 'text'" :disabled="busy || testing" @ready="bodyEditor=$event.view" @focus="activeField='body'" /></div></div>
-          </fieldset>
+          <div class="mt-3 min-w-0 w-full space-y-4">
+            <fieldset class="fieldset min-w-0 w-full" :disabled="busy || testing">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-format`">消息格式</label></legend>
+              <select :id="`${formFieldId}-format`" v-model="source.format" class="select min-w-0 w-full max-w-full"><option value="text">纯文本</option><option value="html">{{ provider === 'feishu' ? '消息卡片（HTML 富文本）' : 'HTML 富文本' }}</option></select>
+            </fieldset>
+            <fieldset class="fieldset min-w-0 w-full" :disabled="busy || testing">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-title`">消息标题</label></legend>
+              <input :id="`${formFieldId}-title`" ref="titleInput" v-model="source.titleTemplate" @focus="activeField='title'" maxlength="500" class="input min-w-0 w-full max-w-full font-mono" />
+            </fieldset>
+            <fieldset v-if="externalNavigation && eventVariants.length > 1" class="fieldset min-w-0 w-full" :disabled="busy || testing">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-state`">通知状态</label></legend>
+              <select :id="`${formFieldId}-state`" :value="event" class="select min-w-0 w-full max-w-full" @change="selectStateFromDropdown"><option v-for="variant in eventVariants" :key="variant.value" :value="variant.value">{{ variant.label }}</option></select>
+            </fieldset>
+            <div><div class="mt-1 overflow-hidden rounded-lg border border-base-300"><TemplateCodeEditor v-model="source.bodyTemplate" :variables="detail.variables" :language="source.format === 'html' ? 'html' : 'text'" :disabled="busy || testing" @ready="bodyEditor=$event.view" @focus="activeField='body'" /></div></div>
+          </div>
           <p class="mt-2 text-xs opacity-70">支持 Tera 变量和条件。{{ provider === 'feishu' ? '飞书富文本自动转换为消息卡片，支持 b 粗体、i 斜体、s 删除线和 a 超链接；u 下划线标签按普通文本显示。告警按级别显示橙色或红色标题，恢复通知使用绿色。' : 'HTML 富文本支持 b、i、u、s、a 超链接，另支持独立的 code、pre、blockquote 和 tg-spoiler。' }}换行请直接输入换行符。不支持 CSS、图片、自定义卡片 JSON 或任意网页 HTML。</p>
           <p class="mt-2 text-xs opacity-70">标题以纯文本编辑；事件 ID 自动附加。变量内容自动转义。真实消息超过平台限制时会记录投递失败。</p>
-          <div class="mt-3 flex flex-wrap gap-2"><button class="btn btn-sm" :disabled="busy || testing" @click="reset">载入默认模板</button><button class="btn btn-sm" :disabled="busy || testing || !hasUnsavedChanges" @click="act('draft')">保存草稿</button><button class="btn btn-primary btn-sm" :disabled="busy || testing || !canPublish" @click="act('publish')">{{ busy ? '处理中…' : '发布模板' }}</button></div>
-          <h3 class="mt-5 text-sm font-semibold">模板变量（与邮件一致）</h3><p class="mt-1 text-xs opacity-60">点击插入当前编辑位置；编辑器支持变量补全。</p><div class="mt-2 grid gap-2 sm:grid-cols-2"><button v-for="variable in detail.variables" :key="variable.key" type="button" class="rounded-lg border border-base-300 p-3 text-left hover:bg-base-200" :disabled="busy || testing" @click="insertVariable(variable.key)"><code class="text-xs text-primary" v-text="`{{ ${variable.key} }}`"></code><span class="mt-1 block text-xs">{{ variable.label }}</span><span class="block break-all text-xs opacity-50">示例：{{ variable.example }}</span></button></div>
+          <div class="mt-3 flex flex-wrap gap-2"><button class="btn btn-sm" :disabled="busy || testing" @click="reset">载入默认模板</button><button class="btn btn-sm" :disabled="busy || testing || !hasUnsavedChanges" @click="act('draft')">保存草稿</button><button class="btn btn-neutral btn-sm" :disabled="busy || testing || !canPublish" @click="act('publish')">{{ busy ? '处理中…' : '发布模板' }}</button></div>
           <section class="mt-5 border-t border-base-300 pt-4">
             <h3 class="font-semibold">测试发送</h3>
             <p class="mt-1 text-xs opacity-60">将当前编辑内容和所选级别的示例数据发送到实际渠道。不保存、不发布，也不使用真实用户数据。同渠道每 30 秒可测试一次。</p>
             <p v-if="channelError" role="alert" class="mt-2 text-sm text-error">{{ channelError }}</p>
-            <label class="mt-3 block text-sm">测试目标<select v-model="channelId" class="select mt-1 w-full" :disabled="testing"><option disabled value="">请选择已启用渠道</option><option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option></select></label>
+            <fieldset class="fieldset mt-3 min-w-0 w-full" :disabled="testing">
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-channel`">测试目标</label></legend>
+              <select :id="`${formFieldId}-channel`" v-model="channelId" class="select min-w-0 w-full max-w-full"><option disabled value="">请选择已启用渠道</option><option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option></select>
+            </fieldset>
             <p v-if="!channels.length" class="mt-2 text-xs">没有可用的 {{ providerLabel(provider) }} 渠道，请在 <router-link class="link" to="/setting/notifications">通知渠道</router-link> 中配置并启用。</p>
-            <div class="mt-3 flex gap-2"><button class="btn btn-neutral btn-sm" :disabled="testing || busy || loading || !channelId" @click="sendTest">{{ testing ? '正在提交…' : '发送测试消息' }}</button><button class="btn btn-ghost btn-sm" :disabled="testing" @click="loadChannels">刷新渠道</button></div>
+            <div class="mt-3 flex flex-wrap gap-2"><button class="btn btn-neutral btn-sm" :disabled="testing || busy || loading || !channelId" @click="sendTest">{{ testing ? '正在提交…' : '发送测试消息' }}</button><button class="btn btn-ghost btn-sm" :disabled="testing" @click="loadChannels">刷新渠道</button></div>
             <p v-if="testNotice" role="status" class="mt-3 text-sm">{{ testNotice }}</p>
             <p v-if="testDelivery" class="mt-1 break-all text-xs opacity-60">投递 ID：{{ testDelivery.id }} · {{ {pending:'排队中',sending:'发送中',sent:'已发送',failed:'失败',cancelled:'已取消'}[testDelivery.status] || testDelivery.status }}</p>
           </section>
         </template>
       </main>
-      <aside class="card card-border min-w-0 border-base-300 bg-base-100 p-4">
-        <div class="flex items-center justify-between"><h2 class="font-semibold">在线预览</h2><button class="btn btn-ghost btn-sm" :disabled="loading || busy || !detail" @click="refreshPreview">{{ previewing ? '渲染中…' : '刷新预览' }}</button></div>
-        <label class="mt-3 block text-sm">示例级别<select v-model="sampleSeverity" class="select mt-1 w-full" :disabled="testing"><option value="warning">警告（warning）</option><option value="critical">严重（critical）</option></select></label><div class="tabs tabs-box mt-3"><button v-for="tab in [{value:'rendered',label:'效果'},{value:'text',label:'文本'},{value:'payload',label:'消息数据'}]" :key="tab.value" class="tab" :class="{'tab-active':previewTab===tab.value}" @click="previewTab=tab.value">{{ tab.label }}</button></div>
-        <p v-if="previewError" role="alert" class="mt-3 text-sm text-error">{{ previewError }}</p>
-        <template v-if="preview">
-          <iframe v-if="previewTab==='rendered'" title="通知模板模拟预览" sandbox="" :srcdoc="previewDocument" class="mt-3 h-[540px] w-full rounded border border-base-300 bg-white"></iframe>
-          <pre v-else class="mt-3 h-[540px] overflow-auto whitespace-pre-wrap break-all rounded bg-base-200 p-3 text-xs">{{ previewTab==='text' ? preview.textBody : JSON.stringify(preview.payload,null,2) }}</pre>
-        </template>
-        <p v-else-if="!previewError" class="mt-5 text-sm opacity-60">{{ previewing ? '正在使用示例数据渲染…' : '编辑后自动预览。' }}</p>
-        <p class="mt-3 text-xs opacity-60">模拟预览不加载外部资源，也不会打开链接；实际链接地址可在消息数据中核对。</p>
+      <aside class="min-w-0 space-y-4">
+        <TemplateVariables v-if="detail" :key="event" :variables="detail.variables || []" :disabled="busy || testing" class="card card-border border-base-300 bg-base-100 p-4" @insert="insertVariable" />
+        <section class="card card-border min-w-0 border-base-300 bg-base-100 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="font-semibold">在线预览</h2><button class="btn btn-ghost btn-sm" :disabled="loading || busy || !detail" @click="refreshPreview">{{ previewing ? '渲染中…' : '刷新预览' }}</button></div>
+          <fieldset class="fieldset mt-3 min-w-0 w-full" :disabled="testing">
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-severity`">示例级别</label></legend>
+            <select :id="`${formFieldId}-severity`" v-model="sampleSeverity" class="select min-w-0 w-full max-w-full"><option value="warning">警告（warning）</option><option value="critical">严重（critical）</option></select>
+          </fieldset>
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="tabs tabs-box tabs-xs">
+              <button v-for="tab in [{value:'rendered',label:'效果'},{value:'text',label:'文本'},{value:'payload',label:'消息数据'}]" :key="tab.value" class="tab" :class="{'tab-active':previewTab===tab.value}" @click="previewTab=tab.value">{{ tab.label }}</button>
+            </div>
+          </div>
+          <p v-if="previewError" role="alert" class="mt-3 text-sm text-error">{{ previewError }}</p>
+          <template v-if="preview">
+            <iframe v-if="previewTab==='rendered'" title="通知模板模拟预览" sandbox="" :srcdoc="previewDocument" class="mt-3 h-[540px] w-full rounded border border-base-300 bg-white"></iframe>
+            <pre v-else class="mt-3 h-[540px] overflow-auto whitespace-pre-wrap break-all rounded bg-base-200 p-3 text-xs">{{ previewTab==='text' ? preview.textBody : JSON.stringify(preview.payload,null,2) }}</pre>
+          </template>
+          <p v-else-if="!previewError" class="mt-5 text-sm opacity-60">{{ previewing ? '正在使用示例数据渲染…' : '编辑后自动预览。' }}</p>
+          <p class="mt-3 text-xs opacity-60">模拟预览不加载外部资源，也不会打开链接；实际链接地址可在消息数据中核对。</p>
+        </section>
       </aside>
     </div>
   </div>
 </template>
+
+<style scoped>
+.template-workspace {
+  container: template-editor / inline-size;
+}
+
+@container template-editor (min-width: 52rem) {
+  .template-layout-external {
+    grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 1fr);
+  }
+}
+</style>
