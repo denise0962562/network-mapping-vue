@@ -46,8 +46,11 @@ const status = computed(() => ({draft:'草稿',published:'已发布',default:'�
 const canPublish = computed(() => detail.value && (detail.value.status === 'draft' || hasUnsavedChanges.value))
 const previewDocument = computed(() => {
   const html = (preview.value?.htmlBody || '').replaceAll('<tg-spoiler>', '<span class="spoiler">').replaceAll('</tg-spoiler>', '</span>')
-  const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS:['b','i','u','s','a','code','pre','blockquote','span'], ALLOWED_ATTR:['class'] })
-  return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:14px/1.6 system-ui;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;color:#172b4d;background:#fff}a{color:#1769d2;text-decoration:underline}pre,code{background:#f1f3f5}blockquote{border-left:3px solid #aaa;margin-left:0;padding-left:12px}.spoiler{background:#cbd5e1;color:#64748b}</style></head><body>${clean}</body></html>`
+  const clean = DOMPurify.sanitize(html, { ALLOWED_TAGS:['b','i','u','s','a','code','pre','blockquote','span','hr'], ALLOWED_ATTR:['class'] })
+  const card = props.provider === 'feishu' && preview.value?.payload?.msg_type === 'interactive'
+  const headerColor = { red:'#fde2e2', orange:'#fff0d4', green:'#dff3e5', blue:'#e3edff' }[preview.value?.payload?.card?.header?.template] || '#e3edff'
+  const content = card ? `<article class="message-card">${clean}</article>` : clean
+  return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:14px/1.6 system-ui;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;color:#172b4d;background:${card ? '#f4f5f7' : '#fff'}}a{color:#1769d2;text-decoration:underline}pre,code{background:#f1f3f5}blockquote{border-left:3px solid #aaa;margin-left:0;padding-left:12px}.spoiler{background:#cbd5e1;color:#64748b}.message-card{border:1px solid #dfe3e8;border-radius:8px;overflow:hidden;padding:16px;background:#fff}.message-card>b:first-child{display:block;margin:-16px -16px 8px;padding:12px 16px;background:${headerColor};font-size:16px}</style></head><body>${content}</body></html>`
 })
 
 async function request(method, url, data) {
@@ -243,11 +246,11 @@ onBeforeUnmount(() => {
         <template v-else-if="detail">
           <p v-if="hasUnsavedChanges" class="mt-2 text-xs text-warning">存在未保存修改</p>
           <fieldset :disabled="busy || testing" class="mt-3 space-y-4">
-            <label class="block text-sm">消息格式<select v-model="source.format" class="select mt-1 w-full"><option value="text">纯文本</option><option value="html">{{ provider === 'feishu' ? '富文本（转换为飞书 post）' : 'HTML 富文本' }}</option></select></label>
+            <label class="block text-sm">消息格式<select v-model="source.format" class="select mt-1 w-full"><option value="text">纯文本</option><option value="html">{{ provider === 'feishu' ? '消息卡片（HTML 富文本）' : 'HTML 富文本' }}</option></select></label>
             <label class="block text-sm">消息标题<input ref="titleInput" v-model="source.titleTemplate" @focus="activeField='title'" maxlength="500" class="input mt-1 w-full font-mono" /></label>
             <div><p class="text-sm">消息正文</p><div class="mt-1 overflow-hidden rounded-lg border border-base-300"><TemplateCodeEditor v-model="source.bodyTemplate" :variables="detail.variables" :language="source.format === 'html' ? 'html' : 'text'" :disabled="busy || testing" @ready="bodyEditor=$event.view" @focus="activeField='body'" /></div></div>
           </fieldset>
-          <p class="mt-2 text-xs opacity-70">支持 Tera 变量和条件。{{ provider === 'feishu' ? '飞书富文本保留标题、换行和 a 超链接；自定义机器人不支持正文粗体、斜体、下划线和删除线，已有 b/i/u/s 标签按普通文本显示。' : 'HTML 富文本支持 b、i、u、s、a 超链接，另支持独立的 code、pre、blockquote 和 tg-spoiler。' }}换行请直接输入换行符。不支持 CSS、图片、卡片或任意网页 HTML。</p>
+          <p class="mt-2 text-xs opacity-70">支持 Tera 变量和条件。{{ provider === 'feishu' ? '飞书富文本自动转换为消息卡片，支持 b 粗体、i 斜体、s 删除线和 a 超链接；u 下划线标签按普通文本显示。告警按级别显示橙色或红色标题，恢复通知使用绿色。' : 'HTML 富文本支持 b、i、u、s、a 超链接，另支持独立的 code、pre、blockquote 和 tg-spoiler。' }}换行请直接输入换行符。不支持 CSS、图片、自定义卡片 JSON 或任意网页 HTML。</p>
           <p class="mt-2 text-xs opacity-70">标题以纯文本编辑；事件 ID 自动附加。变量内容自动转义。真实消息超过平台限制时会记录投递失败。</p>
           <div class="mt-3 flex flex-wrap gap-2"><button class="btn btn-sm" :disabled="busy || testing" @click="reset">载入默认模板</button><button class="btn btn-sm" :disabled="busy || testing || !hasUnsavedChanges" @click="act('draft')">保存草稿</button><button class="btn btn-primary btn-sm" :disabled="busy || testing || !canPublish" @click="act('publish')">{{ busy ? '处理中…' : '发布模板' }}</button></div>
           <h3 class="mt-5 text-sm font-semibold">模板变量（与邮件一致）</h3><p class="mt-1 text-xs opacity-60">点击插入当前编辑位置；编辑器支持变量补全。</p><div class="mt-2 grid gap-2 sm:grid-cols-2"><button v-for="variable in detail.variables" :key="variable.key" type="button" class="rounded-lg border border-base-300 p-3 text-left hover:bg-base-200" :disabled="busy || testing" @click="insertVariable(variable.key)"><code class="text-xs text-primary" v-text="`{{ ${variable.key} }}`"></code><span class="mt-1 block text-xs">{{ variable.label }}</span><span class="block break-all text-xs opacity-50">示例：{{ variable.example }}</span></button></div>

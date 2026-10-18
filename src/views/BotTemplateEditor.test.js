@@ -14,17 +14,34 @@ const initial = { provider:'feishu', eventType:'health.alert', revision:0, statu
   source:{format:'text',titleTemplate:'title',bodyTemplate:'body'} }
 const response = data => ({data:{success:true,data}})
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return {promise,resolve} }
-function createPage(request = async () => response(initial), post = async () => response({htmlBody:'sample'})) {
+function createPage(request = async () => response(initial), post = async () => response({htmlBody:'sample'}), provider = 'feishu') {
   let dispose
-  const page = vm.runInNewContext(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewError,error,hasUnsavedChanges,sendTest,channelId,channels,loadChannels,sampleSeverity,testDelivery,testNotice})`, {
+  const page = vm.runInNewContext(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewDocument,previewError,error,hasUnsavedChanges,sendTest,channelId,channels,loadChannels,sampleSeverity,testDelivery,testNotice})`, {
     computed, nextTick, ref, shallowRef, watch, notificationEvents, providerLabel, deliveryReason, AbortController,
-    defineProps: () => ({provider:'feishu'}), defineExpose: () => {},
+    defineProps: () => ({provider}), defineExpose: () => {},
     http:Object.assign(request,{post}), setTimeout, clearTimeout,
     DOMPurify:{sanitize:value=>value}, formatDateTime:value=>value,
     useUnsavedChanges:()=>{}, onMounted:()=>{}, onBeforeUnmount:fn=>{dispose=fn}, window:{confirm:()=>true},
   })
   return {...page,dispose:()=>dispose()}
 }
+
+test('Feishu card previews use the header color and keep plain text and Telegram previews separate', () => {
+  const page = createPage()
+  for (const [template, color] of [['red','#fde2e2'],['orange','#fff0d4'],['green','#dff3e5'],['blue','#e3edff']]) {
+    page.preview.value = {htmlBody:'<b>标题</b>\n<b>正文</b>',payload:{msg_type:'interactive',card:{header:{template}}}}
+    assert.ok(page.previewDocument.value.includes('<article class="message-card"><b>标题</b>'))
+    assert.ok(page.previewDocument.value.includes(`background:${color};font-size:16px`))
+    assert.ok(page.previewDocument.value.includes("default-src 'none'"))
+  }
+  page.preview.value = {htmlBody:'普通消息',payload:{msg_type:'text'}}
+  assert.equal(page.previewDocument.value.includes('<article'), false)
+  const telegram = createPage(undefined, undefined, 'telegram')
+  telegram.preview.value = {htmlBody:'<b>Telegram</b>',payload:{text:'<b>Telegram</b>',parse_mode:'HTML'}}
+  assert.equal(telegram.previewDocument.value.includes('<article'), false)
+  page.dispose()
+  telegram.dispose()
+})
 
 test('publishing unsaved changes saves the selected provider/event first and uses the returned revision', async () => {
   const calls=[]
