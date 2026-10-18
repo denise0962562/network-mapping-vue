@@ -482,8 +482,8 @@ async function handleLogout() {
                   </router-link>
                 </li>
                 <li>
-                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/mail-templates">
-                    <span class="whitespace-nowrap">邮件模板</span>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/notification-templates">
+                    <span class="whitespace-nowrap">通知模板</span>
                   </router-link>
                 </li>
               </ul>

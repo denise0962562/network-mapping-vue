@@ -30,6 +30,7 @@ const reasons = {
   no_recipients: '没有有效收件人，请配置邮箱或渠道收件人',
   notification_source_unavailable: '通知数据暂不可用，将重试',
   mail_template_disabled: '对应邮件模板已停用', report_unavailable: '归档报告邮件不可用',
+  notification_template_invalid: '通知模板渲染失败或消息超出平台限制，请检查对应渠道的已发布模板',
 }
 
 export function deliveryReason(value) { return reasons[value] || (value ? '投递异常，请检查服务状态' : '—') }
