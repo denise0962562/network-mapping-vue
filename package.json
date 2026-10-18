@@ -21,7 +21,8 @@
     "test:versions": "node --test src/utils/versionUpdates.test.js",
     "preview": "vite preview",
     "test:routing": "node --test src/utils/scanRouting.test.js",
-    "test:open-api": "node --test src/utils/openApi.test.js"
+    "test:open-api": "node --test src/utils/openApi.test.js",
+    "test:web": "node --test src/utils/webDetection.test.js src/components/WebTechnologies.test.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

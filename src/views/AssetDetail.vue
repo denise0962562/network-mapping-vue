@@ -4,6 +4,7 @@ import { computed, markRaw, onMounted, ref } from 'vue'
 import ApexMaps from 'vue-apexmaps'
 import 'apexmaps/apexmaps.css'
 import AssetTags from '../components/AssetTags.vue'
+import WebTechnologies from '@/components/WebTechnologies.vue'
 import OsFingerprint from '@/components/OsFingerprint.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useTheme } from '@/composables/useTheme'
@@ -588,7 +589,7 @@ onMounted(() => {
           <div v-else class="overflow-x-auto">
             <table class="table table-zebra">
               <thead>
-                <tr><th>端口</th><th>协议 / 服务</th><th>Banner</th><th>系统线索</th><th>首次发现</th><th>最近发现</th><th>来源</th><th></th></tr>
+                <tr><th>端口</th><th>协议 / 服务</th><th>Banner</th><th>系统线索</th><th>Web 技术栈</th><th>首次发现</th><th>最近发现</th><th>来源</th><th></th></tr>
               </thead>
               <tbody>
                 <tr v-for="port in ports" :key="port.port">
@@ -599,6 +600,7 @@ onMounted(() => {
                   </td>
                   <td class="max-w-xs truncate" :title="port.banner">{{ port.banner || '-' }}</td>
                   <td><OsFingerprint :value="port.os" /></td>
+                  <td><WebTechnologies :value="port.web" /></td>
                   <td class="whitespace-nowrap">{{ formatTime(port.first_seen_at) }}</td>
                   <td class="whitespace-nowrap">{{ formatTime(port.last_seen_at) }}</td>
                   <td>

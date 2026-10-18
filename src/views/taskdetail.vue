@@ -3,6 +3,7 @@ import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import http from '@/utils/http'
+import WebTechnologies from '@/components/WebTechnologies.vue'
 import OsFingerprint from '@/components/OsFingerprint.vue'
 import { formatLocation } from '@/utils/location'
 import { routingLocation, routingSummary } from '@/utils/scanRouting'
@@ -482,7 +483,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="overflow-x-auto">
                 <table class="table table-sm">
-                  <thead><tr><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>系统线索</th><th>扫描时间</th></tr></thead>
+                  <thead><tr><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>系统线索</th><th>Web 技术栈</th><th>扫描时间</th></tr></thead>
                   <tbody>
                     <tr v-for="port in row.ports" :key="port.port">
                       <td>{{ port.port }}</td>
@@ -490,6 +491,7 @@ onBeforeUnmount(() => {
                       <td>{{ port.service || '-' }}</td>
                       <td class="max-w-72 truncate" :title="port.banner || ''">{{ port.banner || '-' }}</td>
                       <td><OsFingerprint :value="port.os" /></td>
+                      <td><WebTechnologies :value="port.web" /></td>
                       <td class="whitespace-nowrap">{{ formatTime(port.scan_time) }}</td>
                     </tr>
                   </tbody>

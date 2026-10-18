@@ -1,0 +1,37 @@
+# Web 技术栈展示
+
+[功能指南](FEATURES.md) · [前端维护](maintenance-guide.md)
+
+搜索页、任务详情和资产详情的端口表使用 `WebTechnologies.vue` 显示后端返回的 `web`。
+识别在服务端执行，浏览器只展示结果，不从扫描页面中自行推断技术栈。
+
+展开组件可查看名称、明确版本、置信等级、证据类型、规则 ID、字段路径、观察引用及时间。
+版本冲突不显示为确定版本，`partial` 保留已识别项并提示证据不完整，`stale` 提示可能过期。
+`pending` 隐藏组件明细；旧服务端缺少字段时显示“暂无识别结果”。证据始终通过 Vue 文本插值
+转义，不使用 `v-html` 或执行资源 URL。
+
+当前结果针对 IP 端点，无法代表该 IP 上所有域名。页面引用 JS/CSS 不代表运行时使用，
+置信度是规则分级。支持范围及未来采集能力以
+[服务端说明](https://github.com/wshijiang/network-mapping/blob/main/docs/WEB_DETECTION.md)为准。
+
+搜索示例：
+
+```text
+tech = nginx
+tech = "jquery@3.7.1"
+web.status = partial
+```
+
+`ID@版本` 在同一个组件内匹配；不要拆成无关联的组件和版本条件。
+搜索当前页 CSV 包含技术栈、状态、证据时间、过期标记和规则版本。
+
+从本仓库执行：
+
+```sh
+pnpm test:web
+node --test src/utils/*.test.js
+pnpm build
+```
+
+SSR 测试验证证据文本转义、版本冲突、截断和过期提示及 pending 状态。
+本仓库没有独立 MkDocs 配置，文档入口维护在 `docs/README.md`，后端专题同时加入其 MkDocs 导航。
