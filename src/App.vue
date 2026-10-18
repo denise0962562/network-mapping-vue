@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, readonly, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { expireCookie } from './utils/csrf'
 import http from './utils/http'
@@ -16,6 +16,7 @@ const drawerOpen = ref(true)
 const activeSettingsTab = ref('system')
 const reLoginModalRef = ref(null)
 const isAdmin = ref(false)
+provide('isAdmin', readonly(isAdmin))
 const frontendVersion = packageInfo.version
 const serverVersion = ref('')
 const maintenanceStatus = ref(null)

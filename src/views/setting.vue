@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, useId } from 'vue'
+import { computed, inject, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import GeneralSettings from '@/components/GeneralSettings.vue'
 import ConfigCheckPanel from '@/components/ConfigCheckPanel.vue'
@@ -7,6 +7,7 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 
 const formFieldId = useId()
+const isAdmin = inject('isAdmin', ref(false))
 const alerts = ref([])
 const generalSettings = ref(null)
 const generalDirty = ref(false)
@@ -600,7 +601,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="card bg-base-100 card-border border-base-300 p-4">
+      <div v-if="isAdmin" class="card bg-base-100 card-border border-base-300 p-4">
         <h3 class="font-semibold">登录保护</h3>
         <p class="mt-2 text-sm opacity-60">配置可选人机验证、允许域名与验证密钥，保护新的密码登录。</p>
         <router-link class="btn btn-neutral btn-sm mt-4 w-fit" to="/setting/human-verification">管理登录保护</router-link>
