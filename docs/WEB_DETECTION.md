@@ -35,3 +35,10 @@ pnpm build
 
 SSR 测试验证证据文本转义、版本冲突、截断和过期提示及 pending 状态。
 本仓库没有独立 MkDocs 配置，文档入口维护在 `docs/README.md`，后端专题同时加入其 MkDocs 导航。
+
+## 扩展技术目录
+
+新增产品沿用同一 `web` 返回结构，前端无需按产品硬编码。完整清单和分批状态见
+[服务端技术目录](https://github.com/wshijiang/network-mapping/blob/main/docs/WEB_TECHNOLOGY_CATALOG.md)。
+第一批新增 MinIO、通用 S3、GitLab 等明确特征规则；可使用 `tech = minio`、`tech = s3`、
+`tech = gitlab`。S3 兼容性不等于 MinIO 产品身份，GitLab 页面也不等于已识别 Git 协议服务。
