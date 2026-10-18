@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { compileScript, parse } from 'vue/compiler-sfc'
-import { notificationEvents, providerLabel } from '../utils/notifications.js'
+import { notificationEvents, providerLabel, deliveryReason } from '../utils/notifications.js'
 
 const { descriptor } = parse(readFileSync(new URL('./BotTemplateEditor.vue', import.meta.url), 'utf8'))
 const compiled = compileScript(descriptor, { id: 'bot-template-test' })
@@ -16,8 +16,8 @@ const response = data => ({data:{success:true,data}})
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return {promise,resolve} }
 function createPage(request = async () => response(initial), post = async () => response({htmlBody:'sample'})) {
   let dispose
-  const page = vm.runInNewContext(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewError,error,hasUnsavedChanges})`, {
-    computed, nextTick, ref, watch, notificationEvents, providerLabel, AbortController,
+  const page = vm.runInNewContext(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewError,error,hasUnsavedChanges,sendTest,channelId,channels,loadChannels,sampleSeverity,testDelivery,testNotice})`, {
+    computed, nextTick, ref, shallowRef, watch, notificationEvents, providerLabel, deliveryReason, AbortController,
     defineProps: () => ({provider:'feishu'}), defineExpose: () => {},
     http:Object.assign(request,{post}), setTimeout, clearTimeout,
     DOMPurify:{sanitize:value=>value}, formatDateTime:value=>value,
@@ -85,4 +85,58 @@ test('unmount cancels detail loading and discards late responses', async () => {
   await loading
   assert.equal(signal.aborted,true)
   assert.equal(page.detail.value,null)
+})
+
+test('template testing sends current unsaved content and selected severity without publishing', async () => {
+  const calls=[]
+  const page=createPage(async config => {
+    calls.push(config)
+    return config.method==='POST' ? response({delivery_id:'delivery-1'}) : response({id:'delivery-1',status:'sent'})
+  })
+  page.apply(initial)
+  page.channelId.value='channel-1'
+  page.source.value.bodyTemplate='<b>{{ summary }}</b>'
+  page.sampleSeverity.value='critical'
+  await page.sendTest()
+  assert.equal(calls.length,2)
+  assert.equal(calls[0].url,'/api/notifications/templates/feishu/health.alert/test')
+  assert.equal(calls[0].data.channelId,'channel-1')
+  assert.equal(calls[0].data.source.bodyTemplate,'<b>{{ summary }}</b>')
+  assert.equal(calls[0].data.severity,'critical')
+  assert.equal(calls[1].url,'/api/notifications/deliveries/delivery-1')
+  assert.equal(page.hasUnsavedChanges.value,true)
+  assert.equal(page.detail.value.revision,0)
+  assert.equal(page.testDelivery.value.status,'sent')
+  page.dispose()
+})
+
+test('only enabled channels of the selected provider can be selected for testing', async () => {
+  const page=createPage(async()=>response([
+    {id:'email',provider:'email',enabled:true}, {id:'disabled',provider:'feishu',enabled:false},
+    {id:'correct',provider:'feishu',name:'飞书测试群',enabled:true}, {id:'telegram',provider:'telegram',enabled:true},
+  ]))
+  await page.loadChannels()
+  assert.deepEqual(Array.from(page.channels.value, c=>c.id),['correct'])
+  assert.equal(page.channelId.value,'correct')
+  page.dispose()
+})
+
+test('late test status cannot update the page after unmount', async () => {
+  const pending=deferred(), started=deferred()
+  let statusSignal
+  const page=createPage(async config=>{
+    if(config.method==='POST') return response({delivery_id:'delivery-1'})
+    statusSignal=config.signal
+    started.resolve()
+    return pending.promise
+  })
+  page.apply(initial)
+  page.channelId.value='channel-1'
+  const sending=page.sendTest()
+  await started.promise
+  page.dispose()
+  pending.resolve(response({id:'delivery-1',status:'sent'}))
+  await sending
+  assert.equal(statusSignal.aborted,true)
+  assert.equal(page.testDelivery.value.status,'pending')
 })

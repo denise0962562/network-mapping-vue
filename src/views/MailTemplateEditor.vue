@@ -1,20 +1,13 @@
 <script setup>
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, nextTick, onMounted, ref, shallowRef, useId } from 'vue'
-import { autocompletion } from '@codemirror/autocomplete'
-import { html } from '@codemirror/lang-html'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { tags } from '@lezer/highlight'
-import { EditorView } from 'codemirror'
 import DOMPurify from 'dompurify'
-import { Codemirror } from 'vue-codemirror'
+import TemplateCodeEditor from '@/components/TemplateCodeEditor.vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
-import { useTheme } from '@/composables/useTheme'
 
 const formFieldId = useId()
-const { isDark } = useTheme()
 
 const alerts = ref([])
 const templates = ref([])
@@ -77,43 +70,6 @@ const statusClass = computed(() => {
   }
 })
 
-function completionSource(context) {
-  const word = context.matchBefore(/[A-Za-z_][\w.]*/)
-  if (!word && !context.explicit) return null
-  return {
-    from: word?.from ?? context.pos,
-    options: (currentTemplate.value?.variables || []).map((variable) => ({
-      label: variable.key,
-      type: 'variable',
-      detail: `${variable.label} · ${variable.example}`,
-      apply: variable.key
-    }))
-  }
-}
-
-const variableAutocomplete = autocompletion({ override: [completionSource] })
-const htmlExtension = html()
-const editorTheme = computed(() => [
-  EditorView.theme({
-    '&': { backgroundColor: 'var(--color-base-100)', color: 'var(--color-base-content)' },
-    '.cm-gutters': { backgroundColor: 'var(--color-base-200)', color: 'var(--color-base-content)', borderColor: 'var(--color-base-300)' },
-    '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--color-base-200)' },
-    '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-base-content)' },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { backgroundColor: 'color-mix(in oklab, var(--color-primary) 25%, transparent)' },
-    '.cm-tooltip, .cm-panels': { backgroundColor: 'var(--color-base-100)', color: 'var(--color-base-content)', borderColor: 'var(--color-base-300)' },
-    '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: 'var(--color-base-300)', color: 'var(--color-base-content)' },
-    '&.cm-focused .cm-matchingBracket': { backgroundColor: 'var(--color-base-300)' }
-  }, { dark: isDark.value }),
-  syntaxHighlighting(HighlightStyle.define([
-    { tag: tags.tagName, color: isDark.value ? '#93c5fd' : '#0550ae' },
-    { tag: tags.attributeName, color: isDark.value ? '#c4b5fd' : '#8250df' },
-    { tag: [tags.string, tags.attributeValue], color: isDark.value ? '#86efac' : '#116329' },
-    { tag: tags.comment, color: isDark.value ? '#94a3b8' : '#6b7280' },
-    { tag: [tags.angleBracket, tags.punctuation], color: isDark.value ? '#cbd5e1' : '#475569' }
-  ]))
-])
-const htmlEditorExtensions = computed(() => [htmlExtension, variableAutocomplete, ...editorTheme.value])
-const textEditorExtensions = computed(() => [variableAutocomplete, ...editorTheme.value])
 
 function pushAlert(type, title, description = '', timeout = 7000) {
   alerts.value.unshift({
@@ -535,10 +491,10 @@ onMounted(initialize)
           </div>
 
           <div class="mt-3 overflow-hidden rounded-lg border border-base-300 bg-base-100">
-            <Codemirror
+            <TemplateCodeEditor
               v-if="editorTab === 'html'"
               v-model="source.htmlTemplate"
-              :extensions="htmlEditorExtensions"
+              :variables="currentTemplate?.variables || []" language="html" :disabled="saving || publishing"
               :style="{ height: '560px' }"
               :indent-with-tab="true"
               :tab-size="2"
@@ -546,10 +502,10 @@ onMounted(initialize)
               @ready="setEditorReady('html', $event)"
               @focus="activeField = 'html'"
             />
-            <Codemirror
+            <TemplateCodeEditor
               v-else
               v-model="source.textTemplate"
-              :extensions="textEditorExtensions"
+              :variables="currentTemplate?.variables || []" language="text" :disabled="saving || publishing"
               :style="{ height: '560px' }"
               :indent-with-tab="true"
               :tab-size="2"

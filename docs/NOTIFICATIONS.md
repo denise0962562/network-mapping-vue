@@ -49,8 +49,17 @@ pnpm build
 
 飞书支持粗体、斜体、下划线、删除线、链接，后端转换为原生 `post`；Telegram 使用 HTML parse_mode，另支持 code、pre、blockquote 和 tg-spoiler。本编辑器不支持 CSS、图片、任意网页 HTML 或卡片 JSON。变量自动转义，事件 ID 自动附加。
 
-三个渠道均有在线预览。飞书与 Telegram 是浏览器模拟预览，未接入官方客户端原样预览；字体、主题、剧透、链接提示可能不同。效果、纯文本和最终消息数据可切换查看。预览不发消息、不加载外部资源；渠道测试仍发送固定的连通性测试消息。真实数据超长时投递记录会显示模板渲染错误。
+三个渠道均有在线预览。飞书与 Telegram 是浏览器模拟预览，未接入官方客户端原样预览；字体、主题、剧透、链接提示可能不同。效果、纯文本和最终消息数据可切换查看。预览不发消息、不加载外部资源；渠道页测试仍发送固定连通性消息；模板编辑器内测试发送当前内容。真实数据超长时投递记录会显示模板渲染错误。
 
 后端须同步升级，新增 API 位于 `/api/notifications/templates/{provider}/{event}`，提供 GET 详情和 POST preview/draft/publish/restore。写入使用 revision 防止覆盖其他管理员的修改。保存冲突保留本地编辑，重新加载前请备份需要保留的文本。邮件 API 不变，旧模板和已归档报告不变。
 
 详细格式、变量、消息长度和迁移约定见服务端文档：[分渠道通知模板](https://github.com/wshijiang/network-mapping/blob/main/docs/NOTIFICATION_TEMPLATES.md)。
+
+
+### 与邮件一致的变量和模板测试
+
+邮件、飞书、Telegram 共用代码编辑器的样式、变量自动补全和点击插入方式。机器人参数目录按事件复用邮件的字段名称、说明、示例和结构，包含登录 source_ip、健康 details、Scanner 详情和周报/月报嵌套统计。真实投递使用共享事件数据；报告使用归档参数快照。新默认富文本参考邮件的标题、详情、建议和操作入口，已保存版本不会被覆盖，可载入默认模板后自行发布。平台不支持的 CSS、图片和布局不会强行移植。
+
+在飞书、Telegram 模板中选择已启用的同类型渠道及示例级别，点击「发送测试消息」，即可发送当前编辑的内容，无需保存或发布。页面展示投递 ID，并跟踪排队/发送/成功/失败状态；超出约 60 秒可到通知渠道查看投递记录。测试只发送固定示例数据；同渠道每 30 秒一次，与连通性测试共用限流。
+
+接口：`POST /api/notifications/templates/{provider}/{event}/test` 接收 `{channelId,source,severity}`；`GET /api/notifications/deliveries/{id}` 查询结果。预览接口增加 `?severity=warning|critical`。测试快照进入既有队列，后续编辑不会改变已排队内容，离开页面会停止状态轮询。

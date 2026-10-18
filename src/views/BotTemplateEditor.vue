@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import http from '@/utils/http'
-import { notificationEvents, providerLabel } from '@/utils/notifications'
+import { notificationEvents, providerLabel, deliveryReason } from '@/utils/notifications'
+import TemplateCodeEditor from '@/components/TemplateCodeEditor.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { formatDateTime } from '@/utils/systemTime'
 
@@ -19,13 +20,25 @@ const previewTab = ref('rendered')
 const previewError = ref('')
 const error = ref('')
 const notice = ref('')
+const channels = ref([])
+const channelId = ref('')
+const channelError = ref('')
+const sampleSeverity = ref('warning')
+const testing = ref(false)
+const testDelivery = ref(null)
+const testNotice = ref('')
+const bodyEditor = shallowRef(null)
+const titleInput = ref(null)
+const activeField = ref('body')
 const hasUnsavedChanges = computed(() => saved.value !== JSON.stringify(source.value))
 useUnsavedChanges(hasUnsavedChanges, async () => { await act('draft'); return !hasUnsavedChanges.value })
-defineExpose({ hasUnsavedChanges, busy: computed(() => busy.value || loading.value) })
+defineExpose({ hasUnsavedChanges, busy: computed(() => busy.value || loading.value || testing.value) })
 let disposed = false
 let timer
 let previewSequence = 0
 let previewAbort
+let testTimer
+let testSequence = 0
 const requests = new Set()
 const clone = value => JSON.parse(JSON.stringify(value))
 const base = computed(() => `/api/notifications/templates/${props.provider}/${event.value}`)
@@ -62,11 +75,15 @@ async function load() {
   finally { if (!disposed) loading.value = false }
 }
 async function selectEvent(value) {
-  if (value === event.value || loading.value || busy.value) return
+  if (value === event.value || loading.value || busy.value || testing.value) return
   if (hasUnsavedChanges.value && !window.confirm('当前模板有未保存修改，确定切换事件吗？')) return
   clearTimeout(timer)
   previewAbort?.abort()
   previewSequence++
+  clearTimeout(testTimer)
+  testSequence++
+  testDelivery.value = null
+  testNotice.value = ''
   event.value = value
   detail.value = null
   notice.value = ''
@@ -83,7 +100,7 @@ async function refreshPreview() {
   preview.value = null
   previewError.value = ''
   try {
-    const response = await http.post(`${base.value}/preview`, clone(source.value), {signal:controller.signal})
+    const response = await http.post(`${base.value}/preview?severity=${sampleSeverity.value}`, clone(source.value), {signal:controller.signal})
     if (disposed || sequence !== previewSequence) return
     if (!response.data?.success) throw new Error(response.data?.message || '预览失败')
     preview.value = response.data.data
@@ -100,13 +117,69 @@ watch(source, () => {
   if (!disposed && !loading.value && detail.value) timer = setTimeout(refreshPreview, 450)
 }, {deep:true, flush:'post'})
 watch(loading, value => { if (!value && detail.value) refreshPreview() })
+watch(sampleSeverity, () => { if (detail.value && !loading.value) refreshPreview() })
+
+async function loadChannels() {
+  channelError.value = ''
+  try {
+    const value = await request('GET','/api/notifications/channels')
+    if (disposed) return
+    channels.value = value.filter(c => c.provider === props.provider && c.enabled)
+    if (!channels.value.some(c => c.id === channelId.value)) channelId.value = channels.value[0]?.id || ''
+  } catch (e) { if (!disposed) channelError.value = e.response?.data?.message || '测试渠道加载失败' }
+}
+async function pollTest(id, sequence, attempt = 0) {
+  if (disposed || sequence !== testSequence) return
+  try {
+    const value = await request('GET',`/api/notifications/deliveries/${id}`)
+    if (disposed || sequence !== testSequence) return
+    testDelivery.value = value
+    if (value.status === 'sent') testNotice.value = '测试消息已发送，请在实际客户端检查样式。'
+    else if (['failed','cancelled'].includes(value.status)) testNotice.value = `测试投递${value.status === 'failed' ? '失败' : '已取消'}：${deliveryReason(value.last_error)}`
+    else if (attempt < 29) testTimer = setTimeout(() => pollTest(id,sequence,attempt+1),2000)
+    else testNotice.value = '测试仍在排队或重试，请前往通知渠道的投递记录查看。'
+  } catch (e) {
+    if (!disposed && sequence === testSequence) testNotice.value = '测试已入队，暂时无法读取状态，请在通知渠道的投递记录查看。'
+  }
+}
+async function sendTest() {
+  if (testing.value || busy.value || loading.value || !channelId.value || !detail.value) return
+  testing.value = true
+  clearTimeout(testTimer)
+  const sequence = ++testSequence
+  testNotice.value = ''
+  testDelivery.value = null
+  try {
+    const value = await request('POST',`${base.value}/test`,{channelId:channelId.value,source:clone(source.value),severity:sampleSeverity.value})
+    if (disposed || sequence !== testSequence) return
+    testNotice.value = '测试已入队，正在等待投递结果。'
+    testDelivery.value = {id:value.delivery_id,status:'pending'}
+    await pollTest(value.delivery_id,sequence)
+  } catch (e) {
+    if (!disposed && sequence === testSequence) testNotice.value = e.response?.data?.message || e.message || '测试发送失败'
+  } finally { if (!disposed) testing.value = false }
+}
+function insertVariable(key) {
+  const token = `{{ ${key} }}`
+  if (activeField.value === 'title') {
+    const input = titleInput.value
+    const start = input?.selectionStart ?? source.value.titleTemplate.length
+    const end = input?.selectionEnd ?? start
+    source.value.titleTemplate = source.value.titleTemplate.slice(0,start)+token+source.value.titleTemplate.slice(end)
+    nextTick(() => { input?.focus(); input?.setSelectionRange(start+token.length,start+token.length) })
+  } else if (bodyEditor.value) {
+    const view = bodyEditor.value, selection = view.state.selection.main
+    view.dispatch({changes:{from:selection.from,to:selection.to,insert:token},selection:{anchor:selection.from+token.length}})
+    view.focus()
+  }
+}
 
 async function save() {
   const value = await request('POST', `${base.value}/draft`, {expectedRevision:detail.value.revision,source:clone(source.value)})
   if (!disposed) apply(value)
 }
 async function act(action, version) {
-  if (busy.value || loading.value || !detail.value) return
+  if (busy.value || loading.value || testing.value || !detail.value) return
   if (action === 'restore' && hasUnsavedChanges.value && !window.confirm('恢复历史版本会替换未保存修改，确定继续吗？')) return
   busy.value = true
   error.value = ''
@@ -133,12 +206,14 @@ function reload() {
   if (hasUnsavedChanges.value && !window.confirm('重新加载会放弃本地修改，确定继续吗？')) return
   load()
 }
-onMounted(load)
+onMounted(() => Promise.allSettled([load(),loadChannels()]))
 onBeforeUnmount(() => {
   disposed = true
   clearTimeout(timer)
   previewSequence++
   previewAbort?.abort()
+  clearTimeout(testTimer)
+  testSequence++
   requests.forEach(c => c.abort())
 })
 </script>
@@ -151,15 +226,15 @@ onBeforeUnmount(() => {
     <div class="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_minmax(320px,0.8fr)]">
       <aside class="card card-border border-base-300 bg-base-100 p-4">
         <h2 class="font-semibold">通知事件</h2>
-        <ul class="menu mt-2 p-0"><li v-for="item in notificationEvents" :key="item.value"><button :disabled="loading || busy" :class="{active:event === item.value}" @click="selectEvent(item.value)">{{ item.label }}</button></li></ul>
+        <ul class="menu mt-2 p-0"><li v-for="item in notificationEvents" :key="item.value"><button :disabled="loading || busy || testing" :class="{active:event === item.value}" @click="selectEvent(item.value)">{{ item.label }}</button></li></ul>
         <div class="divider"></div><h2 class="font-semibold">历史版本</h2>
         <div class="mt-2 max-h-96 space-y-2 overflow-auto">
           <div v-for="version in detail?.versions || []" :key="version.version" class="rounded border border-base-300 p-2 text-xs">
             <p>版本 {{ version.version }} · {{ {draft:'草稿',published:'已发布',archived:'历史'}[version.status] }}</p>
             <p class="mt-1 opacity-60">{{ formatDateTime(version.createdAt) }}</p>
-            <button v-if="version.status !== 'draft'" class="btn btn-ghost btn-xs mt-1" :disabled="busy || loading" @click="act('restore',version.version)">恢复为草稿</button>
+            <button v-if="version.status !== 'draft'" class="btn btn-ghost btn-xs mt-1" :disabled="busy || loading || testing" @click="act('restore',version.version)">恢复为草稿</button>
           </div>
-          <p v-if="!detail?.versions?.length" class="text-xs opacity-60">尚未保存，使用内置纯文本模板。</p>
+          <p v-if="!detail?.versions?.length" class="text-xs opacity-60">尚未保存，使用内置事件模板。</p>
         </div>
       </aside>
       <main class="card card-border min-w-0 border-base-300 bg-base-100 p-4">
@@ -167,21 +242,30 @@ onBeforeUnmount(() => {
         <div v-if="loading" class="py-12 text-center"><span class="loading loading-spinner"></span></div>
         <template v-else-if="detail">
           <p v-if="hasUnsavedChanges" class="mt-2 text-xs text-warning">存在未保存修改</p>
-          <fieldset :disabled="busy" class="mt-3 space-y-4">
+          <fieldset :disabled="busy || testing" class="mt-3 space-y-4">
             <label class="block text-sm">消息格式<select v-model="source.format" class="select mt-1 w-full"><option value="text">纯文本</option><option value="html">{{ provider === 'feishu' ? '富文本（转换为飞书 post）' : 'HTML 富文本' }}</option></select></label>
-            <label class="block text-sm">消息标题<input v-model="source.titleTemplate" maxlength="500" class="input mt-1 w-full font-mono" /></label>
-            <label class="block text-sm">消息正文<textarea v-model="source.bodyTemplate" rows="17" class="textarea mt-1 w-full font-mono" spellcheck="false"></textarea></label>
+            <label class="block text-sm">消息标题<input ref="titleInput" v-model="source.titleTemplate" @focus="activeField='title'" maxlength="500" class="input mt-1 w-full font-mono" /></label>
+            <div><p class="text-sm">消息正文</p><div class="mt-1 overflow-hidden rounded-lg border border-base-300"><TemplateCodeEditor v-model="source.bodyTemplate" :variables="detail.variables" :language="source.format === 'html' ? 'html' : 'text'" :disabled="busy || testing" @ready="bodyEditor=$event.view" @focus="activeField='body'" /></div></div>
           </fieldset>
           <p class="mt-2 text-xs opacity-70">支持 Tera 变量和条件。富文本支持 &lt;b&gt;、&lt;i&gt;、&lt;u&gt;、&lt;s&gt;、&lt;a href="https://…"&gt;；{{ provider === 'telegram' ? '另支持独立的 code、pre、blockquote 和 tg-spoiler。' : '发送时转换为飞书原生样式。' }}换行请直接输入换行符。不支持 CSS、图片、卡片或任意网页 HTML。</p>
           <p class="mt-2 text-xs opacity-70">标题以纯文本编辑；事件 ID 自动附加。变量内容自动转义。真实消息超过平台限制时会记录投递失败。</p>
-          <div class="mt-3 flex flex-wrap gap-2"><button class="btn btn-sm" :disabled="busy" @click="reset">载入默认模板</button><button class="btn btn-sm" :disabled="busy || !hasUnsavedChanges" @click="act('draft')">保存草稿</button><button class="btn btn-primary btn-sm" :disabled="busy || !canPublish" @click="act('publish')">{{ busy ? '处理中…' : '发布模板' }}</button></div>
-          <h3 class="mt-5 text-sm font-semibold">可用变量</h3><div class="mt-2 flex flex-wrap gap-2"><code v-for="variable in detail.variables" :key="variable" class="rounded bg-base-200 px-2 py-1 text-xs" v-text="`{{ ${variable} }}`"></code></div>
-          <p class="mt-3 text-xs opacity-60">发布后，可在「通知渠道」中使用实际目标测试投递。该测试检查连通性，采用固定测试消息。</p>
+          <div class="mt-3 flex flex-wrap gap-2"><button class="btn btn-sm" :disabled="busy || testing" @click="reset">载入默认模板</button><button class="btn btn-sm" :disabled="busy || testing || !hasUnsavedChanges" @click="act('draft')">保存草稿</button><button class="btn btn-primary btn-sm" :disabled="busy || testing || !canPublish" @click="act('publish')">{{ busy ? '处理中…' : '发布模板' }}</button></div>
+          <h3 class="mt-5 text-sm font-semibold">模板变量（与邮件一致）</h3><p class="mt-1 text-xs opacity-60">点击插入当前编辑位置；编辑器支持变量补全。</p><div class="mt-2 grid gap-2 sm:grid-cols-2"><button v-for="variable in detail.variables" :key="variable.key" type="button" class="rounded-lg border border-base-300 p-3 text-left hover:bg-base-200" :disabled="busy || testing" @click="insertVariable(variable.key)"><code class="text-xs text-primary" v-text="`{{ ${variable.key} }}`"></code><span class="mt-1 block text-xs">{{ variable.label }}</span><span class="block break-all text-xs opacity-50">示例：{{ variable.example }}</span></button></div>
+          <section class="mt-5 border-t border-base-300 pt-4">
+            <h3 class="font-semibold">测试发送</h3>
+            <p class="mt-1 text-xs opacity-60">将当前编辑内容和所选级别的示例数据发送到实际渠道。不保存、不发布，也不使用真实用户数据。同渠道每 30 秒可测试一次。</p>
+            <p v-if="channelError" role="alert" class="mt-2 text-sm text-error">{{ channelError }}</p>
+            <label class="mt-3 block text-sm">测试目标<select v-model="channelId" class="select mt-1 w-full" :disabled="testing"><option disabled value="">请选择已启用渠道</option><option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option></select></label>
+            <p v-if="!channels.length" class="mt-2 text-xs">没有可用的 {{ providerLabel(provider) }} 渠道，请在 <router-link class="link" to="/setting/notifications">通知渠道</router-link> 中配置并启用。</p>
+            <div class="mt-3 flex gap-2"><button class="btn btn-neutral btn-sm" :disabled="testing || busy || loading || !channelId" @click="sendTest">{{ testing ? '正在提交…' : '发送测试消息' }}</button><button class="btn btn-ghost btn-sm" :disabled="testing" @click="loadChannels">刷新渠道</button></div>
+            <p v-if="testNotice" role="status" class="mt-3 text-sm">{{ testNotice }}</p>
+            <p v-if="testDelivery" class="mt-1 break-all text-xs opacity-60">投递 ID：{{ testDelivery.id }} · {{ {pending:'排队中',sending:'发送中',sent:'已发送',failed:'失败',cancelled:'已取消'}[testDelivery.status] || testDelivery.status }}</p>
+          </section>
         </template>
       </main>
       <aside class="card card-border min-w-0 border-base-300 bg-base-100 p-4">
         <div class="flex items-center justify-between"><h2 class="font-semibold">在线预览</h2><button class="btn btn-ghost btn-sm" :disabled="loading || busy || !detail" @click="refreshPreview">{{ previewing ? '渲染中…' : '刷新预览' }}</button></div>
-        <div class="tabs tabs-box mt-3"><button v-for="tab in [{value:'rendered',label:'效果'},{value:'text',label:'文本'},{value:'payload',label:'消息数据'}]" :key="tab.value" class="tab" :class="{'tab-active':previewTab===tab.value}" @click="previewTab=tab.value">{{ tab.label }}</button></div>
+        <label class="mt-3 block text-sm">示例级别<select v-model="sampleSeverity" class="select mt-1 w-full" :disabled="testing"><option value="warning">警告（warning）</option><option value="critical">严重（critical）</option></select></label><div class="tabs tabs-box mt-3"><button v-for="tab in [{value:'rendered',label:'效果'},{value:'text',label:'文本'},{value:'payload',label:'消息数据'}]" :key="tab.value" class="tab" :class="{'tab-active':previewTab===tab.value}" @click="previewTab=tab.value">{{ tab.label }}</button></div>
         <p v-if="previewError" role="alert" class="mt-3 text-sm text-error">{{ previewError }}</p>
         <template v-if="preview">
           <iframe v-if="previewTab==='rendered'" title="通知模板模拟预览" sandbox="" :srcdoc="previewDocument" class="mt-3 h-[540px] w-full rounded border border-base-300 bg-white"></iframe>
