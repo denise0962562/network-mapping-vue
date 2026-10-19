@@ -1,22 +1,24 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { originLabel, safeReference } from '../utils/threatIntel'
+import { formatDateTime } from '../utils/systemTime'
 const props = defineProps({ intel: { type: Object, default: null }, label: { type: String, default: '情报' } })
 const dialog = ref(null)
-const matches = computed(() => props.intel?.matches || [])
+const matches = computed(() => [...(props.intel?.matches || []), ...(props.intel?.expired_matches || [])])
 </script>
 
 <template>
   <span v-if="intel" class="inline-flex items-center gap-1">
     <span v-if="!intel.available" class="badge badge-ghost badge-sm" title="情报存储暂时不可用，此状态不表示目标正常">情报暂不可用</span>
-    <button v-else-if="intel.risk" type="button" class="badge badge-sm cursor-pointer" :class="intel.risk === 'malicious' ? 'badge-error' : 'badge-warning'" @click="dialog?.showModal()">{{ label }}：{{ intel.risk === 'malicious' ? '恶意' : '可疑' }}</button>
+    <button v-else-if="intel.risk || intel.expired_matches?.length" type="button" class="badge badge-sm cursor-pointer" :class="intel.risk === 'malicious' ? 'badge-error' : intel.risk ? 'badge-warning' : 'badge-ghost'" @click="dialog?.showModal()">{{ label }}：{{ intel.risk === 'malicious' ? '恶意' : intel.risk ? '可疑' : '已过期' }}</button>
     <dialog ref="dialog" class="modal">
       <div class="modal-box w-11/12 max-w-3xl text-left whitespace-normal">
         <h2 class="text-lg font-semibold">{{ label }}命中证据</h2>
-        <p class="mt-2 text-sm opacity-65">标记仅适用于下列 IOC 的精确范围。组织归因来自已接纳的具体报告；共享软件不会自动产生组织标签。</p>
+        <p class="mt-2 text-sm opacity-65">标记仅适用于下列 IOC 的精确范围。组织归因来自已接纳的具体报告；共享软件不会自动产生组织标签。过期证据保留供追溯，不贡献当前风险。</p>
         <article v-for="match in matches" :key="match.id" class="mt-4 rounded border border-base-300 p-3 space-y-2 text-sm">
           <div class="flex flex-wrap gap-2"><span class="badge badge-outline">{{ match.type }}</span><code class="break-all">{{ match.value }}</code></div>
           <p>{{ match.source_name }} · {{ originLabel(match) }}</p>
+          <p v-if="match.valid_until" :class="match.expired ? 'text-warning' : 'opacity-65'">{{ match.expired ? '已过期' : '有效期' }}：{{ formatDateTime(match.valid_until) }}</p>
           <p v-if="match.actor">报告归因：{{ match.actor.name }}（{{ match.actor.id }}）</p>
           <p v-else-if="match.payload?.actor_name">报告原名：{{ match.payload.actor_name }}；尚未形成有效标准组织归因。</p>
           <p v-if="match.payload?.malware">软件 / 家族：{{ match.payload.malware }}<span v-if="match.software">（{{ match.software.id }}）</span></p>

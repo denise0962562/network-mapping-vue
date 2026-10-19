@@ -7,6 +7,15 @@ test('trusted defaults expose configurable source intervals', () => {
   assert.equal(source.require_review, false)
   assert.equal(defaultIntervals.mitre_stix, 86400)
   assert.equal(defaultIntervals.threatfox, 1800)
+  assert.equal(source.expiry_months, 6)
+})
+test('offline source configuration omits remote addresses and credentials and keeps expiry editable', () => {
+  const form = { ...newSource(), kind: 'threatfox_export', transport: 'upload', location: 'https://obsolete.example/file', auth_env: 'NM_INTEL_OLD_KEY', credential: 'not-for-offline', expiry_months: '12', import_status: { stage: 'ready' } }
+  const body = sourcePayload(form, 'obsolete.example')
+  assert.equal(body.location, ''); assert.equal(body.auth_env, '')
+  assert.equal('credential' in body, false); assert.equal('import_status' in body, false)
+  assert.deepEqual(body.allowed_hosts, []); assert.equal(body.expiry_months, 12)
+  form.expiry_months = 0; assert.equal(sourcePayload(form, '').expiry_months, 0)
 })
 test('source edits submit revisions and exclude response-only fields', () => {
   const form = { ...newSource(), id: 'source', revision: 7, name: ' Official ', last_run: {}, credential_configured: true }

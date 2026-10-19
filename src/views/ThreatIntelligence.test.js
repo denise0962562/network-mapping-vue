@@ -11,7 +11,7 @@ const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll})`, {
+  const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress})`, {
     ...intel, computed, ref, AbortController, http, formatDateTime: v => v,
     document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
@@ -26,6 +26,22 @@ test('late responses cannot overwrite the selected tab results', async () => {
   pending.resolve({ data: { data: { items: [{ id: 'obsolete' }], total: 1 } } }); await first
   assert.equal(p.articles.value[0].id, 'article'); assert.equal(p.records.value.length, 0)
   p.dispose()
+})
+test('offline import sends the file body and source revision without scheduling or AI requests', async () => {
+  const sent = [], pending = deferred()
+  const p = page({ post: (url, body, options) => { sent.push({ url, body, options }); return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
+  const file = new Blob(['type,value\ndomain,history.example\n'], { type: 'text/csv' })
+  p.openImport({ id: 'offline-source', revision: 4 }); p.importFile.value = file
+  const upload = p.uploadImport()
+  await p.uploadImport() // duplicate click is blocked
+  assert.equal(sent.length, 1); assert.equal(sent[0].url, '/api/intel/sources/offline-source/import')
+  assert.equal(sent[0].body, file); assert.equal(sent[0].options.params.expected_revision, 4)
+  assert.equal(sent[0].options.headers['Content-Type'], 'application/octet-stream')
+  sent[0].options.onUploadProgress({ loaded: 25, total: 100 })
+  assert.equal(p.uploadProgress.value, 25)
+  pending.resolve({}); await upload
+  assert.equal(p.importFile.value, null)
+  p.dispose(); assert.equal(sent[0].options.signal.aborted, true)
 })
 test('AI switch changes only extraction settings and carries the revision', async () => {
   const sent = []
