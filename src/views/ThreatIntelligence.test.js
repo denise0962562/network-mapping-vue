@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { compileScript, parse } from 'vue/compiler-sfc'
 import * as intel from '../utils/threatIntel.js'
 const { descriptor } = parse(readFileSync(new URL('./ThreatIntelligence.vue', import.meta.url), 'utf8'))
@@ -11,8 +11,8 @@ const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,poll})`, {
-    ...intel, ref, AbortController, http, formatDateTime: v => v,
+  const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll})`, {
+    ...intel, computed, ref, AbortController, http, formatDateTime: v => v,
     document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
   })
@@ -39,12 +39,68 @@ test('AI switch changes only extraction settings and carries the revision', asyn
 })
 test('review request approves exactly the displayed record version', async () => {
   const sent = []
-  const p = page({ post: async (url, body) => { sent.push({ url, body }); return {} }, get: async () => ({ data: { data: { items: [], total: 0 } } }) })
-  p.tab.value = 'review'; p.selected.value = { id: 'r1', content_hash: 'version-one', origin: 'ai' }; p.reason.value = '核对了原文和具体 IOC 角色'
+  const p = page({ post: async (url, body) => { sent.push({ url, body }); return {} }, get: async url => ({ data: { data: url.includes('/articles/') ? { body: 'The saved report identifies this IOC as malicious.' } : { items: [], total: 0 } } }) })
+  p.tab.value = 'review'; await p.openReview({ id: 'r1', article_id: 'a1', content_hash: 'version-one', origin: 'ai', status: 'pending' }); p.reason.value = '核对了原文和具体 IOC 角色'
   await p.submitReview()
   assert.equal(sent[0].url, '/api/intel/records/r1/review')
   assert.equal(sent[0].body.content_hash, 'version-one'); assert.equal(sent[0].body.decision, 'approved')
   assert.equal('origin' in sent[0].body, false)
+  p.dispose()
+})
+test('failed or empty AI snapshots cannot be approved', async () => {
+  for (const snapshot of [null, { body: null }, { body: '   ' }]) {
+    const sent = []
+    const p = page({ get: async () => { if (snapshot === null) throw new Error('snapshot unavailable'); return { data: { data: snapshot } } }, post: async (...args) => { sent.push(args) } })
+    await p.openReview({ id: 'r1', article_id: 'a1', origin: 'ai', status: 'pending', content_hash: 'version-one' })
+    p.reason.value = 'A reason cannot replace reviewing the source text.'
+    await p.submitReview()
+    assert.equal(sent.length, 0, `must block approval for ${JSON.stringify(snapshot)}`)
+    p.dispose()
+  }
+})
+test('loading AI snapshots block submission until the exact snapshot arrives', async () => {
+  const pending = deferred(), sent = []
+  const p = page({ get: url => url.includes('/articles/') ? pending.promise : Promise.resolve({ data: { data: { items: [] } } }), post: async (...args) => { sent.push(args) } })
+  const opening = p.openReview({ id: 'r1', article_id: 'a1', origin: 'ai', status: 'pending', content_hash: 'version-one' })
+  p.reason.value = 'Check source evidence.'
+  await p.submitReview()
+  assert.equal(sent.length, 0)
+  pending.resolve({ data: { data: { body: 'Saved source evidence for this IOC.' } } }); await opening
+  await p.submitReview()
+  assert.equal(sent.length, 1)
+  p.dispose()
+})
+test('missing AI snapshot does not prevent rejecting or revoking evidence', async () => {
+  for (const decision of ['rejected', 'revoked']) {
+    const sent = []
+    const p = page({ get: async () => { throw new Error('snapshot unavailable') }, post: async (...args) => { sent.push(args) } })
+    await p.openReview({ id: 'r1', article_id: 'a1', origin: 'ai', status: decision === 'revoked' ? 'approved' : 'pending', content_hash: 'version-one' }, decision)
+    p.reason.value = 'Evidence must not remain active without adequate support.'
+    await p.submitReview()
+    assert.equal(sent.length, 1)
+    assert.equal(sent[0][1].decision, decision)
+    p.dispose()
+  }
+})
+test('retrying a failed snapshot preserves the reason and restores approval only after success', async () => {
+  let attempts = 0; const sent = []
+  const p = page({ get: async () => { if (++attempts === 1) throw new Error('temporary failure'); return { data: { data: { body: 'The verified snapshot identifies the malicious IOC.' } } } }, post: async (...args) => { sent.push(args) } })
+  await p.openReview({ id: 'r1', article_id: 'a1', origin: 'ai', status: 'pending', content_hash: 'version-one' })
+  p.reason.value = 'Keep this review draft while retrying.'
+  await p.submitReview(); assert.equal(sent.length, 0)
+  await p.loadReviewArticle()
+  assert.equal(p.reason.value, 'Keep this review draft while retrying.')
+  await p.submitReview(); assert.equal(sent.length, 1)
+  p.dispose()
+})
+test('AI evidence without an article is blocked while structured review still works', async () => {
+  const sent = []
+  const p = page({ get: async () => ({ data: { data: { items: [] } } }), post: async (...args) => { sent.push(args) } })
+  await p.openReview({ id: 'r1', origin: 'ai', status: 'pending', content_hash: 'ai-version' }); p.reason.value = 'No source snapshot.'
+  await p.submitReview(); assert.equal(sent.length, 0)
+  await p.openReview({ id: 'r2', origin: 'structured', status: 'pending', content_hash: 'structured-version' }); p.reason.value = 'Verified official structured record.'
+  await p.submitReview(); assert.equal(sent.length, 1)
+  assert.equal(sent[0][0], '/api/intel/records/r2/review')
   p.dispose()
 })
 test('late snapshot cannot replace a newer review selection', async () => {

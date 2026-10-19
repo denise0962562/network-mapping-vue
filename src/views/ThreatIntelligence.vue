@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import http from '../utils/http'
 import { formatDateTime } from '../utils/systemTime'
 import { sourceKinds, defaultIntervals, states, intelError, newSource, sourcePayload, originLabel, safeReference } from '../utils/threatIntel'
@@ -10,6 +10,8 @@ const settings = ref({ ai_enabled: false, ai_endpoint: 'https://api.openai.com/v
 const settingsRevision = ref(0), aiCredential = ref(false)
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
+const articleError = ref('')
+const reviewBlocked = computed(() => busy.value || articleLoading.value || !reason.value.trim() || (selected.value?.origin === 'ai' && reviewDecision.value === 'approved' && !article.value?.body?.trim()))
 const entityDialog = ref(null), entityDetail = ref(null), entityLoading = ref(false)
 const mappingDialog = ref(null), mappingForm = ref({ source_id: '', name: '', attack_id: '' }), candidateQuery = ref(''), candidates = ref([])
 const requests = new AbortController()
@@ -57,15 +59,29 @@ async function sync(source) {
   try { await http.post(`/api/intel/sources/${source.id}/sync`); notice.value = '同步作业已入队，可在同步作业页查看结果。'; await loadSources() } catch (e) { fail(e) } finally { busy.value = false }
 }
 async function openReview(record, decision = 'approved') {
+  selected.value = record; reviewDecision.value = decision; reason.value = ''; reviewDialog.value?.showModal()
+  await loadReviewArticle()
+}
+async function loadReviewArticle() {
   const version = ++articleVersion
-  selected.value = record; reviewDecision.value = decision; reason.value = ''; article.value = null; articleLoading.value = false; reviewDialog.value?.showModal()
-  if (record.article_id) {
-    articleLoading.value = true
-    try { const r = await http.get(`/api/intel/articles/${record.article_id}`, { signal: requests.signal }); if (!disposed && version === articleVersion) article.value = r.data.data } catch (e) { if (version === articleVersion) fail(e) } finally { if (version === articleVersion) articleLoading.value = false }
+  const record = selected.value
+  article.value = null; articleError.value = ''; articleLoading.value = false
+  if (!record?.article_id) {
+    if (record?.origin === 'ai') articleError.value = 'AI 提议缺少文章快照，暂不能接纳。'
+    return
   }
+  articleLoading.value = true
+  try {
+    const r = await http.get(`/api/intel/articles/${record.article_id}`, { signal: requests.signal })
+    if (disposed || version !== articleVersion) return
+    const snapshot = r.data.data
+    if (typeof snapshot?.body !== 'string' || !snapshot.body.trim()) articleError.value = '文章快照没有有效正文，暂不能接纳 AI 提议。'
+    else article.value = snapshot
+  } catch (e) { if (version === articleVersion) { articleError.value = '文章快照加载失败，请重试后再接纳。'; fail(e) } }
+  finally { if (version === articleVersion) articleLoading.value = false }
 }
 async function submitReview() {
-  if (!selected.value || !reason.value.trim()) return
+  if (!selected.value || reviewBlocked.value) return
   busy.value = true; error.value = ''
   try { await http.post(`/api/intel/records/${selected.value.id}/review`, { content_hash: selected.value.content_hash, decision: reviewDecision.value, reason: reason.value.trim() }); reviewDialog.value?.close(); notice.value = '审核决定已保存，标记已按有效证据更新。'; await refresh() } catch (e) { fail(e) } finally { busy.value = false }
 }
@@ -140,12 +156,12 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; request
     </form><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
 
     <dialog ref="reviewDialog" class="modal"><form class="modal-box max-w-4xl space-y-4" @submit.prevent="submitReview"><h2 class="text-lg font-semibold">{{ selected?.status === 'pending' ? '审核 IOC 提议' : '证据与撤销' }}</h2>
-      <template v-if="selected"><p class="break-all font-mono">{{ selected.type }} · {{ selected.value }}</p><p class="text-sm">{{ selected.source_name }} · {{ originLabel(selected) }}</p><div class="grid gap-4 md:grid-cols-2"><div class="space-y-3"><h3 class="font-semibold">提议与支持证据</h3><p v-if="selected.payload.actor_name">组织原名：{{ selected.payload.actor_name }}；标准 ID：{{ selected.actor_id || '未映射' }}</p><p v-if="selected.payload.malware">软件：{{ selected.payload.malware }}</p><p v-if="selected.payload.techniques?.length">报告技术：{{ selected.payload.techniques.join('、') }}</p><p v-if="selected.payload.victim_industries?.length">受害行业：{{ selected.payload.victim_industries.join('、') }}</p><p v-if="selected.payload.victim_countries?.length">受害地区：{{ selected.payload.victim_countries.join('、') }}</p><blockquote class="border-l-2 border-base-300 pl-3 whitespace-pre-wrap break-words text-sm">{{ selected.payload.evidence || '结构化来源记录' }}</blockquote><a v-if="safeReference(selected.payload.reference)" :href="safeReference(selected.payload.reference)" class="link text-sm" target="_blank" rel="noopener noreferrer">查看来源</a><p class="text-xs opacity-60 break-all">提议版本 {{ selected.content_hash }}</p></div><div><h3 class="font-semibold">文章快照</h3><span v-if="articleLoading" class="loading loading-spinner loading-sm"></span><p v-else class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-base-200 p-3 text-sm">{{ article?.body || '该记录来自结构化 IOC，无 AI 文章快照。' }}</p></div></div>
+      <template v-if="selected"><p class="break-all font-mono">{{ selected.type }} · {{ selected.value }}</p><p class="text-sm">{{ selected.source_name }} · {{ originLabel(selected) }}</p><div class="grid gap-4 md:grid-cols-2"><div class="space-y-3"><h3 class="font-semibold">提议与支持证据</h3><p v-if="selected.payload.actor_name">组织原名：{{ selected.payload.actor_name }}；标准 ID：{{ selected.actor_id || '未映射' }}</p><p v-if="selected.payload.malware">软件：{{ selected.payload.malware }}</p><p v-if="selected.payload.techniques?.length">报告技术：{{ selected.payload.techniques.join('、') }}</p><p v-if="selected.payload.victim_industries?.length">受害行业：{{ selected.payload.victim_industries.join('、') }}</p><p v-if="selected.payload.victim_countries?.length">受害地区：{{ selected.payload.victim_countries.join('、') }}</p><blockquote class="border-l-2 border-base-300 pl-3 whitespace-pre-wrap break-words text-sm">{{ selected.payload.evidence || '结构化来源记录' }}</blockquote><a v-if="safeReference(selected.payload.reference)" :href="safeReference(selected.payload.reference)" class="link text-sm" target="_blank" rel="noopener noreferrer">查看来源</a><p class="text-xs opacity-60 break-all">提议版本 {{ selected.content_hash }}</p></div><div><h3 class="font-semibold">文章快照</h3><span v-if="articleLoading" class="loading loading-spinner loading-sm"></span><p v-else-if="article?.body" class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-base-200 p-3 text-sm">{{ article.body }}</p><div v-else-if="selected.origin === 'ai'" class="mt-2 space-y-2"><p role="alert" class="text-sm text-error">{{ articleError || '请先加载原文快照，才能接纳 AI 提议。' }}</p><button v-if="selected.article_id" type="button" class="btn btn-outline btn-sm" :disabled="busy" @click="loadReviewArticle">重试加载原文</button></div><p v-else class="mt-2 text-sm opacity-65">该记录来自结构化 IOC，无 AI 文章快照。</p></div></div>
         <label v-if="selected.status === 'pending'" class="form-control text-sm">审核决定<select v-model="reviewDecision" class="select select-bordered mt-1 w-full"><option value="approved">接纳该 IOC 及所列事实</option><option value="rejected">拒绝该提议</option></select></label>
         <label class="form-control text-sm">{{ reviewDecision === 'revoked' ? '撤销原因' : '审核说明' }}<textarea v-model="reason" class="textarea textarea-bordered mt-1 w-full" maxlength="1000" required rows="2"></textarea></label>
         <p v-if="selected.origin === 'ai'" class="text-xs opacity-65">请核对 IOC 角色、归因及证据是否明确。受害目标不能误标为攻击基础设施；接纳后才进入有效 IOC 库。</p>
       </template>
-      <div class="modal-action"><button type="button" class="btn btn-ghost" @click="reviewDialog?.close()">关闭</button><button class="btn" :class="reviewDecision === 'approved' ? 'btn-primary' : 'btn-error'" :disabled="busy || articleLoading || !reason.trim()">{{ reviewDecision === 'revoked' ? '撤销这条证据' : '提交审核决定' }}</button></div>
+      <div class="modal-action"><button type="button" class="btn btn-ghost" @click="reviewDialog?.close()">关闭</button><button class="btn" :class="reviewDecision === 'approved' ? 'btn-primary' : 'btn-error'" :disabled="reviewBlocked">{{ reviewDecision === 'revoked' ? '撤销这条证据' : '提交审核决定' }}</button></div>
     </form><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
 
     <dialog ref="entityDialog" class="modal"><div class="modal-box max-w-3xl space-y-3"><h2 class="text-lg font-semibold">MITRE 关系与来源</h2><span v-if="entityLoading" class="loading loading-spinner"></span><template v-if="entityDetail"><h3 class="font-semibold">{{ entityDetail.entity.name }}</h3><p class="text-sm whitespace-pre-wrap break-words">{{ entityDetail.entity.description }}</p><p class="text-xs opacity-65">以下是 MITRE 已报告的使用或技术关系，不代表任何当前 IOC 的组织归因。</p><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>关系</th><th>方向</th><th>实体</th></tr></thead><tbody><tr v-for="r in entityDetail.relationships" :key="`${r.attack_id}:${r.direction}:${r.relation}`"><td>{{ r.relation }}</td><td>{{ r.direction === 'incoming' ? '指向本实体' : '本实体指向' }}</td><td>{{ r.name }}（{{ r.attack_id }}）</td></tr></tbody></table></div></template><div class="modal-action"><button type="button" class="btn" @click="entityDialog?.close()">关闭</button></div></div><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>

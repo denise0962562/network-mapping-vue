@@ -21,6 +21,7 @@ const errors = {
   intel_local_file_unavailable: '本地数据文件不可读取，请检查相对路径和文件权限。',
   intel_local_path_escape: '本地路径超出了 IOC 根目录。',
   intel_source_disabled: '来源已停用，请先启用。',
+  intel_source_changed: '来源配置已变化，旧文章任务已取消；请重新同步来源。',
   intel_no_supported_indicators: '文件中没有支持的 IOC，请检查数据格式。',
   intel_ai_evidence_not_found: 'AI 输出缺少可定位的 IOC 原文证据，未纳入有效库。',
   intel_unknown_actor: '请选择基准库中类型匹配的有效 MITRE 实体。',
