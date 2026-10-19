@@ -2,6 +2,7 @@
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AssetTags from './components/AssetTags.vue'
+import IntelEvidence from './components/IntelEvidence.vue'
 import WebTechnologies from '@/components/WebTechnologies.vue'
 import OsFingerprint from './components/OsFingerprint.vue'
 import { webCsvHeaders, webCsvValues } from './utils/webDetection'
@@ -365,7 +366,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
             <thead><tr><th>IP</th><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>系统线索</th><th>Web 技术栈</th><th>网页 / TLS</th><th>ASN / AS 组织</th><th>位置</th><th>扫描时间</th></tr></thead>
             <tbody>
               <tr v-for="(item, index) in searchResult.items" :key="`${item.ip_address}-${item.port}-${item.scan_time}-${index}`">
-                <td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /></div></td>
+                <td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /><IntelEvidence :intel="item.intel" label="端点情报" /></div></td>
                 <td>{{ item.port ?? '-' }}</td>
                 <td>{{ item.protocol ?? '-' }}</td>
                 <td>{{ item.service ?? '-' }}</td>

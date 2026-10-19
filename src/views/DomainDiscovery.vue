@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import http from '@/utils/http'
+import IntelLookup from '@/components/IntelLookup.vue'
 import { formatDateTime } from '@/utils/systemTime'
 import { relationLabels, discoveryStatuses, discoveryReason, canVerify, selectPage } from '@/utils/domainDiscovery'
 const route = useRoute(), router = useRouter()
@@ -98,7 +99,7 @@ onBeforeUnmount(() => { disposed = true; requestVersion++; requests.abort(); cle
 
 <template>
   <main class="mx-auto max-w-7xl space-y-5 p-4 md:p-6">
-    <div><h1 class="text-2xl font-semibold">域名发现</h1><p class="mt-2 text-sm opacity-65">从 crt.sh 证书透明度记录发现子域名和证书关联，选中域名后执行 DNS 验证。</p></div>
+    <div><h1 class="text-2xl font-semibold">域名发现</h1><p class="mt-2 text-sm opacity-65">从 crt.sh 证书透明度记录发现子域名和证书关联，选中域名后执行 DNS 验证。</p><IntelLookup v-if="seed" type="domain" :value="seed" /></div>
     <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
     <div v-if="notice" class="alert alert-info" role="status">{{ notice }}</div>
     <form class="card border border-base-300 bg-base-100 p-4 space-y-3" @submit.prevent="create">
