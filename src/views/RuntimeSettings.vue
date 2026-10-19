@@ -173,9 +173,8 @@ function documentFor(namespace) {
   return clone(settings[namespace])
 }
 
-function applyDocument(namespace, document, revision) {
+function loadDraft(namespace, document) {
   settings[namespace] = namespace === 'monitor' ? normalizeMonitor({ ...clone(defaults.monitor), ...clone(document) }) : { ...clone(defaults[namespace]), ...clone(document) }
-  revisions[namespace] = revision
   if (namespace === 'automatic_target') {
     settings.automatic_target.search_generation = { ...clone(defaults.automatic_target.search_generation), ...clone(document.search_generation || {}) }
     cidrText.automaticAuthorized = listToLines(document.authorized_cidrs)
@@ -188,6 +187,11 @@ function applyDocument(namespace, document, revision) {
     cidrText.dnsExcluded = listToLines(document.excluded_cidrs)
     cidrText.dnsExcludedDomains = listToLines(document.excluded_domains)
   }
+}
+
+function applyDocument(namespace, document, revision) {
+  loadDraft(namespace, document)
+  revisions[namespace] = revision
   savedDocuments[namespace] = documentFor(namespace)
   changeReasons[namespace] = ''
   delete conflicts[namespace]
@@ -292,7 +296,7 @@ function handleHistoryToggle(event) {
 
 function restoreVersion(item) {
   const namespace = activeTab.value
-  settings[namespace] = namespace === 'monitor' ? normalizeMonitor({ ...clone(defaults.monitor), ...clone(item.document) }) : { ...clone(defaults[namespace]), ...clone(item.document) }
+  loadDraft(namespace, item.document)
   changeReasons[namespace] = `恢复历史版本 #${item.revision}`
   pushAlert('info', '历史配置已载入草稿', '请检查差异后保存，保存将生成新版本。')
 }
