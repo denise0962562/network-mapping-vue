@@ -71,3 +71,23 @@ test('new provider credentials and destinations are validated before saving', ()
   form.bot_token += '/other'
   assert.notEqual(validateChannel(form), '')
 })
+
+test('proxy credentials are write-only and saved proxies survive normal channel edits', () => {
+  const form = channelForm({ id: 'channel', revision: 3, name: 'proxy', proxy_mode: 'custom', proxy_configured: true, proxy_endpoint: 'socks5h://proxy.example.com:1080' })
+  assert.equal(form.proxy_url, '')
+  assert.equal(validateChannel(form), '')
+  assert.equal(channelPayload(form).proxy_url, '')
+  assert.equal(channelPayload(form).proxy_mode, 'custom')
+  assert.equal('proxy_endpoint' in channelPayload(form), false)
+  for (const url of ['http://user:pass@proxy.example.com:8080', 'https://proxy.example.com', 'socks5://proxy.example.com:1080', 'socks5h://proxy.example.com:1080']) {
+    form.proxy_url = url
+    assert.equal(validateChannel(form), '', url)
+  }
+  for (const url of ['socks4://proxy.example.com:1080', 'socks5://proxy.example.com', 'http://proxy.example.com/path', 'http://u%0a:pass@proxy.example.com:8080', 'http://proxy.example.com:0']) {
+    form.proxy_url = url
+    assert.notEqual(validateChannel(form), '', url)
+  }
+  form.proxy_mode = 'direct'
+  assert.equal(channelPayload(form).proxy_url, '')
+  assert.equal(validateChannel(form), '')
+})

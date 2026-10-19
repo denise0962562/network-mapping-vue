@@ -27,6 +27,12 @@ const reasons = {
   channel_or_incident_changed: '渠道订阅或 Scanner 状态已变化',
   event_expired: '事件超过 24 小时，已取消投递', attempts_exhausted: '已达到最大尝试次数',
   smtp_delivery_failed: 'SMTP 投递失败，请检查服务器、密钥及收件人',
+  proxy_invalid: '代理配置无效，请重新保存渠道', proxy_authentication_failed: '代理认证失败，请检查代理用户名和密码',
+  proxy_connection_failed: '无法连接代理服务器', proxy_connect_rejected: '代理拒绝连接目标服务',
+  proxy_invalid_response: '代理返回无效响应', proxy_dns_failed: '代理连接前的目标域名解析失败',
+  proxy_tls_error: '代理服务器 TLS 验证失败', smtp_tls_error: 'SMTP 服务器 TLS 验证失败',
+  smtp_permanent_error: 'SMTP 服务器永久拒绝邮件', smtp_client_error: 'SMTP 认证或请求配置无效',
+
   no_recipients: '没有有效收件人，请配置邮箱或渠道收件人',
   notification_source_unavailable: '通知数据暂不可用，将重试',
   mail_template_disabled: '对应邮件模板已停用', report_unavailable: '归档报告邮件不可用',
@@ -46,6 +52,9 @@ export function channelForm(channel) {
     signing_secret_configured: channel?.signing_secret_configured || false,
     credential_configured: channel?.credential_configured || false,
     bot_token: '', smtp_password: '',
+    proxy_mode: channel?.proxy_mode || 'system', proxy_url: '',
+    proxy_configured: Boolean(channel?.proxy_configured), proxy_endpoint: channel?.proxy_endpoint || '',
+
     settings: { smtp_host: channel?.settings?.smtp_host || '', smtp_port: channel?.settings?.smtp_port || 465,
       smtp_sender: channel?.settings?.smtp_sender || '', chat_id: channel?.settings?.chat_id || '',
       recipients: [...(channel?.settings?.recipients || [])] },
@@ -60,12 +69,28 @@ export function channelPayload(form) {
     expected_revision: form.expected_revision,
     bot_token: form.provider === 'telegram' ? form.bot_token.trim() : '',
     smtp_password: form.provider === 'email' ? form.smtp_password : '',
+    proxy_mode: form.proxy_mode, proxy_url: form.proxy_mode === 'custom' ? form.proxy_url.trim() : '',
+
     settings: { ...form.settings, smtp_host: form.settings.smtp_host.trim(), smtp_sender: form.settings.smtp_sender.trim(),
       smtp_port: Number(form.settings.smtp_port), chat_id: form.settings.chat_id.trim(),
       recipients: [...new Set(form.recipients_text.split(/[\n,;]+/).map(value => value.trim()).filter(Boolean))] },
   }
 }
 export function validateChannel(form) {
+  if (!['system', 'direct', 'custom'].includes(form.proxy_mode)) return '请选择有效的代理模式。'
+  if (form.proxy_mode === 'custom' && (form.proxy_url || !form.proxy_configured)) {
+    try {
+      const value = form.proxy_url.trim(), url = new URL(value)
+      if (value.length > 2048 || /[\u0000-\u001f\u007f]/.test(value) || !['http:', 'https:', 'socks5:', 'socks5h:'].includes(url.protocol)
+        || !url.hostname || (url.protocol.startsWith('socks') && (url.username || url.password) && (!url.username || !url.password)) || (url.port === '0') || (url.protocol.startsWith('socks') && !url.port)
+        || !['', '/'].includes(url.pathname) || url.search || url.hash) throw new Error()
+      for (const credential of [url.username, url.password]) {
+        const decoded = decodeURIComponent(credential)
+        if (new TextEncoder().encode(decoded).length > 255 || /[\u0000-\u001f\u007f]/.test(decoded)) throw new Error()
+      }
+    } catch { return '请输入完整 HTTP、HTTPS、SOCKS5 或 SOCKS5H 代理地址，不含路径、查询或片段。' }
+  }
+
   if (!form.name.trim() || [...form.name.trim()].length > 80) return '请输入 1 至 80 个字符的渠道名称。'
   if (!form.event_types.length) return '请至少选择一种通知事件。'
   if (form.provider === 'email') {
