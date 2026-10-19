@@ -11,7 +11,7 @@ const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress})`, {
+  const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport})`, {
     ...intel, computed, ref, AbortController, http, formatDateTime: v => v,
     document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
@@ -25,6 +25,45 @@ test('late responses cannot overwrite the selected tab results', async () => {
   p.tab.value = 'articles'; await p.refresh()
   pending.resolve({ data: { data: { items: [{ id: 'obsolete' }], total: 1 } } }); await first
   assert.equal(p.articles.value[0].id, 'article'); assert.equal(p.records.value.length, 0)
+  p.dispose()
+})
+test('switching from offline exports restores a valid transport for API and report sources', () => {
+  const p = page({})
+  for (const kind of ['mitre_stix', 'eset_github', 'threatfox', 'rss']) {
+    p.sourceForm.value.kind = 'threatfox_export'; p.kindChanged()
+    assert.equal(p.sourceForm.value.transport, 'upload')
+    p.sourceForm.value.kind = kind; p.kindChanged()
+    assert.equal(p.sourceForm.value.transport, 'https', kind)
+    assert.equal(p.sourceForm.value.interval_seconds, intel.defaultIntervals[kind])
+  }
+  p.dispose()
+})
+test('upload progress uses the selected file size when the browser omits total', async () => {
+  const pending = deferred(); let options
+  const p = page({ post: (url, file, config) => { options = config; return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
+  p.openImport({ id: 'offline-source', revision: 1 }); p.importFile.value = new Blob(['x'.repeat(100)])
+  const upload = p.uploadImport()
+  assert.equal(p.uploadProgress.value, null) // indeterminate until the browser reports bytes
+  options.onUploadProgress({ loaded: 25 })
+  assert.equal(p.uploadProgress.value, 25)
+  pending.resolve({}); await upload
+  assert.equal(p.uploadProgress.value, 100)
+  p.dispose()
+})
+test('upload errors stay visible inside the dialog and preserve the file for retry', async () => {
+  const p = page({ post: async () => { throw { response: { status: 413, data: '<html>request too large</html>' } } } })
+  const file = new Blob(['fixture'])
+  p.openImport({ id: 'offline-source', revision: 1 }); p.importFile.value = file
+  await p.uploadImport()
+  assert.match(p.importError.value, /代理|大小/)
+  assert.equal(p.importFile.value, file)
+  p.dispose()
+})
+test('cancelling an unresponsive upload aborts only that request', async () => {
+  const p = page({ post: (url, file, options) => new Promise((resolve, reject) => { options.signal.addEventListener('abort', () => reject({ code: 'ERR_CANCELED' })) }) })
+  p.openImport({ id: 'offline-source', revision: 1 }); p.importFile.value = new Blob(['fixture'])
+  const upload = p.uploadImport(); p.cancelImport(); await upload
+  assert.match(p.importError.value, /取消/)
   p.dispose()
 })
 test('offline import sends the file body and source revision without scheduling or AI requests', async () => {
@@ -41,7 +80,8 @@ test('offline import sends the file body and source revision without scheduling 
   assert.equal(p.uploadProgress.value, 25)
   pending.resolve({}); await upload
   assert.equal(p.importFile.value, null)
-  p.dispose(); assert.equal(sent[0].options.signal.aborted, true)
+  assert.equal(sent[0].options.signal.aborted, false)
+  p.dispose()
 })
 test('AI switch changes only extraction settings and carries the revision', async () => {
   const sent = []

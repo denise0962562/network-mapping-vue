@@ -9,14 +9,14 @@ const error = ref(''), notice = ref(''), loading = ref(false), busy = ref(false)
 const settings = ref({ ai_enabled: false, ai_endpoint: 'https://api.openai.com/v1/chat/completions', ai_model: '', ai_key_env: 'NM_INTEL_AI_API_KEY', credential: '', clear_credential: false })
 const settingsRevision = ref(0), aiCredential = ref(false), aiDatabaseCredential = ref(false), aiCredentialSource = ref('none')
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
-const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(0)
+const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), importError = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
 const articleError = ref('')
 const reviewBlocked = computed(() => busy.value || articleLoading.value || !reason.value.trim() || (selected.value?.origin === 'ai' && reviewDecision.value === 'approved' && !article.value?.body?.trim()))
 const entityDialog = ref(null), entityDetail = ref(null), entityLoading = ref(false)
 const mappingDialog = ref(null), mappingForm = ref({ source_id: '', name: '', attack_id: '' }), candidateQuery = ref(''), candidates = ref([])
 const requests = new AbortController()
-let timer, disposed = false, tabVersion = 0, articleVersion = 0, candidateVersion = 0, entityVersion = 0
+let timer, uploadController, disposed = false, tabVersion = 0, articleVersion = 0, candidateVersion = 0, entityVersion = 0
 function fail(e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = intelError(e) }
 async function loadSources() { const r = await http.get('/api/intel/sources', { signal: requests.signal }); if (!disposed) sources.value = r.data.data.items }
 async function loadSettings() { const r = await http.get('/api/intel/settings', { signal: requests.signal }); if (!disposed) { settings.value = { ...r.data.data.settings, credential: '', clear_credential: false }; settingsRevision.value = r.data.data.revision; aiCredential.value = r.data.data.credential_configured; aiDatabaseCredential.value = r.data.data.database_credential_configured; aiCredentialSource.value = r.data.data.credential_source } }
@@ -46,15 +46,21 @@ async function saveSettings() {
 }
 function editSource(source = null) { sourceForm.value = source ? { ...newSource(), ...source } : newSource(); hostsText.value = (source?.allowed_hosts || []).join('\n'); sourceDialog.value?.showModal() }
 function clearSourceCredential() { sourceForm.value.credential = ''; sourceForm.value.clear_credential = false }
-function kindChanged() { sourceForm.value.interval_seconds = defaultIntervals[sourceForm.value.kind]; if (sourceForm.value.kind === 'threatfox_export') { sourceForm.value.transport = 'upload'; sourceForm.value.location = ''; sourceForm.value.auth_env = ''; clearSourceCredential(); hostsText.value = '' } }
-function openImport(source) { importSource.value = source; importFile.value = null; uploadProgress.value = 0; if (importFileInput.value) importFileInput.value.value = ''; importDialog.value?.showModal() }
+function kindChanged() { sourceForm.value.interval_seconds = defaultIntervals[sourceForm.value.kind]; if (sourceForm.value.kind === 'threatfox_export') { sourceForm.value.transport = 'upload'; sourceForm.value.location = ''; sourceForm.value.auth_env = ''; clearSourceCredential(); hostsText.value = '' } else if (sourceForm.value.transport === 'upload' && !['json', 'lines'].includes(sourceForm.value.kind)) sourceForm.value.transport = 'https' }
+function openImport(source) { importSource.value = source; importFile.value = null; uploadProgress.value = null; importError.value = ''; if (importFileInput.value) importFileInput.value.value = ''; importDialog.value?.showModal() }
+function cancelImport() { uploadController?.abort() }
 async function uploadImport() {
   if (!importSource.value || !importFile.value || busy.value) return
-  busy.value = true; error.value = ''; notice.value = ''
+  const file = importFile.value
+  if (!file.size || file.size > 512 * 1024 * 1024) { importError.value = '请选择非空文件，上传大小最多 512 MiB。'; return }
+  busy.value = true; error.value = ''; notice.value = ''; importError.value = ''; uploadProgress.value = null
+  uploadController = new AbortController()
   try {
-    await http.post(`/api/intel/sources/${importSource.value.id}/import`, importFile.value, { params: { expected_revision: importSource.value.revision }, headers: { 'Content-Type': 'application/octet-stream' }, signal: requests.signal, onUploadProgress: e => { if (!disposed && e.total) uploadProgress.value = Math.round(e.loaded * 100 / e.total) } })
-    importDialog.value?.close(); importFile.value = null; await loadSources(); notice.value = '离线文件已上传，后台将先校验再分批导入。ThreatFox 增量更新继续使用 API。'
-  } catch (e) { fail(e) } finally { busy.value = false }
+    await http.post(`/api/intel/sources/${importSource.value.id}/import`, file, { params: { expected_revision: importSource.value.revision }, headers: { 'Content-Type': 'application/octet-stream' }, signal: uploadController.signal, timeout: 30 * 60 * 1000, onUploadProgress: e => { if (!disposed && e.loaded > 0) uploadProgress.value = Math.min(100, Math.max(1, Math.round(e.loaded * 100 / (e.total || file.size)))) } })
+    if (disposed) return
+    uploadProgress.value = 100; importDialog.value?.close(); importFile.value = null; notice.value = '离线文件已上传，后台将先校验再分批导入。ThreatFox 增量更新继续使用 API。'
+    try { await loadSources() } catch (e) { fail(e) }
+  } catch (e) { if (!disposed) importError.value = e.code === 'ERR_CANCELED' ? '已取消上传等待，可在同步作业中确认是否已接收。' : intelError(e) } finally { busy.value = false; uploadController = null }
 }
 async function saveSource() {
   busy.value = true; error.value = ''; notice.value = ''
@@ -108,7 +114,7 @@ async function poll() {
   if (!disposed) timer = setTimeout(poll, 5000)
 }
 onMounted(async () => { try { await Promise.all([loadSettings(), loadSources()]); await refresh() } catch (e) { fail(e) } if (!disposed) timer = setTimeout(poll, 5000) })
-onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; settings.value.credential = ''; clearSourceCredential(); importFile.value = null; requests.abort(); clearTimeout(timer) })
+onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; settings.value.credential = ''; clearSourceCredential(); importFile.value = null; uploadController?.abort(); requests.abort(); clearTimeout(timer) })
 </script>
 
 <template>
@@ -156,7 +162,23 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; setting
     </div>
     <div v-if="['records','review'].includes(tab) && (total > 50 || offset)" class="flex justify-end items-center gap-3 text-sm"><span>共 {{ total }} 条</span><button class="btn btn-sm" :disabled="loading || offset === 0" @click="offset = Math.max(0, offset - 50); refresh()">上一页</button><button class="btn btn-sm" :disabled="loading || offset + 50 >= total" @click="offset += 50; refresh()">下一页</button></div>
 
-    <dialog ref="importDialog" class="modal" @cancel="busy && $event.preventDefault()" @close="importFile = null"><form class="modal-box space-y-4" @submit.prevent="uploadImport"><h2 class="text-lg font-semibold">上传离线历史文件</h2><p class="text-sm">{{ importSource?.name }} · 支持 JSON、CSV 和单文件 ZIP。只用于按需补齐历史，持续更新仍使用 API。</p><input ref="importFileInput" type="file" accept=".json,.csv,.zip" class="file-input file-input-bordered w-full" required :disabled="busy" @change="importFile = $event.target.files?.[0] || null" /><p class="text-xs opacity-65">上传最多 512 MiB；解压内容与规范化结果各最多 2 GiB。先完整校验，再分批入库。可信来源沿用接纳策略，历史数据按观察时间自动判断是否过期。</p><progress v-if="busy" class="progress progress-primary w-full" :value="uploadProgress" max="100"></progress><div class="modal-action"><button type="button" class="btn btn-ghost" :disabled="busy" @click="importDialog?.close()">取消</button><button class="btn btn-primary" :disabled="busy || !importFile">上传并导入</button></div></form></dialog>
+    <dialog ref="importDialog" class="modal" @cancel="busy && $event.preventDefault()" @close="importFile = null">
+      <form class="modal-box space-y-4" @submit.prevent="uploadImport">
+        <h2 class="text-lg font-semibold">上传离线历史文件</h2>
+        <p class="text-sm">{{ importSource?.name }} · 支持 JSON、CSV 和单文件 ZIP。只用于按需补齐历史，持续更新仍使用 API。</p>
+        <p v-if="importError" role="alert" class="text-sm text-error">{{ importError }}</p>
+        <input ref="importFileInput" type="file" accept=".json,.csv,.zip" class="file-input file-input-bordered w-full" required :disabled="busy" @change="importFile = $event.target.files?.[0] || null" />
+        <p class="text-xs opacity-65">上传最多 512 MiB；解压内容与规范化结果各最多 2 GiB。先完整校验，再分批入库。可信来源沿用接纳策略，历史数据按观察时间自动判断是否过期。</p>
+        <div v-if="busy" role="status" class="space-y-2">
+          <progress class="progress progress-primary w-full" :value="uploadProgress" max="100" aria-label="离线文件上传进度"></progress>
+          <p class="text-sm">{{ uploadProgress == null ? '正在连接服务器，准备上传…' : uploadProgress < 100 ? `正在上传：${uploadProgress}%` : '文件已发送，等待服务器保存并创建导入作业…' }}</p>
+        </div>
+        <div class="modal-action">
+          <button type="button" class="btn btn-ghost" @click="busy ? cancelImport() : importDialog?.close()">{{ busy ? '取消等待' : '取消' }}</button>
+          <button class="btn btn-primary" :disabled="busy || !importFile">上传并导入</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog ref="sourceDialog" class="modal" @close="clearSourceCredential"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="saveSource"><h2 class="text-lg font-semibold">{{ sourceForm.id ? '编辑来源' : '添加来源' }}</h2>
       <label class="form-control text-sm">来源名称<input v-model="sourceForm.name" class="input input-bordered mt-1 w-full" required maxlength="100" /></label>

@@ -17,6 +17,8 @@ const errors = {
   intel_invalid_hosts: '允许的域名须逐项填写完整小写域名，不支持通配符。',
   intel_url_not_allowed: '远程来源必须使用 HTTPS，且域名须在允许列表中。',
   intel_source_transport: '远程来源连接失败，请检查网络访问及代理配置。',
+  intel_dns_failed: '来源域名解析失败，请检查服务器或容器的 DNS；使用代理时确认 HTTPS_PROXY / ALL_PROXY 与 NO_PROXY 配置。',
+  intel_proxy_dns_failed: '代理服务器域名解析失败，请检查代理地址及服务器或容器的 DNS。',
   intel_source_http_status: '远程来源返回错误，请检查地址与凭据。',
   intel_source_rate_limited: '上游限流，稍后将按配置周期再次检查。',
   intel_local_root_unavailable: '本地 IOC 根目录不可用，请检查服务端 NM_INTEL_LOCAL_ROOT。',
@@ -27,6 +29,9 @@ const errors = {
   intel_invalid_upload_source: '请选择离线上传来源和支持的 JSON / CSV 格式。',
   intel_offline_export_required: 'ThreatFox 导出文件只用于离线上传或本地导入；增量更新请选择 ThreatFox API。',
   intel_import_file_required: '请先上传离线文件，再继续导入。',
+  intel_import_busy: '该来源已有排队或运行中的作业，请等待完成后再上传。',
+  intel_import_read_failed: '上传中断或长时间未收到数据，请检查网络后重试。',
+  intel_import_write_failed: '导入缓存写入失败，请检查磁盘空间与缓存目录权限。',
   intel_import_too_large: '文件超过导入限制：上传 512 MiB、解压或规范化内容 2 GiB、单条 1 MiB。',
   intel_import_cache_unavailable: '导入缓存目录不可写，请检查服务端 NM_INTEL_CACHE_ROOT。',
   intel_import_cache_missing: '导入缓存文件已丢失，请重新上传原始文件。',
@@ -38,7 +43,11 @@ const errors = {
 }
 export function intelError(error) {
   const code = typeof error === 'string' ? error : error?.response?.data?.code
-  return errors[code] || (code ? `操作未完成（${code}）。` : '情报请求失败，请稍后重试。')
+  if (errors[code]) return errors[code]
+  if (error?.response?.status === 413) return '上传被服务器或反向代理的大小限制拒绝；文件最多 512 MiB，请检查代理上传限制。'
+  if ([502, 504].includes(error?.response?.status)) return '反向代理连接服务器失败或等待超时，请检查服务状态；上传是否已接收可在同步作业中确认。'
+  if (['ECONNABORTED', 'ETIMEDOUT'].includes(error?.code)) return '上传请求超时，请检查网络与反向代理超时配置后重试。'
+  return code ? `操作未完成（${code}）。` : '情报请求失败，请检查网络与服务器状态后重试。'
 }
 export function originLabel(record) { return record?.origin === 'ai' ? (record.status === 'pending' ? 'AI · 待审' : 'AI · 人工审核') : record?.status === 'pending' ? '结构化来源 · 待审' : record?.review_id ? '结构化来源 · 人工审核' : '可信结构化来源' }
 export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800, expiry_months: 6 } }

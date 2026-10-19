@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel } from './threatIntel.js'
+import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel, intelError } from './threatIntel.js'
 
 test('trusted defaults expose configurable source intervals', () => {
   const source = newSource()
@@ -8,6 +8,14 @@ test('trusted defaults expose configurable source intervals', () => {
   assert.equal(defaultIntervals.mitre_stix, 86400)
   assert.equal(defaultIntervals.threatfox, 1800)
   assert.equal(source.expiry_months, 6)
+})
+test('DNS and upload transport failures explain the affected layer without rendering response bodies', () => {
+  assert.match(intelError('intel_dns_failed'), /DNS/)
+  assert.match(intelError('intel_proxy_dns_failed'), /代理服务器/)
+  assert.match(intelError('intel_import_busy'), /作业/)
+  const message=intelError({ response: { status: 413, data: '<html>private internal response</html>' } })
+  assert.match(message,/代理/); assert.equal(message.includes('private internal'),false)
+  assert.match(intelError({code:'ECONNABORTED'}),/超时/)
 })
 test('offline source configuration omits remote addresses and credentials and keeps expiry editable', () => {
   const form = { ...newSource(), kind: 'threatfox_export', transport: 'upload', location: 'https://obsolete.example/file', auth_env: 'NM_INTEL_OLD_KEY', credential: 'not-for-offline', expiry_months: '12', import_status: { stage: 'ready' } }
