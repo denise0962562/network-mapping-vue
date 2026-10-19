@@ -22,6 +22,8 @@
 
 管理员菜单和设置首页均提供“登录保护”入口（`/setting/human-verification`）。页面可切换关闭/Cloudflare Turnstile，管理域名，并展开连接超时、验证预算、并发上限及发送访问者 IP 设置。表单在必填项和范围校验通过后才能保存，未保存离开时提示确认。
 
+允许域名包含其本身和所有层级子域名，与 Cloudflare 一致：填写 `console.example.com` 后可用于 `a.console.example.com`，不包含父域 `example.com` 或兄弟域 `other.example.com`。填写普通 DNS 名，无需也不接受 `*`；要缩小范围请填写具体登录域。服务端仍校验厂商返回的 hostname 和 action。
+
 Secret 输入只用于新建或替换，后端加密保存，读取时只显示“已配置/未配置”。留空保留已有值，停用后可显式勾选清除；成功保存和离开页面时清空输入。不要在变更说明中填写密钥。读取失败时不能用默认值覆盖服务端配置；并发保存冲突返回 409，页面保留输入，必须重新加载再编辑。页面及写入接口仅限管理员，写入沿用 CSRF 保护。
 
 服务端对每个新的登录请求读取数据库权威版本；读取失败时拒绝登录，不自动关闭保护。多实例需共享数据库及相同的 `server.encrypt_key`。主密钥备份、API 请求格式和恢复步骤见[服务端说明](https://github.com/wshijiang/network-mapping/blob/main/docs/HUMAN_VERIFICATION.md)。
