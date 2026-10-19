@@ -37,6 +37,17 @@ test('AI switch changes only extraction settings and carries the revision', asyn
   assert.equal('ai_review_required' in sent[0].body.settings, false)
   p.dispose()
 })
+test('saved AI credential is cleared locally and is not resent by a later settings edit', async () => {
+  const sent = []
+  const p = page({ put: async (url, body) => { sent.push(body) }, get: async () => ({ data: { data: { settings: { ai_enabled: false, ai_endpoint: 'https://api.example/chat', ai_model: '', ai_key_env: '' }, revision: 3, credential_configured: true, database_credential_configured: true, credential_source: 'database' } } }) })
+  p.settingsRevision.value = 2; p.settings.value.credential = 'test-only-key'
+  await p.saveSettings()
+  assert.equal(sent[0].settings.credential, 'test-only-key')
+  assert.equal(p.settings.value.credential, '')
+  await p.saveSettings()
+  assert.equal('credential' in sent[1].settings, false)
+  p.dispose()
+})
 test('review request approves exactly the displayed record version', async () => {
   const sent = []
   const p = page({ post: async (url, body) => { sent.push({ url, body }); return {} }, get: async url => ({ data: { data: url.includes('/articles/') ? { body: 'The saved report identifies this IOC as malicious.' } : { items: [], total: 0 } } }) })

@@ -2,12 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import http from '../utils/http'
 import { formatDateTime } from '../utils/systemTime'
-import { sourceKinds, defaultIntervals, states, intelError, newSource, sourcePayload, originLabel, safeReference } from '../utils/threatIntel'
+import { sourceKinds, defaultIntervals, states, intelError, newSource, sourcePayload, settingsPayload, originLabel, safeReference } from '../utils/threatIntel'
 const tabs = { sources: '来源', records: 'IOC 库', review: '审核', articles: '文章', entities: 'MITRE 基准库', mappings: '名称映射', jobs: '同步作业' }
 const tab = ref('sources'), sources = ref([]), records = ref([]), articles = ref([]), entities = ref([]), jobs = ref([]), mappings = ref({ unmapped: [], mappings: [] })
 const error = ref(''), notice = ref(''), loading = ref(false), busy = ref(false), total = ref(0), offset = ref(0), query = ref(''), recordStatus = ref('approved'), entityKind = ref('actor')
-const settings = ref({ ai_enabled: false, ai_endpoint: 'https://api.openai.com/v1/chat/completions', ai_model: '', ai_key_env: 'NM_INTEL_AI_API_KEY' })
-const settingsRevision = ref(0), aiCredential = ref(false)
+const settings = ref({ ai_enabled: false, ai_endpoint: 'https://api.openai.com/v1/chat/completions', ai_model: '', ai_key_env: 'NM_INTEL_AI_API_KEY', credential: '', clear_credential: false })
+const settingsRevision = ref(0), aiCredential = ref(false), aiDatabaseCredential = ref(false), aiCredentialSource = ref('none')
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
 const articleError = ref('')
@@ -18,7 +18,7 @@ const requests = new AbortController()
 let timer, disposed = false, tabVersion = 0, articleVersion = 0, candidateVersion = 0, entityVersion = 0
 function fail(e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = intelError(e) }
 async function loadSources() { const r = await http.get('/api/intel/sources', { signal: requests.signal }); if (!disposed) sources.value = r.data.data.items }
-async function loadSettings() { const r = await http.get('/api/intel/settings', { signal: requests.signal }); if (!disposed) { settings.value = r.data.data.settings; settingsRevision.value = r.data.data.revision; aiCredential.value = r.data.data.credential_configured } }
+async function loadSettings() { const r = await http.get('/api/intel/settings', { signal: requests.signal }); if (!disposed) { settings.value = { ...r.data.data.settings, credential: '', clear_credential: false }; settingsRevision.value = r.data.data.revision; aiCredential.value = r.data.data.credential_configured; aiDatabaseCredential.value = r.data.data.database_credential_configured; aiCredentialSource.value = r.data.data.credential_source } }
 async function refresh() {
   const version = ++tabVersion, current = tab.value
   loading.value = true; error.value = ''
@@ -41,9 +41,10 @@ async function refresh() {
 function changeTab(value) { tab.value = value; query.value = ''; offset.value = 0; refresh() }
 async function saveSettings() {
   busy.value = true; error.value = ''; notice.value = ''
-  try { await http.put('/api/intel/settings', { settings: settings.value, expected_revision: settingsRevision.value }); await loadSettings(); notice.value = 'AI 配置已保存。可信来源同步独立运行，AI 提议始终需要人工审核。' } catch (e) { fail(e) } finally { busy.value = false }
+  try { await http.put('/api/intel/settings', { settings: settingsPayload(settings.value), expected_revision: settingsRevision.value }); settings.value.credential = ''; settings.value.clear_credential = false; await loadSettings(); notice.value = 'AI 配置已保存。可信来源同步独立运行，AI 提议始终需要人工审核。' } catch (e) { fail(e) } finally { busy.value = false }
 }
-function editSource(source = null) { sourceForm.value = source ? { ...source } : newSource(); hostsText.value = (source?.allowed_hosts || []).join('\n'); sourceDialog.value?.showModal() }
+function editSource(source = null) { sourceForm.value = source ? { ...newSource(), ...source } : newSource(); hostsText.value = (source?.allowed_hosts || []).join('\n'); sourceDialog.value?.showModal() }
+function clearSourceCredential() { sourceForm.value.credential = ''; sourceForm.value.clear_credential = false }
 function kindChanged() { sourceForm.value.interval_seconds = defaultIntervals[sourceForm.value.kind] }
 async function saveSource() {
   busy.value = true; error.value = ''; notice.value = ''
@@ -97,7 +98,7 @@ async function poll() {
   if (!disposed) timer = setTimeout(poll, 5000)
 }
 onMounted(async () => { try { await Promise.all([loadSettings(), loadSources()]); await refresh() } catch (e) { fail(e) } if (!disposed) timer = setTimeout(poll, 5000) })
-onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; requests.abort(); clearTimeout(timer) })
+onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; settings.value.credential = ''; clearSourceCredential(); requests.abort(); clearTimeout(timer) })
 </script>
 
 <template>
@@ -111,9 +112,11 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; request
       <div class="grid gap-3 md:grid-cols-3">
         <label class="form-control text-sm">兼容接口地址<input v-model="settings.ai_endpoint" class="input input-bordered mt-1 w-full" type="url" required /></label>
         <label class="form-control text-sm">模型名称<input v-model="settings.ai_model" class="input input-bordered mt-1 w-full" :required="settings.ai_enabled" maxlength="100" /></label>
-        <label class="form-control text-sm">凭据环境变量<input v-model="settings.ai_key_env" class="input input-bordered mt-1 w-full" required placeholder="NM_INTEL_AI_API_KEY" /></label>
+        <label class="form-control text-sm">环境变量备用来源（可选）<input v-model="settings.ai_key_env" class="input input-bordered mt-1 w-full" placeholder="NM_INTEL_AI_API_KEY" /></label>
       </div>
-      <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-xs opacity-60">凭据：{{ aiCredential ? '已配置' : '未配置' }}；填写变量名称，密钥由服务端环境提供。</p><button class="btn btn-primary btn-sm" :disabled="busy || !settingsRevision">保存 AI 设置</button></div>
+      <label class="form-control text-sm">数据库加密凭据（留空保留已保存值）<input v-model="settings.credential" type="password" autocomplete="new-password" maxlength="8192" class="input input-bordered mt-1 w-full" :disabled="settings.clear_credential" placeholder="输入原始 API Key，保存后不回显" /></label>
+      <label v-if="aiDatabaseCredential" class="flex items-center gap-2 text-sm"><input v-model="settings.clear_credential" type="checkbox" class="checkbox checkbox-sm" />清除已保存的数据库凭据</label>
+      <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-xs opacity-60">凭据：{{ aiCredential ? (aiCredentialSource === 'database' ? '数据库加密存储' : '环境变量') : '未配置' }}。优先使用数据库凭据；未保存时使用环境变量。明文不会回显。</p><button class="btn btn-primary btn-sm" :disabled="busy || !settingsRevision">保存 AI 设置</button></div>
     </form>
     <div role="tablist" class="tabs tabs-border overflow-x-auto flex-nowrap"><button v-for="(label, key) in tabs" :key="key" type="button" role="tab" class="tab whitespace-nowrap" :aria-selected="tab === key" :class="{ 'tab-active': tab === key }" @click="changeTab(key)">{{ label }}</button></div>
     <div class="flex flex-wrap items-center gap-3">
@@ -129,7 +132,7 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; request
     </div>
     <div class="card border border-base-300 bg-base-100 overflow-x-auto">
       <table v-if="tab === 'sources'" class="table table-sm"><thead><tr><th>来源</th><th>位置与格式</th><th>接纳策略</th><th>检查周期</th><th>最近作业</th><th>操作</th></tr></thead><tbody>
-        <tr v-for="s in sources" :key="s.id"><td><strong>{{ s.name }}</strong><p class="text-xs opacity-60">{{ s.enabled ? '已启用' : '已停用' }}</p></td><td><p>{{ sourceKinds[s.kind] }} · {{ s.transport === 'local' ? '本地文件' : '远程 HTTPS' }}</p><p class="mt-1 max-w-md break-all text-xs opacity-60">{{ s.location }}</p><p v-if="s.auth_env" class="text-xs">凭据 {{ s.credential_configured ? '已配置' : '未配置' }}</p></td><td>{{ s.kind === 'rss' ? 'AI 固定人工审核' : s.kind === 'mitre_stix' ? '规范化基准库' : s.require_review ? '人工审核后接纳' : '可信 IOC 直接接纳' }}</td><td>{{ s.interval_seconds }} 秒</td><td>{{ states[s.last_run?.status] || '尚未同步' }}<p v-if="s.last_run?.error_code" class="max-w-xs text-xs text-error">{{ intelError(s.last_run.error_code) }}</p></td><td><div class="flex gap-2"><button class="btn btn-ghost btn-xs" @click="editSource(s)">编辑</button><button class="btn btn-outline btn-xs" :disabled="busy || !s.enabled" @click="sync(s)">立即同步</button></div></td></tr>
+        <tr v-for="s in sources" :key="s.id"><td><strong>{{ s.name }}</strong><p class="text-xs opacity-60">{{ s.enabled ? '已启用' : '已停用' }}</p></td><td><p>{{ sourceKinds[s.kind] }} · {{ s.transport === 'local' ? '本地文件' : '远程 HTTPS' }}</p><p class="mt-1 max-w-md break-all text-xs opacity-60">{{ s.location }}</p><p v-if="s.auth_env || s.credential_configured" class="text-xs">凭据 {{ s.credential_source === 'database' ? '数据库加密存储' : s.credential_configured ? '环境变量' : '未配置' }}</p></td><td>{{ s.kind === 'rss' ? 'AI 固定人工审核' : s.kind === 'mitre_stix' ? '规范化基准库' : s.require_review ? '人工审核后接纳' : '可信 IOC 直接接纳' }}</td><td>{{ s.interval_seconds }} 秒</td><td>{{ states[s.last_run?.status] || '尚未同步' }}<p v-if="s.last_run?.error_code" class="max-w-xs text-xs text-error">{{ intelError(s.last_run.error_code) }}</p></td><td><div class="flex gap-2"><button class="btn btn-ghost btn-xs" @click="editSource(s)">编辑</button><button class="btn btn-outline btn-xs" :disabled="busy || !s.enabled" @click="sync(s)">立即同步</button></div></td></tr>
         <tr v-if="!sources.length"><td colspan="6" class="py-8 text-center opacity-60">暂无来源。</td></tr>
       </tbody></table>
       <table v-else-if="tab === 'records' || tab === 'review'" class="table table-sm"><thead><tr><th>IOC</th><th>来源</th><th>上下文与证据</th><th>状态</th><th>操作</th></tr></thead><tbody>
@@ -143,12 +146,13 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; request
     </div>
     <div v-if="['records','review'].includes(tab) && (total > 50 || offset)" class="flex justify-end items-center gap-3 text-sm"><span>共 {{ total }} 条</span><button class="btn btn-sm" :disabled="loading || offset === 0" @click="offset = Math.max(0, offset - 50); refresh()">上一页</button><button class="btn btn-sm" :disabled="loading || offset + 50 >= total" @click="offset += 50; refresh()">下一页</button></div>
 
-    <dialog ref="sourceDialog" class="modal"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="saveSource"><h2 class="text-lg font-semibold">{{ sourceForm.id ? '编辑来源' : '添加来源' }}</h2>
+    <dialog ref="sourceDialog" class="modal" @close="clearSourceCredential"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="saveSource"><h2 class="text-lg font-semibold">{{ sourceForm.id ? '编辑来源' : '添加来源' }}</h2>
       <label class="form-control text-sm">来源名称<input v-model="sourceForm.name" class="input input-bordered mt-1 w-full" required maxlength="100" /></label>
       <div class="grid gap-3 sm:grid-cols-2"><label class="form-control text-sm">数据格式<select v-model="sourceForm.kind" class="select select-bordered mt-1 w-full" @change="kindChanged"><option v-for="(label, kind) in sourceKinds" :key="kind" :value="kind">{{ label }}</option></select></label><label class="form-control text-sm">获取方式<select v-model="sourceForm.transport" class="select select-bordered mt-1 w-full"><option value="https">远程 HTTPS 拉取</option><option value="local">本地文件</option></select></label></div>
       <label class="form-control text-sm">{{ sourceForm.transport === 'local' ? '相对 IOC 根目录的文件路径' : '远程地址' }}<input v-model="sourceForm.location" class="input input-bordered mt-1 w-full" required maxlength="2048" :placeholder="sourceForm.transport === 'local' ? 'vendor/feed.json' : 'https://…'" /></label>
       <label v-if="sourceForm.transport === 'https' || sourceForm.kind === 'rss'" class="form-control text-sm">允许的完整域名（每行一个）<textarea v-model="hostsText" class="textarea textarea-bordered mt-1 w-full" rows="3" required placeholder="raw.githubusercontent.com"></textarea></label>
       <div class="grid gap-3 sm:grid-cols-2"><label class="form-control text-sm">检查周期（秒）<input v-model="sourceForm.interval_seconds" type="number" min="60" max="2592000" class="input input-bordered mt-1 w-full" required /><span class="mt-1 text-xs opacity-60">该格式默认 {{ defaultIntervals[sourceForm.kind] }} 秒，可自行调整。</span></label><label v-if="sourceForm.transport === 'https'" class="form-control text-sm">凭据环境变量（可选）<input v-model="sourceForm.auth_env" class="input input-bordered mt-1 w-full" placeholder="NM_INTEL_…" /></label></div>
+      <template v-if="sourceForm.transport === 'https'"><label class="form-control text-sm">数据库加密凭据（留空保留）<input v-model="sourceForm.credential" type="password" autocomplete="new-password" maxlength="8192" class="input input-bordered mt-1 w-full" :disabled="sourceForm.clear_credential" placeholder="Auth-Key 或完整 Authorization 值" /></label><label v-if="sourceForm.database_credential_configured" class="flex items-center gap-2 text-sm"><input v-model="sourceForm.clear_credential" type="checkbox" class="checkbox checkbox-sm" />清除已保存的数据库凭据</label><p class="text-xs opacity-65">{{ sourceForm.database_credential_configured ? '已保存数据库加密凭据。' : '尚未保存数据库凭据。' }}优先使用数据库凭据，留空保留，清除后使用环境变量备用来源。ThreatFox 填写原始 Auth-Key；其他格式填写完整 Authorization 值。</p></template>
       <label class="flex items-center gap-2 text-sm"><input v-model="sourceForm.enabled" type="checkbox" class="checkbox checkbox-sm" />启用自动检查</label>
       <label v-if="!['rss','mitre_stix'].includes(sourceForm.kind)" class="flex items-center gap-2 text-sm"><input v-model="sourceForm.require_review" type="checkbox" class="checkbox checkbox-sm" />该来源的结构化 IOC 需要人工审核</label>
       <p class="text-xs opacity-65">可信官方 IOC 默认直接接纳，不受置信度或来源数量限制。RSS 的 AI 提取结果固定需要人工审核。停用来源会停止后续同步，已有结论可在 IOC 库撤销。</p>

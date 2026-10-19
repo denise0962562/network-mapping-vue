@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultIntervals, newSource, sourcePayload, safeReference, originLabel } from './threatIntel.js'
+import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel } from './threatIntel.js'
 
 test('trusted defaults expose configurable source intervals', () => {
   const source = newSource()
@@ -25,4 +25,25 @@ test('evidence links cannot execute code or carry credentials', () => {
   assert.equal(safeReference('https://research.example/report'), 'https://research.example/report')
   assert.equal(originLabel({ origin: 'ai' }), 'AI · 人工审核')
   assert.equal(originLabel({ origin: 'structured', review_id: 'review' }), '结构化来源 · 人工审核')
+})
+test('credential writes preserve blank values and make clearing explicit', () => {
+  const form = { ...newSource(), database_credential_configured: true, credential: 'raw-database-key' }
+  assert.equal(sourcePayload(form, '').credential, 'raw-database-key')
+  form.clear_credential = true
+  const clear = sourcePayload(form, '')
+  assert.equal(clear.clear_credential, true); assert.equal('credential' in clear, false)
+  form.clear_credential = false; form.credential = ''
+  assert.equal('credential' in sourcePayload(form, ''), false)
+  assert.equal('database_credential_configured' in sourcePayload(form, ''), false)
+  form.credential = 'must-not-send'; form.transport = 'local'
+  assert.equal('credential' in sourcePayload(form, ''), false)
+})
+test('AI settings send only writeable configuration and deliberate credential changes', () => {
+  const form = { ai_enabled: true, ai_endpoint: 'https://api.example/chat', ai_model: 'model', ai_key_env: '', credential: 'test-key', credential_source: 'database', ai_review_required: false }
+  let body = settingsPayload(form)
+  assert.equal(body.credential, 'test-key'); assert.equal(body.ai_key_env, '')
+  assert.equal('credential_source' in body, false); assert.equal('ai_review_required' in body, false)
+  form.clear_credential = true
+  body = settingsPayload(form)
+  assert.equal(body.clear_credential, true); assert.equal('credential' in body, false)
 })

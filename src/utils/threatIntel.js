@@ -8,7 +8,9 @@ export const states = { queued: '等待处理', running: '处理中', succeeded:
 const errors = {
   intel_admin_required: '只有管理员可以管理情报来源和审核。',
   intel_revision_conflict: '数据已有变化，请刷新后重新操作。',
-  intel_credential_missing: '所引用的环境变量尚未配置凭据。',
+  intel_credential_missing: '请保存数据库凭据，或配置所引用的环境变量。',
+  intel_invalid_credential: '凭据不能仅包含空白、控制字符或超过 8192 字节；替换与清除不能同时选择。',
+  intel_credential_crypto_failed: '凭据加密或解密失败，请检查服务端加密主密钥；不会自动回退到其他凭据。',
   intel_ai_disabled: 'AI 提取已关闭；可信 IOC 同步不受影响。',
   intel_invalid_ai_settings: '请填写模型名称，并检查凭据环境变量名称。',
   intel_invalid_source: '请检查来源名称、格式和检查周期。',
@@ -33,11 +35,22 @@ export function intelError(error) {
   return errors[code] || (code ? `操作未完成（${code}）。` : '情报请求失败，请稍后重试。')
 }
 export function originLabel(record) { return record?.origin === 'ai' ? (record.status === 'pending' ? 'AI · 待审' : 'AI · 人工审核') : record?.status === 'pending' ? '结构化来源 · 待审' : record?.review_id ? '结构化来源 · 人工审核' : '可信结构化来源' }
-export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], auth_env: '', enabled: true, require_review: false, interval_seconds: 1800 } }
+export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800 } }
 export function sourcePayload(form, hostsText) {
   const { name, kind, transport, location, auth_env, enabled, require_review, interval_seconds, revision } = form
   const value = { name: name.trim(), kind, transport, location: location.trim(), auth_env: transport === 'local' ? '' : auth_env.trim(), enabled, require_review, interval_seconds: Number(interval_seconds), allowed_hosts: transport === 'local' && kind !== 'rss' ? [] : hostsText.split(/[\s,]+/).filter(Boolean) }
   if (revision != null) value.expected_revision = revision
+  if (transport !== 'local') writeCredential(value, form)
+  return value
+}
+function writeCredential(payload, form) {
+  if (form.clear_credential) payload.clear_credential = true
+  else if (form.credential) payload.credential = form.credential
+}
+export function settingsPayload(form) {
+  const { ai_enabled, ai_endpoint, ai_model, ai_key_env } = form
+  const value = { ai_enabled, ai_endpoint, ai_model, ai_key_env: (ai_key_env || '').trim() }
+  writeCredential(value, form)
   return value
 }
 export function safeReference(value) {

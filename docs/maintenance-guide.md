@@ -85,7 +85,7 @@
 | `EmptyState.vue` | 空数据和首次加载失败 |
 | `AssetTags.vue` | 资产标签展示与管理 |
 | `IntelEvidence.vue` / `IntelLookup.vue` | 自动情报证据与精确域名查询，保持人工标签独立 |
-| `threatIntel` | 来源请求字段、默认周期和安全引用链接 |
+| `threatIntel` | 来源/AI 请求字段、只写凭据、默认周期和安全引用链接 |
 | `SystemDateTimeInput.vue` | 系统时区下的日期时间输入 |
 | `ScannerDiagnostics.vue` | 扫描器错误、日志采集与告警 |
 | `useUnsavedChanges` | 未保存变更的离开提示 |
