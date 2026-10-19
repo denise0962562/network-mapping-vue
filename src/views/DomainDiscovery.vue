@@ -26,7 +26,8 @@ async function loadJobs() {
 async function openJob(id) {
   if (disposed) return
   const version = ++requestVersion
-  activeId.value = id; activeJob.value = null; evidence.value = null; relations.value = null; selected.value = []; submitted.value = []; excluded.value = []; page.value = 0; error.value = ''
+  if (activeJob.value?.id !== id) activeJob.value = null
+  activeId.value = id; evidence.value = null; relations.value = null; selected.value = []; submitted.value = []; excluded.value = []; page.value = 0; error.value = ''
   loading.value = true
   try {
     const job = (await http.get(`/api/domain-discovery/jobs/${id}`, { signal: requests.signal })).data.data

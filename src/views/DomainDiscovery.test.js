@@ -128,3 +128,20 @@ test('cancelling a job outside the history window refreshes its displayed status
   assert.equal(p.activeJob.value.status, 'cancelled'); assert.equal(p.evidence.value, null)
   p.dispose()
 })
+
+test('a transient detail error during polling preserves the pending job for the next retry', async () => {
+  let status = 'pending', unavailable = false
+  const p = page(async url => {
+    if (url.endsWith('/jobs')) return { data: { data: [] } }
+    if (unavailable) throw new Error('temporary transport error')
+    return { data: { data: url.endsWith('/results') ? { evidence: { candidates: [] } } : { id: 'older', status } } }
+  })
+  await p.openJob('older'); unavailable = true
+  await p.poll()
+  assert.equal(p.activeJob.value.status, 'pending'); assert.notEqual(p.error.value, '')
+  unavailable = false; status = 'succeeded'
+  await p.poll()
+  assert.equal(p.activeJob.value.status, 'succeeded'); assert.notEqual(p.evidence.value, null)
+  assert.equal(p.error.value, '')
+  p.dispose()
+})
