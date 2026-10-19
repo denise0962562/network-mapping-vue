@@ -15,7 +15,7 @@ const namespaces = [
   { key: 'scanner_health', title: '扫描器状态与告警', description: '管理心跳判定、掉线告警、维护宽限期和通信延迟标识。' },
   { key: 'scan_routing', title: '智能扫描器分配', description: '根据地域、节点状态和目标执行反馈自动选择扫描器。' },
   { key: 'automatic_target', title: '自动扫描策略', description: '管理搜索触发与周期生成的扫描任务，以及授权范围和任务参数。' },
-  { key: 'dns_follow_up', title: 'DNS 解析后扫描', description: '控制 DNS 解析结果自动创建端口扫描任务的范围。' },
+  { key: 'dns_follow_up', title: 'DNS 排除与解析后扫描', description: '管理域名排除规则及 DNS 解析后的扫描范围。' },
   { key: 'dns_resolvers', title: 'DNS 解析服务器', description: '维护创建域名扫描任务时可选择的常用 DNS 解析服务器。' },
   { key: 'statistics_cache', title: '统计缓存', description: '配置缓存有效期、容量及查询结果复用，查看实例状态。' },
   { key: 'report_mail', title: '报告邮件', description: '配置报告详情地址、远程趋势图片和扫描器展示数量。' },
@@ -60,7 +60,7 @@ const defaults = {
     search_generation: {
       enabled: false, stale_after_days: 7, cooldown_minutes: 1440,
       max_pending_tasks: 100, per_user_hourly_limit: 20,
-      domain_enabled: false, authorized_domains: [],
+      domain_enabled: false,
     },
     enabled: false,
     strategy: 'sequential_subnet',
@@ -82,7 +82,7 @@ const defaults = {
     failure_backoff_seconds: 300,
     change_refresh_seconds: 3600,
   },
-  dns_follow_up: { enabled: false, authorized_cidrs: [], excluded_cidrs: [], max_targets_per_task: 100 },
+  dns_follow_up: { enabled: false, authorized_cidrs: [], excluded_cidrs: [], excluded_domains: [], max_targets_per_task: 100 },
   dns_resolvers: { resolvers: [] },
   report_mail: { public_base_url: '', remote_images_enabled: false, image_lifetime_days: 365, scanner_row_limit: 20 },
   analytics_snapshot: { mode: 'realtime', interval_minutes: 30 },
@@ -111,13 +111,13 @@ const previewRows = computed(() => previewNamespace.value ? policyDiff(previewNa
 const policyNamespace = computed(() => ['monitor', 'scanner_health'].includes(activeTab.value))
 const changeReasons = reactive(Object.fromEntries(namespaces.map(({ key }) => [key, ''])))
 const cidrText = reactive({
-  searchDomains: '',
   automaticAuthorized: '',
   automaticExcluded: '',
   automaticIpv6Authorized: '',
   automaticIpv6Excluded: '',
   dnsAuthorized: '',
   dnsExcluded: '',
+  dnsExcludedDomains: '',
 })
 
 function pushAlert(type, title, description = '', timeout = 7000) {
@@ -155,7 +155,7 @@ function documentFor(namespace) {
   if (namespace === 'automatic_target') {
     return {
       ...settings.automatic_target,
-      search_generation: { ...settings.automatic_target.search_generation, authorized_domains: linesToList(cidrText.searchDomains) },
+      search_generation: { ...settings.automatic_target.search_generation },
       authorized_cidrs: linesToList(cidrText.automaticAuthorized),
       excluded_cidrs: linesToList(cidrText.automaticExcluded),
       ipv6_authorized_cidrs: linesToList(cidrText.automaticIpv6Authorized),
@@ -167,17 +167,16 @@ function documentFor(namespace) {
       ...settings.dns_follow_up,
       authorized_cidrs: linesToList(cidrText.dnsAuthorized),
       excluded_cidrs: linesToList(cidrText.dnsExcluded),
+      excluded_domains: linesToList(cidrText.dnsExcludedDomains),
     }
   }
   return clone(settings[namespace])
 }
 
-function applyDocument(namespace, document, revision) {
+function loadDraft(namespace, document) {
   settings[namespace] = namespace === 'monitor' ? normalizeMonitor({ ...clone(defaults.monitor), ...clone(document) }) : { ...clone(defaults[namespace]), ...clone(document) }
-  revisions[namespace] = revision
   if (namespace === 'automatic_target') {
     settings.automatic_target.search_generation = { ...clone(defaults.automatic_target.search_generation), ...clone(document.search_generation || {}) }
-    cidrText.searchDomains = listToLines(settings.automatic_target.search_generation.authorized_domains)
     cidrText.automaticAuthorized = listToLines(document.authorized_cidrs)
     cidrText.automaticExcluded = listToLines(document.excluded_cidrs)
     cidrText.automaticIpv6Authorized = listToLines(document.ipv6_authorized_cidrs)
@@ -186,7 +185,13 @@ function applyDocument(namespace, document, revision) {
   if (namespace === 'dns_follow_up') {
     cidrText.dnsAuthorized = listToLines(document.authorized_cidrs)
     cidrText.dnsExcluded = listToLines(document.excluded_cidrs)
+    cidrText.dnsExcludedDomains = listToLines(document.excluded_domains)
   }
+}
+
+function applyDocument(namespace, document, revision) {
+  loadDraft(namespace, document)
+  revisions[namespace] = revision
   savedDocuments[namespace] = documentFor(namespace)
   changeReasons[namespace] = ''
   delete conflicts[namespace]
@@ -291,7 +296,7 @@ function handleHistoryToggle(event) {
 
 function restoreVersion(item) {
   const namespace = activeTab.value
-  settings[namespace] = namespace === 'monitor' ? normalizeMonitor({ ...clone(defaults.monitor), ...clone(item.document) }) : { ...clone(defaults[namespace]), ...clone(item.document) }
+  loadDraft(namespace, item.document)
   changeReasons[namespace] = `恢复历史版本 #${item.revision}`
   pushAlert('info', '历史配置已载入草稿', '请检查差异后保存，保存将生成新版本。')
 }
@@ -523,10 +528,7 @@ onMounted(loadAll)
                 <input v-model="settings.automatic_target.search_generation.domain_enabled" type="checkbox" class="toggle mt-0.5" />
                 <span><span class="block font-medium">允许域名搜索触发扫描</span><span class="mt-1 block text-xs opacity-60">还需启用 DNS 解析后扫描；解析出的地址按其授权范围过滤。</span></span>
               </label>
-              <fieldset class="fieldset min-w-0">
-                <legend class="fieldset-legend"><label for="policy-cidrText-searchDomains">授权域名（每行一个，包含其子域名）</label></legend>
-                <textarea id="policy-cidrText-searchDomains" v-model="cidrText.searchDomains" class="textarea textarea-bordered font-mono min-h-28" placeholder="example.com"></textarea>
-              </fieldset>
+              <p class="text-xs opacity-60">域名不再使用白名单，统一遵守“DNS 排除与解析后扫描”中的排除规则。旧白名单升级后会关闭域名搜索生成，请检查排除规则后重新启用。</p>
             </section>
             <section class="space-y-3 rounded-lg border border-base-300 p-4">
               <div>
@@ -634,6 +636,11 @@ onMounted(loadAll)
           </template>
 
           <template v-else-if="activeItem.key === 'dns_follow_up'">
+            <fieldset class="fieldset rounded-lg border border-base-300 p-4">
+              <legend class="fieldset-legend"><label for="dns-excluded-domains">DNS 域名排除（每行一条）</label></legend>
+              <textarea id="dns-excluded-domains" v-model="cidrText.dnsExcludedDomains" class="textarea textarea-bordered min-h-28 w-full font-mono" placeholder="example.com&#10;*.private.example.org"></textarea>
+              <p class="text-xs opacity-60">最多 256 条；普通域名精确排除，*.example.com 排除所有层级子域但不包含根域。适用于搜索、手工及 OpenAPI DNS 任务，与下方解析后扫描开关独立。已排队目标会被阻止，运行中任务在心跳时收到取消指令。</p>
+            </fieldset>
             <div class="alert alert-warning alert-soft text-sm" role="status">此策略允许 DNS 解析结果创建端口扫描任务。必须将范围限制在已授权的 CIDR 内，排除项优先。</div>
             <section class="space-y-3 rounded-lg border border-base-300 p-4">
               <div>

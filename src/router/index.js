@@ -4,6 +4,8 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', component: () => import('../views/dashboard.vue'), meta: { title: 'Dashboard' } },
+    { path: '/domain-discovery', component: () => import('../views/DomainDiscovery.vue'), meta: { title: '域名发现' } },
+    { path: '/domains/:domain', component: () => import('../views/DomainDiscovery.vue'), meta: { title: '域名关联' } },
     { path: '/create_scan', component: () => import('../views/createscan.vue'), meta: { title: '创建任务' } },
     { path: '/task/:taskid([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})', component: () => import('../views/taskdetail.vue'), meta: { title: '任务详情' } },
     { path: '/task', component: () => import('../views/task.vue'), meta: { title: '任务' } },

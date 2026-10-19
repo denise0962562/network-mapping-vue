@@ -176,6 +176,7 @@ onBeforeUnmount(() => {
             <span class="badge badge-outline badge-sm mt-2">{{ providerLabel(channel.provider || 'feishu') }}</span>
             <p class="mt-2 text-sm">{{ channel.event_types.map(eventLabel).join(' · ') }}</p>
             <p class="mt-2 text-xs opacity-60">{{ channel.minimum_severity === 'critical' ? '仅严重通知' : '警告及严重通知' }} · {{ channel.provider === 'feishu' ? (channel.signing_secret_configured ? '已配置签名' : '未配置签名') : (channel.credential_configured ? '已配置凭据' : '待配置凭据') }} · 版本 {{ channel.revision }}</p>
+            <p class="mt-1 text-xs opacity-60 break-all">代理：{{ channel.proxy_mode === 'custom' ? channel.proxy_endpoint : channel.proxy_mode === 'direct' ? '直接连接' : '沿用系统' }}</p>
             <div class="mt-4 flex flex-wrap gap-2">
               <button class="btn btn-sm" :disabled="busy || loadFailed" @click="openEditor(channel)">编辑</button>
               <button class="btn btn-sm" :disabled="busy || !channel.enabled || loadFailed" @click="action(channel, 'test')">测试发送</button>
@@ -223,6 +224,9 @@ onBeforeUnmount(() => {
         </template>
         <fieldset><legend class="mb-2 text-sm">通知事件</legend><label v-for="event in notificationEvents" :key="event.value" class="mb-2 flex items-center gap-2 text-sm"><input v-model="form.event_types" :value="event.value" type="checkbox" class="checkbox checkbox-sm" />{{ event.label }}</label></fieldset>
         <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-11`">最低通知级别</label></legend><select :id="`${formFieldId}-11`" aria-label="最低通知级别" v-model="form.minimum_severity" class="select select-bordered w-full"><option value="warning">警告及严重（全部已选通知类型）</option><option value="critical">仅严重健康告警（不发送登录、Scanner 或报告通知）</option></select></fieldset>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-proxy-mode`">投递代理</label></legend><select :id="`${formFieldId}-proxy-mode`" v-model="form.proxy_mode" class="select select-bordered w-full"><option value="system">沿用系统（HTTP 使用环境代理，SMTP 直连）</option><option value="direct">直接连接</option><option value="custom">指定代理</option></select></fieldset>
+        <fieldset v-if="form.proxy_mode === 'custom'" class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-proxy-url`">代理地址{{ form.proxy_configured ? '（留空保留）' : '' }}</label></legend><input :id="`${formFieldId}-proxy-url`" v-model="form.proxy_url" type="password" autocomplete="new-password" maxlength="2048" class="input input-bordered w-full" placeholder="socks5h://用户名:密码@代理主机:1080" /><p v-if="form.proxy_configured" class="text-xs break-all opacity-60">已配置：{{ form.proxy_endpoint }}（认证信息不回显）</p><p class="text-xs opacity-60">支持 HTTP、HTTPS、SOCKS5 与 SOCKS5H，适用于邮件和机器人。SOCKS5H 由代理解析目标域名。失败时不会回退直连。</p></fieldset>
+        <p v-else-if="form.proxy_configured" class="text-xs opacity-60">保存此模式将清除该渠道已保存的代理地址和认证信息。</p>
         <label class="flex items-center gap-2 text-sm"><input v-model="form.enabled" type="checkbox" class="toggle toggle-neutral" />启用渠道</label>
         <p class="text-xs leading-relaxed opacity-60">Webhook、邮箱密钥和 Bot Token 保存后不会回显，编辑留空保留。测试发送需要先保存并启用渠道。</p>
         <div class="modal-action"><button type="button" class="btn btn-sm" :disabled="busy" @click="closeEditor">取消</button><button class="btn btn-neutral btn-sm" :disabled="busy">{{ busy ? '正在保存…' : '保存渠道' }}</button></div>

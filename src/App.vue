@@ -278,6 +278,8 @@ async function handleLogout() {
             </Transition>
           </li>
 
+          <li><router-link to="/domain-discovery" active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="域名发现"><span class="my-1.5 inline-block size-4" aria-hidden="true">◎</span><span class="is-drawer-close:hidden whitespace-nowrap">域名发现</span></router-link></li>
+
           <li>
             <button
               type="button"
