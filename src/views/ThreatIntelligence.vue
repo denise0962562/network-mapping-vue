@@ -9,7 +9,7 @@ const error = ref(''), notice = ref(''), loading = ref(false), busy = ref(false)
 const settings = ref({ ai_enabled: false, ai_endpoint: 'https://api.openai.com/v1/chat/completions', ai_model: '', ai_key_env: 'NM_INTEL_AI_API_KEY', credential: '', clear_credential: false })
 const settingsRevision = ref(0), aiCredential = ref(false), aiDatabaseCredential = ref(false), aiCredentialSource = ref('none')
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
-const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), importError = ref('')
+const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), uploadChecking = ref(false), importError = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
 const articleError = ref('')
 const reviewBlocked = computed(() => busy.value || articleLoading.value || !reason.value.trim() || (selected.value?.origin === 'ai' && reviewDecision.value === 'approved' && !article.value?.body?.trim()))
@@ -54,13 +54,21 @@ async function uploadImport() {
   const file = importFile.value
   if (!file.size || file.size > 512 * 1024 * 1024) { importError.value = '请选择非空文件，上传大小最多 512 MiB。'; return }
   busy.value = true; error.value = ''; notice.value = ''; importError.value = ''; uploadProgress.value = null
-  uploadController = new AbortController()
+  const controller = new AbortController()
+  uploadController = controller; uploadChecking.value = true
   try {
-    await http.post(`/api/intel/sources/${importSource.value.id}/import`, file, { params: { expected_revision: importSource.value.revision }, headers: { 'Content-Type': 'application/octet-stream' }, signal: uploadController.signal, timeout: 30 * 60 * 1000, onUploadProgress: e => { if (!disposed && e.loaded > 0) uploadProgress.value = Math.min(100, Math.max(1, Math.round(e.loaded * 100 / (e.total || file.size)))) } })
+    const path = `/api/intel/sources/${importSource.value.id}/import`
+    const params = { expected_revision: importSource.value.revision }
+    const readiness = await http.post(`${path}/check`, undefined, { params, signal: controller.signal, timeout: 15000 })
+    if (disposed) return
+    if (controller.signal.aborted) throw { code: 'ERR_CANCELED' }
+    if (readiness?.data?.data?.ready !== true) throw { response: { data: { code: 'intel_import_check_failed' } } }
+    uploadChecking.value = false
+    await http.post(path, file, { params, headers: { 'Content-Type': 'application/octet-stream' }, signal: controller.signal, timeout: 30 * 60 * 1000, onUploadProgress: e => { if (!disposed && e.loaded > 0) uploadProgress.value = Math.min(100, Math.max(1, Math.round(e.loaded * 100 / (e.total || file.size)))) } })
     if (disposed) return
     uploadProgress.value = 100; importDialog.value?.close(); importFile.value = null; notice.value = '离线文件已上传，后台将先校验再分批导入。ThreatFox 增量更新继续使用 API。'
     try { await loadSources() } catch (e) { fail(e) }
-  } catch (e) { if (!disposed) importError.value = e.code === 'ERR_CANCELED' ? '已取消上传等待，可在同步作业中确认是否已接收。' : intelError(e) } finally { busy.value = false; uploadController = null }
+  } catch (e) { if (!disposed) importError.value = e.code === 'ERR_CANCELED' ? '已取消上传等待，可在同步作业中确认是否已接收。' : intelError(e) } finally { busy.value = false; uploadChecking.value = false; uploadController = null }
 }
 async function saveSource() {
   busy.value = true; error.value = ''; notice.value = ''
@@ -171,7 +179,7 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; setting
         <p class="text-xs opacity-65">上传最多 512 MiB；解压内容与规范化结果各最多 2 GiB。先完整校验，再分批入库。可信来源沿用接纳策略，历史数据按观察时间自动判断是否过期。</p>
         <div v-if="busy" role="status" class="space-y-2">
           <progress class="progress progress-primary w-full" :value="uploadProgress" max="100" aria-label="离线文件上传进度"></progress>
-          <p class="text-sm">{{ uploadProgress == null ? '正在连接服务器，准备上传…' : uploadProgress < 100 ? `正在上传：${uploadProgress}%` : '文件已发送，等待服务器保存并创建导入作业…' }}</p>
+          <p class="text-sm">{{ uploadChecking ? '正在检查服务端缓存和来源状态…' : uploadProgress == null ? '正在连接服务器，准备上传…' : uploadProgress < 100 ? `正在上传：${uploadProgress}%` : '文件已发送，等待服务器保存并创建导入作业…' }}</p>
         </div>
         <div class="modal-action">
           <button type="button" class="btn btn-ghost" @click="busy ? cancelImport() : importDialog?.close()">{{ busy ? '取消等待' : '取消' }}</button>

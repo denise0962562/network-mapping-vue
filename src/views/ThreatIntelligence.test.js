@@ -9,6 +9,7 @@ const { descriptor } = parse(readFileSync(new URL('./ThreatIntelligence.vue', im
 const compiled = compileScript(descriptor, { id: 'intel-lifecycle' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
+function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
   const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport})`, {
@@ -40,9 +41,10 @@ test('switching from offline exports restores a valid transport for API and repo
 })
 test('upload progress uses the selected file size when the browser omits total', async () => {
   const pending = deferred(); let options
-  const p = page({ post: (url, file, config) => { options = config; return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
+  const p = page({ post: (url, file, config) => { if (url.endsWith('/check')) return Promise.resolve(readyResponse()); options = config; return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
   p.openImport({ id: 'offline-source', revision: 1 }); p.importFile.value = new Blob(['x'.repeat(100)])
   const upload = p.uploadImport()
+  await new Promise(setImmediate)
   assert.equal(p.uploadProgress.value, null) // indeterminate until the browser reports bytes
   options.onUploadProgress({ loaded: 25 })
   assert.equal(p.uploadProgress.value, 25)
@@ -66,9 +68,54 @@ test('cancelling an unresponsive upload aborts only that request', async () => {
   assert.match(p.importError.value, /取消/)
   p.dispose()
 })
+test('no file bytes are sent until the server confirms readiness', async () => {
+  const ready = deferred(), calls = []
+  const p = page({ post: (url, body, options) => { calls.push({ url, body, options }); return url.endsWith('/check') ? ready.promise : Promise.resolve({}) }, get: async () => ({ data: { data: { items: [] } } }) })
+  const file = new Blob(['official offline export'])
+  p.openImport({ id: 'offline-source', revision: 4 }); p.importFile.value = file
+  const upload = p.uploadImport()
+  assert.equal(calls.length, 1); assert.match(calls[0].url, /\/import\/check$/)
+  assert.equal(calls[0].body, undefined); assert.equal(calls[0].options.timeout, 15000)
+  assert.equal(calls[0].options.params.expected_revision, 4)
+  ready.resolve(readyResponse()); await upload
+  assert.equal(calls.length, 2); assert.equal(calls[1].body, file)
+  assert.equal(calls[0].options.signal, calls[1].options.signal)
+  p.dispose()
+})
+test('cache failure at preflight preserves the file and never starts the upload', async () => {
+  const calls = []
+  const p = page({ post: async url => { calls.push(url); throw { response: { data: { code: 'intel_import_cache_unavailable' } } } } })
+  const file = new Blob(['fixture'])
+  p.openImport({ id: 'offline-source', revision: 1 }); p.importFile.value = file
+  await p.uploadImport()
+  assert.equal(calls.length, 1); assert.match(calls[0], /\/check$/)
+  assert.match(p.importError.value, /后端进程.*NM_INTEL_CACHE_ROOT/)
+  assert.equal(p.importFile.value, file); assert.equal(p.uploadProgress.value, null)
+  p.dispose()
+})
+test('an HTML page or malformed success response cannot acknowledge readiness', async () => {
+  for (const response of [{ data: '<html>login</html>' }, { data: { data: { ready: false } } }]) {
+    const calls = []
+    const p = page({ post: async url => { calls.push(url); return response } })
+    p.openImport({ id: 'offline-source', revision: 1 }); p.importFile.value = new Blob(['fixture'])
+    await p.uploadImport()
+    assert.equal(calls.length, 1); assert.match(p.importError.value, /准备确认/)
+    p.dispose()
+  }
+})
+test('a late successful preflight cannot upload after cancellation or unmount', async () => {
+  for (const stop of ['cancelImport', 'dispose']) {
+    const ready = deferred(), calls = []
+    const p = page({ post: url => { calls.push(url); return ready.promise } })
+    p.openImport({ id: 'offline-source', revision: 1 }); p.importFile.value = new Blob(['fixture'])
+    const upload = p.uploadImport(); p[stop](); ready.resolve({}); await upload
+    assert.equal(calls.length, 1, stop)
+    if (stop === 'cancelImport') { assert.match(p.importError.value, /取消/); p.dispose() }
+  }
+})
 test('offline import sends the file body and source revision without scheduling or AI requests', async () => {
   const sent = [], pending = deferred()
-  const p = page({ post: (url, body, options) => { sent.push({ url, body, options }); return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
+  const p = page({ post: (url, body, options) => { if (url.endsWith('/check')) return Promise.resolve(readyResponse()); sent.push({ url, body, options }); return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
   const file = new Blob(['type,value\ndomain,history.example\n'], { type: 'text/csv' })
   p.openImport({ id: 'offline-source', revision: 4 }); p.importFile.value = file
   const upload = p.uploadImport()
