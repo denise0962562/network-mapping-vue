@@ -27,7 +27,7 @@ jobs:
           pnpm install --frozen-lockfile
       - name: Test and build
         run: |
-          node --test src/utils/*.test.js src/views/Notifications.test.js
+          node --test src/utils/*.test.js src/views/*.test.js src/components/*.test.js
           pnpm test:targets
           pnpm test:os
           pnpm test:web
