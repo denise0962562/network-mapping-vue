@@ -67,6 +67,8 @@ CSV 支持 UTF-8 BOM、CRLF、注释表头、逗号后的空格、带逗号/换�
 时会在接收文件前拒绝新上传，避免传完后才发现冲突。
 CSV、JSON 结构、URL IOC 和参考链接错误会分别显示格式说明。URL IOC 支持 FTP/SMB
 和无协议的主机/路径等官方报告形式，无协议值保持原样，不自动扩大为域名/IP 标记。
+ESET 仓库个别 JSON 本身有语法错误时会隔离该文件，其他文件继续同步；作业汇总中的
+`unsupported_files` 和 `unsupported_paths` 可查看跳过数量与路径，上游修正后自动重读。
 
 出现“服务端导入缓存不可用”时，需要处理后端进程的目录配置。默认路径为
 `/var/lib/network-mapping/intel-cache`，普通账户通常无权创建；在后端启动环境设置
