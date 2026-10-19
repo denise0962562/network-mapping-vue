@@ -10,7 +10,7 @@ const jobs = ref([]), activeId = ref(''), evidence = ref(null), excluded = ref([
 const error = ref(''), notice = ref(''), search = ref(''), relationFilter = ref(''), page = ref(0), relations = ref(null)
 const requests = new AbortController()
 let timer, disposed = false, requestVersion = 0
-const activeJob = computed(() => jobs.value.find(job => job.id === activeId.value))
+const activeJob = ref(null)
 const active = computed(() => ['pending', 'running'].includes(activeJob.value?.status))
 const candidates = computed(() => evidence.value?.candidates || relations.value?.candidates || [])
 const certificates = computed(() => evidence.value?.certificates || relations.value?.certificates || [])
@@ -26,10 +26,13 @@ async function loadJobs() {
 async function openJob(id) {
   if (disposed) return
   const version = ++requestVersion
-  activeId.value = id; evidence.value = null; relations.value = null; selected.value = []; submitted.value = []; excluded.value = []; loading.value = false; page.value = 0; error.value = ''
-  if (!['succeeded', 'partial'].includes(jobs.value.find(j => j.id === id)?.status)) return
+  activeId.value = id; activeJob.value = null; evidence.value = null; relations.value = null; selected.value = []; submitted.value = []; excluded.value = []; page.value = 0; error.value = ''
   loading.value = true
   try {
+    const job = (await http.get(`/api/domain-discovery/jobs/${id}`, { signal: requests.signal })).data.data
+    if (disposed || requestVersion !== version) return
+    activeJob.value = job
+    if (!['succeeded', 'partial'].includes(job.status)) return
     const data = (await http.get(`/api/domain-discovery/jobs/${id}/results`, { signal: requests.signal })).data.data
     if (disposed || requestVersion !== version) return
     evidence.value = data.evidence; excluded.value = data.excluded || []; submitted.value = data.dns_tasks || []
@@ -56,12 +59,17 @@ async function verify() {
 }
 async function cancel() {
   if (busy.value) return
+  const id = activeId.value, version = requestVersion
   busy.value = true
-  try { await http.post(`/api/domain-discovery/jobs/${activeId.value}/cancel`, {}); await loadJobs() } catch (e) { fail(e) } finally { busy.value = false }
+  try {
+    await http.post(`/api/domain-discovery/jobs/${id}/cancel`, {}, { signal: requests.signal })
+    await loadJobs()
+    if (!disposed && requestVersion === version) await openJob(id)
+  } catch (e) { fail(e) } finally { busy.value = false }
 }
 async function openRelations(domain) {
   const version = ++requestVersion
-  activeId.value = ''; evidence.value = null; relations.value = null; selected.value = []; submitted.value = []; excluded.value = []; page.value = 0; loading.value = true; error.value = ''
+  activeId.value = ''; activeJob.value = null; evidence.value = null; relations.value = null; selected.value = []; submitted.value = []; excluded.value = []; page.value = 0; loading.value = true; error.value = ''
   seed.value = domain
   try {
     const data = (await http.get(`/api/domains/${encodeURIComponent(domain)}/relations`, { signal: requests.signal })).data.data
@@ -72,8 +80,9 @@ watch(() => route.params.domain, domain => { if (domain) openRelations(String(do
 async function poll() {
   if (disposed) return
   if (active.value && document.visibilityState !== 'hidden') {
+    const id = activeId.value, version = requestVersion
     await loadJobs()
-    if (!disposed && activeId.value && !active.value) await openJob(activeId.value)
+    if (!disposed && requestVersion === version) await openJob(id)
   }
   if (!disposed) timer = setTimeout(poll, 3000)
 }
