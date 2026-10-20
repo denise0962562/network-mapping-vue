@@ -69,3 +69,7 @@ test('AI settings send only writeable configuration and deliberate credential ch
   body = settingsPayload(form)
   assert.equal(body.clear_credential, true); assert.equal('credential' in body, false)
 })
+test('manual article sources keep host and publisher binding without feed credentials', () => {
+  const payload=sourcePayload({...newSource(),kind:'article',transport:'manual',publisher_id:' ZXhhbXBsZQ== ',location:'https://stale.example',auth_env:'NM_INTEL_STALE',credential:'must-not-send'},'mp.weixin.qq.com\nresearch.example')
+  assert.equal(payload.location,'');assert.equal(payload.auth_env,'');assert.equal(payload.publisher_id,'ZXhhbXBsZQ==');assert.equal(payload.allowed_hosts.length,2);assert.ok(!Object.hasOwn(payload,'credential'))
+})

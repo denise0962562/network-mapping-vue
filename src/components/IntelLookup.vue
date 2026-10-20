@@ -19,4 +19,4 @@ watch(() => [props.type, props.value], ([type, value]) => {
 }, { immediate: true })
 onBeforeUnmount(() => { version++; clearTimeout(timer); controller?.abort() })
 </script>
-<template><IntelEvidence :intel="intel" /></template>
+<template><IntelEvidence :intel="intel" :label="type === 'asn' ? 'ASN 情报' : '情报'" /></template>

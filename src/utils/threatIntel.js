@@ -1,11 +1,31 @@
 export const sourceKinds = {
   mitre_stix: 'MITRE STIX 2.1', eset_github: 'ESET / GitHub IOC 仓库',
   threatfox: 'ThreatFox API（增量更新）', threatfox_export: 'ThreatFox 离线 JSON / CSV / ZIP',
-  rss: 'RSS 文章（AI 补充）', json: '结构化 JSON IOC', lines: '文本 / CSV IOC',
+  article: '手动文章 / 微信正文（AI 补充）', rss: 'RSS 文章（AI 补充）', json: '结构化 JSON IOC', lines: '文本 / CSV IOC',
 }
-export const defaultIntervals = { mitre_stix: 86400, eset_github: 3600, threatfox: 1800, threatfox_export: 3600, rss: 1800, json: 1800, lines: 1800 }
+export const defaultIntervals = { mitre_stix: 86400, eset_github: 3600, threatfox: 1800, threatfox_export: 3600, rss: 1800, article: 1800, json: 1800, lines: 1800 }
 export const states = { queued: '等待处理', running: '处理中', succeeded: '成功', partial: '分批继续', failed: '失败', cancelled: '已取消', proposed: '已生成待审提议', pending: '待审核', approved: '已接纳', expired: '已过期', revoked: '已撤销', rejected: '已拒绝', superseded: '已被新版本替代', downloaded: '已上传，等待校验', ready: '分批入库', complete: '导入完成' }
+export const attackTypes = { bgp_hijacking: 'BGP 路由劫持', route_leak: '路由泄漏', dns_hijacking: 'DNS 劫持', dns_response_tampering: 'DNS 应答篡改', malicious_redirection: '恶意重定向', phishing: '钓鱼', malware_delivery: '恶意软件投递', command_and_control: '命令与控制', credential_theft: '凭据窃取', data_exfiltration: '数据外传', denial_of_service: '拒绝服务', reconnaissance: '侦察' }
+export const iocRoles = { route_hijacker: '路由劫持基础设施', malicious_dns: '恶意 DNS 服务', redirect_destination: '恶意重定向目的地址', c2: '命令与控制端点', payload_host: '载荷托管地址', phishing_host: '钓鱼地址' }
+export function attackLabel(value) { return attackTypes[value] || value }
+export function roleLabel(value) { return iocRoles[value] || value }
+export function articleIntakeLabel(metadata) {
+  const intake = metadata?.intake
+  if (intake?.publisher_verification === 'administrator_supplied') return '管理员提供的正文快照，尚未核验网络发布账号'
+  if (intake?.publisher_verification === 'page_account_match') return '已核对微信页面发布账号'
+  return intake?.method === 'remote_pending' ? '等待远程抓取正文' : '远程文章正文'
+}
 const errors = {
+  intel_invalid_asn: 'ASN 格式无效，请填写 AS 加十进制编号或纯编号；不支持网段或 AS 路径。',
+  intel_invalid_classification: '攻击行为或指标角色不在支持列表中，请使用分类选项并保留原文证据。',
+  intel_invalid_article_source: '请选择手动文章来源，获取方式须为手动提交且不配置来源地址或凭据。',
+  intel_article_submission_required: '该来源通过文章页手动提交，不执行周期同步。',
+  intel_invalid_article: '请填写文章标题和有效正文；正文可留空远程抓取，手动正文须为 40～100,000 UTF-8 字节。',
+  intel_invalid_article_url: '请提供有效的微信公众号文章地址或白名单内的 HTTPS 文章。',
+  intel_article_publisher_required: '远程抓取微信文章前，请在来源中绑定账号 __biz；也可手动粘贴正文，随后由人工审核 AI 提议。',
+  intel_article_publisher_mismatch: '文章发布账号与来源绑定账号不一致或无法核对，未进行 AI 提取；请检查账号或手动提交正文。',
+  intel_invalid_publisher: '微信账号 __biz 格式无效，请填写账号标识，不是公众号昵称。',
+  intel_article_body_missing: '没有取得有效文章正文，可能是验证页面或不支持的结构；可在文章页手动提交正文快照。',
   intel_admin_required: '只有管理员可以管理情报来源和审核。',
   intel_revision_conflict: '数据已有变化，请刷新后重新操作。',
   intel_credential_missing: '请保存数据库凭据，或配置所引用的环境变量。',
@@ -62,10 +82,11 @@ export function intelError(error) {
   return code ? `操作未完成（${code}）。` : '情报请求失败，请检查网络与服务器状态后重试。'
 }
 export function originLabel(record) { return record?.origin === 'ai' ? (record.status === 'pending' ? 'AI · 待审' : 'AI · 人工审核') : record?.status === 'pending' ? '结构化来源 · 待审' : record?.review_id ? '结构化来源 · 人工审核' : '可信结构化来源' }
-export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800, expiry_months: 6 } }
+export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], publisher_id: '', auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800, expiry_months: 6 } }
 export function sourcePayload(form, hostsText) {
   const { name, kind, transport, location, auth_env, enabled, require_review, interval_seconds, revision } = form
-  const value = { name: name.trim(), kind, transport, location: transport === 'upload' ? '' : location.trim(), auth_env: transport !== 'https' ? '' : auth_env.trim(), enabled, require_review, interval_seconds: Number(interval_seconds), expiry_months: Number(form.expiry_months ?? 6), allowed_hosts: transport !== 'https' && kind !== 'rss' ? [] : hostsText.split(/[\s,]+/).filter(Boolean) }
+  const value = { name: name.trim(), kind, transport, location: ['upload', 'manual'].includes(transport) ? '' : location.trim(), auth_env: transport !== 'https' ? '' : auth_env.trim(), enabled, require_review, interval_seconds: Number(interval_seconds), expiry_months: Number(form.expiry_months ?? 6), allowed_hosts: transport !== 'https' && !['rss','article'].includes(kind) ? [] : hostsText.split(/[\s,]+/).filter(Boolean) }
+  if (form.publisher_id || ['rss', 'article'].includes(kind)) value.publisher_id = (form.publisher_id || '').trim()
   if (revision != null) value.expected_revision = revision
   if (transport === 'https') writeCredential(value, form)
   return value
