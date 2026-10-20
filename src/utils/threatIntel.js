@@ -4,7 +4,7 @@ export const sourceKinds = {
   article: '手动文章 / 微信正文（AI 补充）', rss: 'RSS 文章（AI 补充）', json: '结构化 JSON IOC', lines: '文本 / CSV IOC',
 }
 export const defaultIntervals = { mitre_stix: 86400, eset_github: 3600, threatfox: 1800, threatfox_export: 3600, rss: 1800, article: 1800, json: 1800, lines: 1800 }
-export const states = { queued: '等待处理', running: '处理中', succeeded: '成功', partial: '分批继续', failed: '失败', cancelled: '已取消', proposed: '已生成待审提议', pending: '待审核', approved: '已接纳', expired: '已过期', revoked: '已撤销', rejected: '已拒绝', superseded: '已被新版本替代', downloaded: '已上传，等待校验', ready: '分批入库', complete: '导入完成' }
+export const states = { queued: '等待处理', running: '处理中', succeeded: '成功', partial: '分批继续', failed: '失败', cancelled: '已取消', proposed: '已生成待审提议', pending: '待审核', approved: '已接纳', expired: '已过期', revoked: '已撤销', rejected: '已拒绝', superseded: '已被新版本替代', downloaded: '已上传，等待校验', ready: '分批入库', paused: '已暂停，可继续导入', complete: '导入完成' }
 export const attackTypes = { bgp_hijacking: 'BGP 路由劫持', route_leak: '路由泄漏', dns_hijacking: 'DNS 劫持', dns_response_tampering: 'DNS 应答篡改', malicious_redirection: '恶意重定向', phishing: '钓鱼', malware_delivery: '恶意软件投递', command_and_control: '命令与控制', credential_theft: '凭据窃取', data_exfiltration: '数据外传', denial_of_service: '拒绝服务', reconnaissance: '侦察' }
 export const iocRoles = { route_hijacker: '路由劫持基础设施', malicious_dns: '恶意 DNS 服务', redirect_destination: '恶意重定向目的地址', c2: '命令与控制端点', payload_host: '载荷托管地址', phishing_host: '钓鱼地址' }
 export function attackLabel(value) { return attackTypes[value] || value }
@@ -49,6 +49,7 @@ const errors = {
   intel_invalid_upload_source: '请选择离线上传来源和支持的 JSON / CSV 格式。',
   intel_offline_export_required: 'ThreatFox 导出文件只用于离线上传或本地导入；增量更新请选择 ThreatFox API。',
   intel_import_file_required: '请先上传离线文件，再继续导入。',
+  intel_import_paused: '导入已按批次数上限暂停，请继续导入或使用 CLI --resume。',
   intel_import_busy: '该来源已有排队或运行中的作业，请等待完成后再上传。',
   intel_import_read_failed: '上传中断或长时间未收到数据，请检查网络后重试。',
   intel_import_write_failed: '导入缓存写入失败，请检查磁盘空间与缓存目录权限。',
