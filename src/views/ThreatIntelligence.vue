@@ -26,7 +26,7 @@ const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('
 const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), uploadChecking = ref(false), importError = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
 const articleError = ref('')
-const reviewBlocked = computed(() => busy.value || articleLoading.value || !reason.value.trim() || (selected.value?.origin === 'ai' && reviewDecision.value === 'approved' && !article.value?.body?.trim()))
+const reviewBlocked = computed(() => busy.value || !reason.value.trim() || (selected.value?.origin === 'ai' && reviewDecision.value === 'approved' && (articleLoading.value || !article.value?.body?.trim())))
 const entityDialog = ref(null), entityDetail = ref(null), entityLoading = ref(false)
 const mappingDialog = ref(null), mappingForm = ref({ source_id: '', name: '', attack_id: '' }), candidateQuery = ref(''), candidates = ref([])
 const requests = new AbortController()

@@ -32,6 +32,7 @@ const errors = {
   intel_invalid_credential: '凭据不能仅包含空白、控制字符或超过 8192 字节；替换与清除不能同时选择。',
   intel_credential_crypto_failed: '凭据加密或解密失败，请检查服务端加密主密钥；不会自动回退到其他凭据。',
   intel_ai_disabled: 'AI 提取已关闭；可信 IOC 同步不受影响。',
+  intel_ai_settings_changed: 'AI 配置已变化，旧响应已停止写入；请按新配置重试文章。',
   intel_invalid_ai_settings: '请填写模型名称，并检查凭据环境变量名称。',
   intel_invalid_source: '请检查来源名称、格式和检查周期。',
   intel_invalid_hosts: '允许的域名须逐项填写完整小写域名，不支持通配符。',

@@ -196,6 +196,20 @@ test('missing AI snapshot does not prevent rejecting or revoking evidence', asyn
     p.dispose()
   }
 })
+test('pending snapshot requests do not block rejecting or revoking AI evidence', async () => {
+  for (const decision of ['rejected', 'revoked']) {
+    const pending = deferred(), sent = []
+    const p = page({ get: url => url.includes('/articles/') ? pending.promise : Promise.resolve({ data: { data: { items: [] } } }), post: async (...args) => { sent.push(args) } })
+    const opening = p.openReview({ id: 'r1', article_id: 'a1', origin: 'ai', status: decision === 'revoked' ? 'approved' : 'pending', content_hash: 'version-one' }, decision)
+    p.reason.value = 'Unsupported evidence must be removable while the snapshot is loading.'
+    await p.submitReview()
+    assert.equal(sent.length, 1, `${decision} must not wait for the snapshot request`)
+    assert.equal(sent[0][1].decision, decision)
+    assert.equal(sent[0][1].content_hash, 'version-one')
+    pending.resolve({ data: { data: { body: 'Late snapshot response.' } } }); await opening
+    p.dispose()
+  }
+})
 test('retrying a failed snapshot preserves the reason and restores approval only after success', async () => {
   let attempts = 0; const sent = []
   const p = page({ get: async () => { if (++attempts === 1) throw new Error('temporary failure'); return { data: { data: { body: 'The verified snapshot identifies the malicious IOC.' } } } }, post: async (...args) => { sent.push(args) } })
