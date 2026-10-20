@@ -9,6 +9,13 @@ export const attackTypes = { bgp_hijacking: 'BGP 路由劫持', route_leak: '路
 export const iocRoles = { route_hijacker: '路由劫持基础设施', malicious_dns: '恶意 DNS 服务', redirect_destination: '恶意重定向目的地址', c2: '命令与控制端点', payload_host: '载荷托管地址', phishing_host: '钓鱼地址' }
 export function attackLabel(value) { return attackTypes[value] || value }
 export function roleLabel(value) { return iocRoles[value] || value }
+export function articleStatusLabel(article) {
+  if (!['proposed', 'succeeded'].includes(article.status)) return states[article.status] || article.status
+  if (article.pending_count > 0) return `待审核（${article.pending_count} 条）`
+  if (article.record_count > 0) return '提取已完成，无待审提议'
+  if (article.record_count === 0) return '提取已完成，未生成提议'
+  return '提取已完成'
+}
 export function articleIntakeLabel(metadata) {
   const intake = metadata?.intake
   if (intake?.publisher_verification === 'administrator_supplied') return '管理员提供的正文快照，尚未核验网络发布账号'
@@ -36,12 +43,13 @@ const errors = {
   intel_ai_invalid_response: 'AI 接口未返回有效的 Chat Completions 响应；当前不支持 Responses 格式，请检查接口地址并展开错误详情。',
   intel_ai_settings_changed: 'AI 配置已变化，旧响应已停止写入；请按新配置重试文章。',
   intel_invalid_ai_settings: '请填写模型名称，并检查凭据环境变量名称。',
+  intel_invalid_ai_timeout: 'AI 请求超时须为 1～1800 秒的整数。',
   intel_invalid_source: '请检查来源名称、格式和检查周期。',
   intel_invalid_hosts: '允许的域名须逐项填写完整小写域名，不支持通配符。',
   intel_url_not_allowed: '远程来源必须使用 HTTPS，且域名须在允许列表中。',
   intel_source_timeout: '远程原文请求超时，请检查服务器网络与代理。',
   intel_ai_transport: 'AI 接口连接失败，文章正文已保留；请检查 AI 接口与后端代理配置，并展开错误详情。',
-  intel_ai_request_timeout: 'AI 接口请求超时，文章正文已保留；请检查服务连通性与响应速度。',
+  intel_ai_request_timeout: 'AI 接口请求超时，文章正文已保留；请检查服务连通性与响应速度，或调大 AI 设置中的请求超时。',
   intel_ai_dns_failed: 'AI 接口域名解析失败，请检查后端 DNS。',
   intel_ai_proxy_dns_failed: '访问 AI 接口时代理域名解析失败，请检查后端代理配置。',
   intel_ai_http_status: 'AI 接口返回错误，请在错误详情查看 HTTP 状态，并检查接口地址、模型和凭据。',
@@ -110,7 +118,7 @@ function writeCredential(payload, form) {
 }
 export function settingsPayload(form) {
   const { ai_enabled, ai_endpoint, ai_model, ai_key_env } = form
-  const value = { ai_enabled, ai_endpoint, ai_model, ai_key_env: (ai_key_env || '').trim() }
+  const value = { ai_enabled, ai_endpoint, ai_model, ai_key_env: (ai_key_env || '').trim(), ai_timeout_seconds: Number(form.ai_timeout_seconds ?? 180) }
   writeCredential(value, form)
   return value
 }
@@ -129,6 +137,7 @@ const diagnosticFields = {
   attempt: '尝试次数', claim_token: '任务标识', phase: '请求阶段', host: '目标主机', port: '目标端口',
   method: '请求方法', proxy_env_keys: '已设置的代理环境变量（不代表实际使用）', http_status: 'HTTP 状态', elapsed_ms: '请求耗时（毫秒）', total_elapsed_ms: '处理耗时（毫秒）',
   timeout: '是否超时', connect: '是否连接阶段失败', cause_hint: '网络原因提示', io_kind: '系统错误类别', os_error: '系统错误码',
+  timeout_seconds: '请求超时设置（秒）', processing_timeout_seconds: '处理时限（秒）', record: '未通过校验的条目序号', rejected: '证据未通过的条数',
   selector: '正文选择器', reason: '失败原因分类', html_bytes: '页面字节数', text_bytes: '有效正文字节数',
   expected_field: '预期响应字段', responses_output_present: '响应包含 Responses output 字段',
   response_bytes: '响应字节数', json_line: 'JSON 错误行', json_column: 'JSON 错误列',

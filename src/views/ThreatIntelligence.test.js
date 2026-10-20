@@ -282,3 +282,19 @@ test('loaded AI settings expand only when enabled and preserve manual collapse o
   assert.equal(p.aiExpanded.value, true)
   p.dispose()
 })
+
+test('AI timeout defaults for old responses and a manual value survives save and reload', async () => {
+  let saved = { ai_enabled: true, ai_model: 'fixture' }, submitted
+  const p = page({
+    get: async () => ({ data: { data: { settings: saved, revision: 2 } } }),
+    put: async (url, body) => { submitted = body; saved = body.settings },
+  })
+  assert.equal(p.settings.value.ai_timeout_seconds, 180)
+  await p.loadSettings()
+  assert.equal(p.settings.value.ai_timeout_seconds, 180)
+  p.settings.value.ai_timeout_seconds = 600
+  await p.saveSettings()
+  assert.equal(submitted.settings.ai_timeout_seconds, 600)
+  assert.equal(p.settings.value.ai_timeout_seconds, 600)
+  p.dispose()
+})

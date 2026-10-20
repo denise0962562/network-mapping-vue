@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel, intelError, articleDiagnosticRows } from './threatIntel.js'
+import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel, intelError, articleDiagnosticRows, articleStatusLabel } from './threatIntel.js'
 
 test('trusted defaults expose configurable source intervals', () => {
   const source = newSource()
@@ -64,10 +64,23 @@ test('AI settings send only writeable configuration and deliberate credential ch
   const form = { ai_enabled: true, ai_endpoint: 'https://api.example/chat', ai_model: 'model', ai_key_env: '', credential: 'test-key', credential_source: 'database', ai_review_required: false }
   let body = settingsPayload(form)
   assert.equal(body.credential, 'test-key'); assert.equal(body.ai_key_env, '')
+  assert.equal(body.ai_timeout_seconds, 180)
+  form.ai_timeout_seconds = '600'
+  assert.equal(settingsPayload(form).ai_timeout_seconds, 600)
   assert.equal('credential_source' in body, false); assert.equal('ai_review_required' in body, false)
   form.clear_credential = true
   body = settingsPayload(form)
   assert.equal(body.clear_credential, true); assert.equal('credential' in body, false)
+})
+
+test('article completion labels reflect actual records including historical empty successes and reviewed drafts', () => {
+  assert.equal(articleStatusLabel({ status: 'proposed', record_count: 0, pending_count: 0 }), '提取已完成，未生成提议')
+  assert.equal(articleStatusLabel({ status: 'succeeded', record_count: 0, pending_count: 0 }), '提取已完成，未生成提议')
+  assert.equal(articleStatusLabel({ status: 'proposed', record_count: 4, pending_count: 2 }), '待审核（2 条）')
+  assert.equal(articleStatusLabel({ status: 'succeeded', record_count: 4, pending_count: 2 }), '待审核（2 条）')
+  assert.equal(articleStatusLabel({ status: 'proposed', record_count: 4, pending_count: 0 }), '提取已完成，无待审提议')
+  assert.equal(articleStatusLabel({ status: 'proposed' }), '提取已完成')
+  assert.equal(articleStatusLabel({ status: 'failed', pending_count: 0 }), '失败')
 })
 test('manual article sources keep host and publisher binding without feed credentials', () => {
   const payload=sourcePayload({...newSource(),kind:'article',transport:'manual',publisher_id:' ZXhhbXBsZQ== ',location:'https://stale.example',auth_env:'NM_INTEL_STALE',credential:'must-not-send'},'mp.weixin.qq.com\nresearch.example')
