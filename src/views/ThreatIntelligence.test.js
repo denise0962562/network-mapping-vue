@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { compileScript, parse } from 'vue/compiler-sfc'
 import * as intel from '../utils/threatIntel.js'
 const { descriptor } = parse(readFileSync(new URL('./ThreatIntelligence.vue', import.meta.url), 'utf8'))
@@ -12,8 +12,8 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport})`, {
-    ...intel, computed, ref, AbortController, http, formatDateTime: v => v,
+  const p = vm.runInNewContext(`${source}\n;({aiExpanded,loadSettings,tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport})`, {
+    ...intel, computed, nextTick, ref, watch, AbortController, http, formatDateTime: v => v,
     document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
   })
@@ -233,4 +233,38 @@ test('unmount aborts requests and prevents new polling timers', async () => {
   assert.equal(signal.aborted, true)
   pending.resolve({ data: { data: { items: [{ id: 'late' }], total: 1 } } }); await first; await p.poll()
   assert.equal(p.records.value.length, 0); assert.equal(p.timers.size, 0)
+})
+
+test('AI settings automatically collapse when disabled and expand when enabled', () => {
+  const p = page({})
+  assert.equal(p.aiExpanded.value, false)
+  p.settings.value.ai_enabled = true
+  assert.equal(p.aiExpanded.value, true)
+  p.aiExpanded.value = false
+  assert.equal(p.settings.value.ai_enabled, true)
+  p.aiExpanded.value = true
+  p.settings.value.ai_model = 'preserved-model'
+  p.settings.value.ai_enabled = false
+  assert.equal(p.aiExpanded.value, false)
+  assert.equal(p.settings.value.ai_model, 'preserved-model')
+  p.settings.value.ai_enabled = true
+  assert.equal(p.aiExpanded.value, true)
+  p.dispose()
+})
+
+test('loaded AI settings expand only when enabled and preserve manual collapse on unchanged reload', async () => {
+  let enabled = true
+  const p = page({ get: async () => ({ data: { data: { settings: { ai_enabled: enabled }, revision: 1 } } }) })
+  await p.loadSettings()
+  assert.equal(p.aiExpanded.value, true)
+  p.aiExpanded.value = false
+  await p.loadSettings()
+  assert.equal(p.aiExpanded.value, false)
+  enabled = false
+  await p.loadSettings()
+  assert.equal(p.aiExpanded.value, false)
+  enabled = true
+  await p.loadSettings()
+  assert.equal(p.aiExpanded.value, true)
+  p.dispose()
 })

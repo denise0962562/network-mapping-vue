@@ -586,6 +586,11 @@ async function handleLogout() {
 </template>
 
 <style scoped>
+.drawer-side {
+  /* Reserve space before expanded navigation needs its own scrollbar. */
+  scrollbar-gutter: stable;
+}
+
 .drawer-side .menu li > button.active {
   background-color: var(--color-base-300);
   color: var(--color-base-content);
