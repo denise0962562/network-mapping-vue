@@ -41,6 +41,11 @@ const errors = {
   intel_ai_disabled: 'AI 提取已关闭；可信 IOC 同步不受影响。',
   intel_ai_timeout: '文章提取超过处理时限，请展开错误详情确认停留阶段后重试。',
   intel_ai_invalid_response: 'AI 接口未返回有效的 Chat Completions 响应；当前不支持 Responses 格式，请检查接口地址并展开错误详情。',
+  intel_ai_invalid_json: 'AI 回复不是有效 JSON，文章正文已保留；请展开错误详情查看回复格式、解析位置与结束原因。',
+  intel_ai_output_truncated: 'AI 回复达到输出上限，结果未接收；请检查模型的输出限制后重试。',
+  intel_ai_content_filtered: 'AI 提供方标记回复被内容过滤，未生成提议；请检查接口返回状态。',
+  intel_ai_refused: 'AI 模型返回拒答，未生成提议；文章正文已保留。',
+  intel_ai_empty_content: 'AI 接口未返回有效回复文本，文章正文已保留；请检查模型与接口兼容性后重试。',
   intel_ai_settings_changed: 'AI 配置已变化，旧响应已停止写入；请按新配置重试文章。',
   intel_invalid_ai_settings: '请填写模型名称，并检查凭据环境变量名称。',
   intel_invalid_ai_timeout: 'AI 请求超时须为 1～1800 秒的整数。',
@@ -141,15 +146,23 @@ const diagnosticFields = {
   selector: '正文选择器', reason: '失败原因分类', html_bytes: '页面字节数', text_bytes: '有效正文字节数',
   expected_field: '预期响应字段', responses_output_present: '响应包含 Responses output 字段',
   response_bytes: '响应字节数', json_line: 'JSON 错误行', json_column: 'JSON 错误列',
+  content_bytes: '模型回复字节数', content_format: '模型回复格式', json_error_category: 'JSON 错误类别', finish_reason: '模型结束原因',
+  refusal_present: '是否包含拒答标记', reasoning_content_present: '是否包含独立推理内容',
   received_bytes: '已读取字节数', content_length: '响应声明字节数', limit_bytes: '读取上限',
   sqlstate: '数据库错误代码', connection_closed: '数据库连接已关闭',
+}
+const diagnosticValueLabels = {
+  finish_reason: { stop: '正常结束（stop）', length: '达到输出上限（length）', content_filter: '内容过滤（content_filter）', tool_calls: '请求工具调用（tool_calls）', function_call: '请求函数调用（function_call）', missing: '接口未提供', other: '其他结束原因' },
+  content_format: { empty: '空回复', missing: '缺少回复文本', markdown_fence: 'Markdown 代码围栏', reasoning_prefix: '以思考标签开头', json_object: '以 JSON 对象开头', json_array: '以 JSON 数组开头', other_text: '其他文本' },
+  json_error_category: { syntax: '语法错误（syntax）', eof: '内容提前结束（eof）', data: '数据类型错误（data）', io: '读取错误（io）' },
+  reason: { invalid_json_syntax: 'JSON 语法不合法', incomplete_json: 'JSON 内容不完整', trailing_content: 'JSON 后存在额外内容', non_json_text: '回复不是 JSON 文本', markdown_fence: '回复被 Markdown 代码围栏包裹', reasoning_prefix: '回复以思考文本标签开头', empty_content: '回复文本为空', reasoning_only: '仅返回独立推理内容，缺少最终回复', output_limit: '提供方报告达到输出上限', content_filtered: '提供方过滤了回复', model_refusal: '模型拒答', unexpected_tool_call: '接口返回了未请求的工具或函数调用' },
 }
 export function articleDiagnosticRows(diagnostic) {
   if (!diagnostic || typeof diagnostic !== 'object') return []
   return Object.entries(diagnosticFields).flatMap(([key, label]) => {
     const value = diagnostic[key]
     if (!['string', 'number', 'boolean'].includes(typeof value)) return []
-    const text = key === 'stage' ? extractionStages[value] || value : typeof value === 'boolean' ? (value ? '是' : '否') : String(value)
+    const text = key === 'stage' ? extractionStages[value] || value : diagnosticValueLabels[key]?.[value] || (typeof value === 'boolean' ? (value ? '是' : '否') : String(value))
     return [{ key, label, value: text.slice(0, 512) }]
   })
 }
