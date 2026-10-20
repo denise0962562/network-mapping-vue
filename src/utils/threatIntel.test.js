@@ -16,6 +16,7 @@ test('DNS and upload transport failures explain the affected layer without rende
   assert.match(intelError('intel_import_cache_unavailable'), /后端进程.*NM_INTEL_CACHE_ROOT/)
   assert.match(intelError('intel_invalid_csv'), /CSV.*表头/)
   assert.match(intelError('intel_invalid_indicator_url'), /URL IOC/)
+  assert.match(intelError('intel_invalid_indicator_url'), /TFTP.*TCP.*WS/)
   assert.match(intelError('intel_invalid_ioc_document'), /JSON.*结构/)
   const message=intelError({ response: { status: 413, data: '<html>private internal response</html>' } })
   assert.match(message,/代理/); assert.equal(message.includes('private internal'),false)

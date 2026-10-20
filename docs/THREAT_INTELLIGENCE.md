@@ -52,8 +52,12 @@ CSV 支持 UTF-8 BOM、CRLF、注释表头、逗号后的空格、带逗号/换�
 转义。`None` 等空参考值按缺省处理；数据行列数不匹配、未闭合引号和错误编码会拒绝导入。
 
 上传最多 512 MiB，解压内容和规范化结果分别最多 2 GiB、单条最多 1 MiB、最多 1,000 万条。
-文件先完整校验，成功后每批最多 500 条入库，页面显示阶段和处理数量。错误文件不会把
-有效前缀提前发布。重启后可继续，重复上传不会重复新增同版本证据；作业运行期间不能
+文件先完整读取、校验，然后每批最多 500 条入库，页面显示阶段、有效总量和处理数量。
+ThreatFox 原生记录中无法规范化的 IOC 单独隔离；来源与作业页可展开“已隔离”查看前
+100 条异常的来源 ID、类型、原值和原因。有效记录继续按来源策略处理；异常记录不生成
+标记，也不进入 AI 审核队列。包含隔离记录的离线原文件保留在服务端缓存中直到被新上传
+替换；没有异常时校验完成清理原文件。文档损坏、超限或缓存错误仍拒绝整个文件，通用
+JSON/CSV 保持严格校验，不提前发布有效前缀。重启后可继续，重复上传不会重复新增同版本证据；作业运行期间不能
 覆盖文件。缓存丢失时重新上传原文件。服务器文件可选离线类型和本地路径后手动同步。
 
 开始上传前先检查服务端缓存和来源状态，最多等待 15 秒。检查会创建、写入、落盘并删除
@@ -65,10 +69,20 @@ CSV 支持 UTF-8 BOM、CRLF、注释表头、逗号后的空格、带逗号/换�
 供重试，支持取消等待。上传请求最多 30 分钟，离开页面会中止。代理的 413 通常表示上传
 大小限制；请核对代理 import 路由是否允许 512 MiB、缓存权限及磁盘空间。已有同源作业
 时会在接收文件前拒绝新上传，避免传完后才发现冲突。
-CSV、JSON 结构、URL IOC 和参考链接错误会分别显示格式说明。URL IOC 支持 FTP/SMB
+CSV、JSON 结构、URL IOC 和参考链接错误会分别显示格式说明。URL IOC 支持 FTP/SMB、
+TFTP/TCP、WebSocket（WS/WSS）
 和无协议的主机/路径等官方报告形式，无协议值保持原样，不自动扩大为域名/IP 标记。
 ESET 仓库个别 JSON 本身有语法错误时会隔离该文件，其他文件继续同步；作业汇总中的
 `unsupported_files` 和 `unsupported_paths` 可查看跳过数量与路径，上游修正后自动重读。
+ESET 原生 MISP 合格属性内的 IOC 格式错误会单独计入隔离报告，并显示文件路径；受害
+目标、背景属性及已删除属性仍不作为恶意目标。升级后的解析器会重读旧版本文件一次。
+
+已核对 [ThreatFox API 文档](https://threatfox.abuse.ch/api/)与完整导出：ioc_type 为指标
+格式，threat_type 为用途分类。支持原生 md5_hash、sha1_hash、sha256_hash、domain、url、
+ip:port；JSON/CSV 的字段别名、数字置信度、布尔值、UTC 时间和空参考值共用转换。
+tags 在 API 示例中是数组，在本次导出中是字符串，均保留原始元数据。域名支持 IDN
+和下划线，端口 0 保留为精确 IOC；不会把异常域名、软件家族或受害目标转换成恶意 IP。
+官方六个月以前的 IOC 可能已从 API/导出移除，full 文件不保证包含永久全历史。
 
 出现“服务端导入缓存不可用”时，需要处理后端进程的目录配置。默认路径为
 `/var/lib/network-mapping/intel-cache`，普通账户通常无权创建；在后端启动环境设置
@@ -102,12 +116,12 @@ IP:端口命中不会扩大成整 IP，域名不会扩大成父域、子域或�
 
 ## 开发与验证
 
-新增 `ThreatIntelligence.vue`、`IntelEvidence.vue`、`IntelLookup.vue` 与
+新增 `ThreatIntelligence.vue`、`IntelEvidence.vue`、`IntelLookup.vue`、`IntelValidation.vue` 与
 `utils/threatIntel.js`，接口前缀 `/api/intel`，复用现有 http 模块的会话及 CSRF 处理。
 模型输出和正文用 Vue 文本插值显示，链接仅允许无凭据的 HTTPS 来源。
 
 ```sh
-node --test src/utils/threatIntel.test.js src/views/ThreatIntelligence.test.js
+node --test src/utils/threatIntel.test.js src/views/ThreatIntelligence.test.js src/components/IntelValidation.test.js
 pnpm build
 ```
 
