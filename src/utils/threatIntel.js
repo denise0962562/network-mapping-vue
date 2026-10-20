@@ -32,11 +32,22 @@ const errors = {
   intel_invalid_credential: '凭据不能仅包含空白、控制字符或超过 8192 字节；替换与清除不能同时选择。',
   intel_credential_crypto_failed: '凭据加密或解密失败，请检查服务端加密主密钥；不会自动回退到其他凭据。',
   intel_ai_disabled: 'AI 提取已关闭；可信 IOC 同步不受影响。',
+  intel_ai_timeout: '文章提取超过处理时限，请展开错误详情确认停留阶段后重试。',
+  intel_ai_invalid_response: 'AI 接口未返回有效的 Chat Completions 响应；当前不支持 Responses 格式，请检查接口地址并展开错误详情。',
   intel_ai_settings_changed: 'AI 配置已变化，旧响应已停止写入；请按新配置重试文章。',
   intel_invalid_ai_settings: '请填写模型名称，并检查凭据环境变量名称。',
   intel_invalid_source: '请检查来源名称、格式和检查周期。',
   intel_invalid_hosts: '允许的域名须逐项填写完整小写域名，不支持通配符。',
   intel_url_not_allowed: '远程来源必须使用 HTTPS，且域名须在允许列表中。',
+  intel_source_timeout: '远程原文请求超时，请检查服务器网络与代理。',
+  intel_ai_transport: 'AI 接口连接失败，文章正文已保留；请检查 AI 接口与后端代理配置，并展开错误详情。',
+  intel_ai_request_timeout: 'AI 接口请求超时，文章正文已保留；请检查服务连通性与响应速度。',
+  intel_ai_dns_failed: 'AI 接口域名解析失败，请检查后端 DNS。',
+  intel_ai_proxy_dns_failed: '访问 AI 接口时代理域名解析失败，请检查后端代理配置。',
+  intel_ai_http_status: 'AI 接口返回错误，请在错误详情查看 HTTP 状态，并检查接口地址、模型和凭据。',
+  intel_ai_rate_limited: 'AI 接口限流，请稍后重试。',
+  intel_ai_response_too_large: 'AI 接口响应超过大小限制。',
+  intel_ai_request_failed: 'AI 接口请求失败，请展开错误详情检查原因。',
   intel_source_transport: '远程来源连接失败，请检查网络访问及代理配置。',
   intel_dns_failed: '来源域名解析失败，请检查服务器或容器的 DNS；使用代理时确认 HTTPS_PROXY / ALL_PROXY 与 NO_PROXY 配置。',
   intel_proxy_dns_failed: '代理服务器域名解析失败，请检查代理地址及服务器或容器的 DNS。',
@@ -105,4 +116,31 @@ export function settingsPayload(form) {
 }
 export function safeReference(value) {
   try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.href : null } catch { return null }
+}
+
+const extractionStages = {
+  source_load: '读取来源配置', article_load: '读取文章快照', article_fetch: '抓取远程原文',
+  article_parse: '解析文章正文', body_store: '保存正文快照', ai_settings: '读取 AI 配置与凭据',
+  ai_request: '请求 AI 接口', ai_response: '解析 AI 响应', ai_validate: '校验 AI 提议与原文证据',
+  indicator_store: '保存 IOC 提议',
+}
+const diagnosticFields = {
+  occurred_at: '发生时间', stage: '处理阶段', code: '错误代码', cause_code: '底层错误代码',
+  attempt: '尝试次数', claim_token: '任务标识', phase: '请求阶段', host: '目标主机', port: '目标端口',
+  method: '请求方法', proxy_env_keys: '已设置的代理环境变量（不代表实际使用）', http_status: 'HTTP 状态', elapsed_ms: '请求耗时（毫秒）', total_elapsed_ms: '处理耗时（毫秒）',
+  timeout: '是否超时', connect: '是否连接阶段失败', cause_hint: '网络原因提示', io_kind: '系统错误类别', os_error: '系统错误码',
+  selector: '正文选择器', reason: '失败原因分类', html_bytes: '页面字节数', text_bytes: '有效正文字节数',
+  expected_field: '预期响应字段', responses_output_present: '响应包含 Responses output 字段',
+  response_bytes: '响应字节数', json_line: 'JSON 错误行', json_column: 'JSON 错误列',
+  received_bytes: '已读取字节数', content_length: '响应声明字节数', limit_bytes: '读取上限',
+  sqlstate: '数据库错误代码', connection_closed: '数据库连接已关闭',
+}
+export function articleDiagnosticRows(diagnostic) {
+  if (!diagnostic || typeof diagnostic !== 'object') return []
+  return Object.entries(diagnosticFields).flatMap(([key, label]) => {
+    const value = diagnostic[key]
+    if (!['string', 'number', 'boolean'].includes(typeof value)) return []
+    const text = key === 'stage' ? extractionStages[value] || value : typeof value === 'boolean' ? (value ? '是' : '否') : String(value)
+    return [{ key, label, value: text.slice(0, 512) }]
+  })
 }

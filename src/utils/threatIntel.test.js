@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel, intelError } from './threatIntel.js'
+import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel, intelError, articleDiagnosticRows } from './threatIntel.js'
 
 test('trusted defaults expose configurable source intervals', () => {
   const source = newSource()
@@ -72,4 +72,18 @@ test('AI settings send only writeable configuration and deliberate credential ch
 test('manual article sources keep host and publisher binding without feed credentials', () => {
   const payload=sourcePayload({...newSource(),kind:'article',transport:'manual',publisher_id:' ZXhhbXBsZQ== ',location:'https://stale.example',auth_env:'NM_INTEL_STALE',credential:'must-not-send'},'mp.weixin.qq.com\nresearch.example')
   assert.equal(payload.location,'');assert.equal(payload.auth_env,'');assert.equal(payload.publisher_id,'ZXhhbXBsZQ==');assert.equal(payload.allowed_hosts.length,2);assert.ok(!Object.hasOwn(payload,'credential'))
+})
+
+test('article diagnostics distinguish AI failures and allowlist only scalar diagnostic fields', () => {
+  assert.match(intelError('intel_ai_transport'), /AI 接口.*正文已保留/)
+  assert.match(intelError('intel_ai_request_timeout'), /AI 接口请求超时/)
+  assert.match(intelError('intel_ai_http_status'), /HTTP 状态/)
+  assert.match(intelError('intel_ai_invalid_response'), /Chat Completions.*Responses/)
+  const rows = articleDiagnosticRows({ stage: 'ai_request', http_status: 503, timeout: false, body: 'secret', authorization: 'Bearer secret', details: { key: 'secret' }, host: '<script>alert(1)</script>' })
+  assert.equal(rows.find(r => r.key === 'stage').value, '请求 AI 接口')
+  assert.equal(rows.find(r => r.key === 'http_status').value, '503')
+  assert.equal(rows.find(r => r.key === 'timeout').value, '否')
+  assert.equal(JSON.stringify(rows).includes('secret'), false)
+  assert.deepEqual(articleDiagnosticRows(null), [])
+  assert.deepEqual(articleDiagnosticRows({ phase: {} }), [])
 })
