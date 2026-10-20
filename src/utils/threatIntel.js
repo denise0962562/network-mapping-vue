@@ -97,6 +97,9 @@ const errors = {
   intel_ai_evidence_not_found: 'AI 输出缺少可定位的 IOC 原文证据，未纳入有效库。',
   intel_unknown_actor: '请选择基准库中类型匹配的有效 MITRE 实体。',
   intel_private_address_forbidden: '远程抓取不能访问私网或本机地址。',
+  intel_ai_protocol_mismatch: '接口地址与所选协议不匹配，请核对 Chat Completions 或 Responses 路径。',
+  intel_invalid_attribution: '请核对报告组织原名、处理方式和目标组织。',
+  intel_actor_name_exists: '已存在同名组织，请搜索后选择或补充别名。',
   intel_not_found: '记录不存在。', intel_storage_unavailable: '情报存储暂时不可用。',
 }
 export function intelError(error) {
@@ -123,7 +126,7 @@ function writeCredential(payload, form) {
 }
 export function settingsPayload(form) {
   const { ai_enabled, ai_endpoint, ai_model, ai_key_env } = form
-  const value = { ai_enabled, ai_endpoint, ai_model, ai_key_env: (ai_key_env || '').trim(), ai_timeout_seconds: Number(form.ai_timeout_seconds ?? 180) }
+  const value = { ai_enabled, ai_endpoint, ai_model, ai_key_env: (ai_key_env || '').trim(), ai_timeout_seconds: Number(form.ai_timeout_seconds ?? 180), ai_protocol: form.ai_protocol || 'chat', ai_max_output_tokens: Number(form.ai_max_output_tokens ?? 65536), ai_reasoning_effort: form.ai_reasoning_effort || 'none' }
   writeCredential(value, form)
   return value
 }
@@ -138,6 +141,9 @@ const extractionStages = {
   indicator_store: '保存 IOC 提议',
 }
 const diagnosticFields = {
+  context_block_id: '上下文正文块', ioc_block_id: 'IOC 正文块', ioc_scope_block_id: 'IOC 所属标题块', context_block_kind: '上下文块类型', ioc_block_kind: 'IOC 块类型',
+  provider_error_category: '提供方错误分类', provider_error_code: '提供方错误代码', provider_error_type: '提供方错误类型', provider_trace_id: '提供方跟踪 ID', error_body_sample_bytes: '错误响应采样字节数', error_body_complete: '错误响应是否完整读取', error_body_read_failed: '错误响应读取失败',
+  endpoint_format: '接口地址格式', ai_protocol: 'AI 协议', max_output_tokens: '输出预算（token）', reasoning_effort: '推理强度', prompt_version: '提示词版本', request_bytes: '请求 JSON 字节数', system_prompt_bytes: '系统提示词字节数', report_blocks_bytes: '正文块 JSON 字节数', report_block_count: '正文块数', actor_candidate_count: '发送的组织候选数', input_tokens: '输入 token', output_tokens: '输出 token（含推理）', reasoning_tokens: '推理 token', cached_input_tokens: '缓存输入 token', total_tokens: '总 token',
   occurred_at: '发生时间', stage: '处理阶段', code: '错误代码', cause_code: '底层错误代码',
   attempt: '尝试次数', claim_token: '任务标识', phase: '请求阶段', host: '目标主机', port: '目标端口',
   method: '请求方法', proxy_env_keys: '已设置的代理环境变量（不代表实际使用）', http_status: 'HTTP 状态', elapsed_ms: '请求耗时（毫秒）', total_elapsed_ms: '处理耗时（毫秒）',
@@ -151,11 +157,23 @@ const diagnosticFields = {
   received_bytes: '已读取字节数', content_length: '响应声明字节数', limit_bytes: '读取上限',
   sqlstate: '数据库错误代码', connection_closed: '数据库连接已关闭',
 }
+const evidenceReasons = {
+  evidence_not_in_body: '引用不是正文中的连续原文',
+  evidence_block_not_found: '引用的正文块不存在',
+  ioc_not_in_evidence: '引用未包含该 IOC 的完整值',
+  evidence_context_scope_mismatch: '上下文与 IOC 不属于同一列表范围',
+  evidence_context_missing: '只有 IOC 值，缺少支持其角色的上下文',
+  evidence_too_short: '历史规则判定引用过短',
+}
 const diagnosticValueLabels = {
+  context_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },
+  ioc_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },
+  provider_error_category: { model_unavailable: '模型或上游模型路由不可用', endpoint_not_found: '提供方报告接口路由不存在', authentication: '认证失败', quota: '额度不足', permission: '账号权限不足', unsupported_parameter: '请求参数不受支持', json_mode_prompt_missing: 'JSON 模式要求提示词明确包含 JSON 字样', unclassified: '无法从安全分类确定原因' },
+  endpoint_format: { base_url: '基础地址（已追加协议路径）', chat_completions: '完整 Chat Completions 地址', responses: '完整 Responses 地址', custom: '自定义完整路径' },
   finish_reason: { stop: '正常结束（stop）', length: '达到输出上限（length）', content_filter: '内容过滤（content_filter）', tool_calls: '请求工具调用（tool_calls）', function_call: '请求函数调用（function_call）', missing: '接口未提供', other: '其他结束原因' },
   content_format: { empty: '空回复', missing: '缺少回复文本', markdown_fence: 'Markdown 代码围栏', reasoning_prefix: '以思考标签开头', json_object: '以 JSON 对象开头', json_array: '以 JSON 数组开头', other_text: '其他文本' },
   json_error_category: { syntax: '语法错误（syntax）', eof: '内容提前结束（eof）', data: '数据类型错误（data）', io: '读取错误（io）' },
-  reason: { invalid_json_syntax: 'JSON 语法不合法', incomplete_json: 'JSON 内容不完整', trailing_content: 'JSON 后存在额外内容', non_json_text: '回复不是 JSON 文本', markdown_fence: '回复被 Markdown 代码围栏包裹', reasoning_prefix: '回复以思考文本标签开头', empty_content: '回复文本为空', reasoning_only: '仅返回独立推理内容，缺少最终回复', output_limit: '提供方报告达到输出上限', content_filtered: '提供方过滤了回复', model_refusal: '模型拒答', unexpected_tool_call: '接口返回了未请求的工具或函数调用' },
+  reason: { ...evidenceReasons, invalid_json_syntax: 'JSON 语法不合法', incomplete_json: 'JSON 内容不完整', trailing_content: 'JSON 后存在额外内容', non_json_text: '回复不是 JSON 文本', markdown_fence: '回复被 Markdown 代码围栏包裹', reasoning_prefix: '回复以思考文本标签开头', empty_content: '回复文本为空', reasoning_only: '仅返回独立推理内容，缺少最终回复', output_limit: '提供方报告达到输出上限', content_filtered: '提供方过滤了回复', model_refusal: '模型拒答', unexpected_tool_call: '接口返回了未请求的工具或函数调用' },
 }
 export function articleDiagnosticRows(diagnostic) {
   if (!diagnostic || typeof diagnostic !== 'object') return []
@@ -165,4 +183,21 @@ export function articleDiagnosticRows(diagnostic) {
     const text = key === 'stage' ? extractionStages[value] || value : diagnosticValueLabels[key]?.[value] || (typeof value === 'boolean' ? (value ? '是' : '否') : String(value))
     return [{ key, label, value: text.slice(0, 512) }]
   })
+}
+
+export function evidenceReasonLabel(reason) {
+  return Object.hasOwn(evidenceReasons, reason) ? evidenceReasons[reason] : '原文证据未通过校验'
+}
+// Server ranges use UTF-8 byte offsets; JavaScript string indices use UTF-16.
+// Check both character boundaries and the exact quote before highlighting.
+export function evidenceExcerpt(body, span) {
+  if (typeof body !== 'string' || !Number.isSafeInteger(span?.start) || !Number.isSafeInteger(span?.end) || span.start < 0 || span.end <= span.start) return null
+  const bytes = new TextEncoder().encode(body)
+  if (span.end > bytes.length) return null
+  try {
+    const decoder = new TextDecoder('utf-8', { fatal: true })
+    const quote = decoder.decode(bytes.slice(span.start, span.end))
+    if (quote !== span.quote) return null
+    return { before: decoder.decode(bytes.slice(0, span.start)), quote, after: decoder.decode(bytes.slice(span.end)) }
+  } catch { return null }
 }

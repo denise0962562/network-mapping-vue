@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import IntelEvidenceQuote from './IntelEvidenceQuote.vue'
 import { originLabel, safeReference, attackLabel, roleLabel } from '../utils/threatIntel'
 import { formatDateTime } from '../utils/systemTime'
 const props = defineProps({ intel: { type: Object, default: null }, label: { type: String, default: '情报' } })
@@ -29,7 +30,7 @@ const matches = computed(() => [...(props.intel?.matches || []), ...(props.intel
           <p v-if="match.payload?.resource_owner">资源登记方：{{ match.payload.resource_owner }}（不作为攻击者归因）</p>
           <p v-if="match.payload?.confidence != null">来源置信度：{{ match.payload.confidence }}（仅作为来源元数据）</p>
           <p v-if="match.payload?.first_seen || match.payload?.last_seen">首次：{{ match.payload.first_seen || '未提供' }} · 最近：{{ match.payload.last_seen || '未提供' }}</p>
-          <blockquote v-if="match.payload?.evidence" class="border-l-2 border-base-300 pl-3 break-words whitespace-pre-wrap">{{ match.payload.evidence }}</blockquote>
+          <IntelEvidenceQuote v-if="match.payload?.evidence" :payload="match.payload" />
           <a v-if="safeReference(match.payload?.reference)" :href="safeReference(match.payload.reference)" target="_blank" rel="noopener noreferrer" class="link">查看来源</a>
         </article>
         <div class="modal-action"><button type="button" class="btn" @click="dialog?.close()">关闭</button></div>

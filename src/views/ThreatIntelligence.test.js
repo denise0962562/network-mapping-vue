@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { computed, nextTick, ref, watch } from 'vue'
 import { compileScript, parse } from 'vue/compiler-sfc'
 import * as intel from '../utils/threatIntel.js'
+import { articleIocLocations } from '../utils/intelReportReview.js'
 const { descriptor } = parse(readFileSync(new URL('./ThreatIntelligence.vue', import.meta.url), 'utf8'))
 const compiled = compileScript(descriptor, { id: 'intel-lifecycle' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
@@ -12,8 +13,8 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({aiExpanded,loadSettings,tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport})`, {
-    ...intel, computed, nextTick, ref, watch, AbortController, http, formatDateTime: v => v,
+  const p = vm.runInNewContext(`${source}\n;({aiExpanded,loadSettings,tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark})`, {
+    ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v,
     document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
   })
@@ -296,5 +297,55 @@ test('AI timeout defaults for old responses and a manual value survives save and
   await p.saveSettings()
   assert.equal(submitted.settings.ai_timeout_seconds, 600)
   assert.equal(p.settings.value.ai_timeout_seconds, 600)
+  p.dispose()
+})
+
+test('source location clears across records and ignores mismatched ranges', async () => {
+  const p = page({ get: async () => ({ data: { data: { body: '恶意 DNS\n192[.]0[.]2[.]1' } } }) })
+  await p.openReview({ origin: 'ai', article_id: 'first' })
+  const span = { start: new TextEncoder().encode('恶意 DNS\n').length, end: new TextEncoder().encode(p.article.value.body).length, quote: '192[.]0[.]2[.]1' }
+  let scrolled = false
+  p.evidenceMark.value = { scrollIntoView: () => { scrolled = true } }
+  await p.locateEvidence(span)
+  assert.equal(p.focusedExcerpt.value.quote, span.quote)
+  assert.equal(scrolled, true)
+  await p.openReview({ origin: 'ai', article_id: 'second' })
+  assert.equal(p.focusedEvidence.value, null)
+  await p.locateEvidence({ ...span, quote: 'wrong' })
+  assert.equal(p.focusedExcerpt.value, null)
+  p.dispose()
+})
+
+test('accepted retry immediately marks queue state and duplicate clicks cannot submit twice', async () => {
+  const pending = deferred(); let calls = 0
+  const p = page({ post: () => { calls++; return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
+  p.tab.value = 'articles'
+  const row = { id: 'article', status: 'proposed', error_code: 'old', extraction_metadata: { result: { parsed: 1 }, last_error: { code: 'old' } } }
+  const first = p.retryArticle(row)
+  await p.retryArticle(row)
+  assert.equal(calls, 1)
+  pending.resolve({ data: { data: { id: 'article', status: 'queued' } } }); await first
+  assert.equal(row.status, 'queued'); assert.equal(row.error_code, null)
+  assert.equal(row.extraction_metadata.result, undefined)
+  assert.match(p.notice.value, /已入队/)
+  p.dispose()
+})
+test('failed retry refreshes actual state and keeps its error visible', async () => {
+  let refreshed = false
+  const p = page({ post: async () => { throw { response: { data: { code: 'intel_source_disabled' } } } }, get: async () => { refreshed = true; return { data: { data: { items: [{ id: 'article', status: 'cancelled' }] } } } } })
+  p.tab.value = 'articles'; await p.retryArticle({ id: 'article' })
+  assert.equal(refreshed, true); assert.equal(p.articles.value[0].status, 'cancelled')
+  assert.notEqual(p.error.value, '')
+  p.dispose()
+})
+test('only approval submits a human attribution operation', async () => {
+  let submitted
+  const p = page({ post: async (url, body) => { submitted = body }, get: async () => ({ data: { data: { items: [] } } }) })
+  p.selected.value = { id: 'ioc', origin: 'ai', content_hash: 'hash' }
+  p.article.value = { body: 'original snapshot' }; p.reason.value = 'checked'
+  p.actorDecision.value = { action: 'create', name: 'Local group' }
+  await p.submitReview(); assert.equal(submitted.attribution.action, 'create')
+  p.reviewDecision.value = 'rejected'; await p.submitReview()
+  assert.equal(submitted.attribution, undefined)
   p.dispose()
 })

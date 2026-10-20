@@ -65,6 +65,7 @@ test('AI settings send only writeable configuration and deliberate credential ch
   let body = settingsPayload(form)
   assert.equal(body.credential, 'test-key'); assert.equal(body.ai_key_env, '')
   assert.equal(body.ai_timeout_seconds, 180)
+  assert.equal(body.ai_max_output_tokens, 65536)
   form.ai_timeout_seconds = '600'
   assert.equal(settingsPayload(form).ai_timeout_seconds, 600)
   assert.equal('credential_source' in body, false); assert.equal('ai_review_required' in body, false)
@@ -119,4 +120,37 @@ test('AI JSON and completion diagnostics have readable messages without exposing
   assert.equal(field('refusal_present').value, '否')
   assert.equal(field('reasoning_content_present').value, '是')
   assert.doesNotMatch(JSON.stringify(rows), /private-/)
+})
+
+test('JSON mode request errors explain the missing prompt instruction without exposing upstream text', () => {
+  const rows = articleDiagnosticRows({ provider_error_category: 'json_mode_prompt_missing', provider_error_type: 'invalid_request_error', http_status: 400, message: 'Bearer private-key', param: 'private-param' })
+  assert.equal(rows.find(row => row.key === 'provider_error_category').value, 'JSON 模式要求提示词明确包含 JSON 字样')
+  assert.equal(rows.find(row => row.key === 'http_status').value, '400')
+  assert.doesNotMatch(JSON.stringify(rows), /private-/)
+})
+
+test('evidence ranges use UTF-8 source bytes and never highlight forged or split quotes', async () => {
+  const { evidenceExcerpt, evidenceReasonLabel } = await import('./threatIntel.js')
+  const body = '恶意 DNS\n192[.]0[.]2[.]1\n正常 DNS'
+  const quote = '192[.]0[.]2[.]1'
+  const start = new TextEncoder().encode('恶意 DNS\n').length
+  const span = { start, end: start + quote.length, quote }
+  assert.deepEqual(evidenceExcerpt(body, span), { before: '恶意 DNS\n', quote, after: '\n正常 DNS' })
+  assert.equal(evidenceExcerpt(body, { ...span, quote: 'invented' }), null)
+  assert.equal(evidenceExcerpt(body, { start: 1, end: 3, quote: '恶' }), null)
+  assert.equal(evidenceExcerpt(body, { ...span, end: 999 }), null)
+  assert.equal(evidenceReasonLabel('__proto__'), '原文证据未通过校验')
+})
+
+test('AI payload separates protocol, reasoning effort and output budget from timeout', () => {
+  const payload = settingsPayload({ ai_enabled: true, ai_endpoint: 'https://ai.example/v1/responses', ai_model: 'model', ai_protocol: 'responses', ai_max_output_tokens: '16000', ai_reasoning_effort: 'low', ai_timeout_seconds: 300 })
+  assert.equal(payload.ai_protocol, 'responses'); assert.equal(payload.ai_max_output_tokens, 16000)
+  assert.equal(payload.ai_reasoning_effort, 'low'); assert.equal(payload.ai_timeout_seconds, 300)
+  const rows = articleDiagnosticRows({ input_tokens: 10589, output_tokens: 8000, reasoning_tokens: 8000, raw_reasoning: 'PRIVATE', actor_candidate_count: 0 })
+  assert.equal(rows.find(row => row.key === 'reasoning_tokens').value, '8000')
+  assert.equal(rows.find(row => row.key === 'actor_candidate_count').value, '0')
+  assert.doesNotMatch(JSON.stringify(rows), /PRIVATE/)
+  const maximum = settingsPayload({ ai_max_output_tokens: 393216, ai_reasoning_effort: 'max' })
+  assert.equal(maximum.ai_max_output_tokens, 393216)
+  assert.equal(maximum.ai_reasoning_effort, 'max')
 })
