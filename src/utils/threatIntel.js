@@ -1,7 +1,7 @@
 export const sourceKinds = {
   mitre_stix: 'MITRE STIX 2.1', eset_github: 'ESET / GitHub IOC 仓库',
   threatfox: 'ThreatFox API（增量更新）', threatfox_export: 'ThreatFox 离线 JSON / CSV / ZIP',
-  article: '手动文章 / 微信正文（AI 补充）', rss: 'RSS 文章（AI 补充）', json: '结构化 JSON IOC', lines: '文本 / CSV IOC',
+  article: '手动文章', rss: 'RSS 文章（AI 补充）', json: '结构化 JSON IOC', lines: '文本 / CSV IOC',
 }
 export const defaultIntervals = { mitre_stix: 86400, eset_github: 3600, threatfox: 1800, threatfox_export: 3600, rss: 1800, article: 1800, json: 1800, lines: 1800 }
 export const states = { queued: '等待处理', running: '处理中', succeeded: '成功', partial: '分批继续', failed: '失败', cancelled: '已取消', proposed: '已生成待审提议', pending: '待审核', approved: '已接纳', expired: '已过期', revoked: '已撤销', rejected: '已拒绝', superseded: '已被新版本替代', downloaded: '已上传，等待校验', ready: '分批入库', paused: '已暂停，可继续导入', complete: '导入完成' }
@@ -29,9 +29,7 @@ const errors = {
   intel_article_submission_required: '该来源通过文章页手动提交，不执行周期同步。',
   intel_invalid_article: '请填写文章标题和有效正文；正文可留空远程抓取，手动正文须为 40～100,000 UTF-8 字节。',
   intel_invalid_article_url: '请提供有效的微信公众号文章地址或白名单内的 HTTPS 文章。',
-  intel_article_publisher_required: '远程抓取微信文章前，请在来源中绑定账号 __biz；也可手动粘贴正文，随后由人工审核 AI 提议。',
   intel_article_publisher_mismatch: '文章发布账号与来源绑定账号不一致或无法核对，未进行 AI 提取；请检查账号或手动提交正文。',
-  intel_invalid_publisher: '微信账号 __biz 格式无效，请填写账号标识，不是公众号昵称。',
   intel_article_body_missing: '没有取得有效文章正文，可能是验证页面或不支持的结构；可在文章页手动提交正文快照。',
   intel_admin_required: '只有管理员可以管理情报来源和审核。',
   intel_revision_conflict: '数据已有变化，请刷新后重新操作。',
@@ -50,7 +48,10 @@ const errors = {
   intel_invalid_ai_settings: '请填写模型名称，并检查凭据环境变量名称。',
   intel_invalid_ai_timeout: 'AI 请求超时须为 1～1800 秒的整数。',
   intel_invalid_source: '请检查来源名称、格式和检查周期。',
-  intel_invalid_hosts: '允许的域名须逐项填写完整小写域名，不支持通配符。',
+  intel_invalid_proxy: '请填写有效的 HTTP、HTTPS、SOCKS5 或 SOCKS5H 代理地址。',
+  intel_invalid_headers: '请求头名称和值无效或重复；最多 64 项、合计 32 KiB，不支持 Host、Content-Length 等传输控制头。',
+  intel_source_redirect_limit: '远程来源跳转次数过多，请检查来源地址。',
+  intel_invalid_hosts: '允许的域名须逐项填写小写域名、*.example.com 或 *（全部域名）。',
   intel_url_not_allowed: '远程来源必须使用 HTTPS，且域名须在允许列表中。',
   intel_source_timeout: '远程原文请求超时，请检查服务器网络与代理。',
   intel_ai_transport: 'AI 接口连接失败，文章正文已保留；请检查 AI 接口与后端代理配置，并展开错误详情。',
@@ -111,11 +112,14 @@ export function intelError(error) {
   return code ? `操作未完成（${code}）。` : '情报请求失败，请检查网络与服务器状态后重试。'
 }
 export function originLabel(record) { return record?.origin === 'ai' ? (record.status === 'pending' ? 'AI · 待审' : 'AI · 人工审核') : record?.status === 'pending' ? '结构化来源 · 待审' : record?.review_id ? '结构化来源 · 人工审核' : '可信结构化来源' }
-export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], publisher_id: '', auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800, expiry_months: 6 } }
+export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], request_config: { proxy_mode: 'system', proxy_url: '', proxy_configured: false, headers: [] }, auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800, expiry_months: 6 } }
 export function sourcePayload(form, hostsText) {
   const { name, kind, transport, location, auth_env, enabled, require_review, interval_seconds, revision } = form
   const value = { name: name.trim(), kind, transport, location: ['upload', 'manual'].includes(transport) ? '' : location.trim(), auth_env: transport !== 'https' ? '' : auth_env.trim(), enabled, require_review, interval_seconds: Number(interval_seconds), expiry_months: Number(form.expiry_months ?? 6), allowed_hosts: transport !== 'https' && !['rss','article'].includes(kind) ? [] : hostsText.split(/[\s,]+/).filter(Boolean) }
-  if (form.publisher_id || ['rss', 'article'].includes(kind)) value.publisher_id = (form.publisher_id || '').trim()
+  if (transport === 'https' || ['rss', 'article'].includes(kind)) {
+    const config = form.request_config || newSource().request_config
+    value.request_config = { proxy_mode: config.proxy_mode, proxy_url: config.proxy_mode === 'custom' ? config.proxy_url.trim() : '', proxy_configured: config.proxy_mode === 'custom' && Boolean(config.proxy_configured), headers: config.headers.map(h => ({ name: h.name.trim(), value: h.value, configured: Boolean(h.configured) })) }
+  }
   if (revision != null) value.expected_revision = revision
   if (transport === 'https') writeCredential(value, form)
   return value

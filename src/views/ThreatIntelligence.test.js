@@ -13,7 +13,7 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http, routeQuery = {}) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog,confirmDelete,deleteItem,deleteTarget,deleteDialog,managementError,editArticle,saveArticle,articleEditForm,articleEditDialog,articleEditLoading,busy})`, {
+  const p = vm.runInNewContext(`${source}\n;({editSource,loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog,confirmDelete,deleteItem,deleteTarget,deleteDialog,managementError,editArticle,saveArticle,articleEditForm,articleEditDialog,articleEditLoading,busy})`, {
     ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v, useRoute: () => ({ query: routeQuery }),
     document: { visibilityState: 'visible' }, navigator: { clipboard: { writeText: async () => {} } }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
@@ -372,5 +372,19 @@ test('failed article saves preserve the draft and late loads cannot replace a ne
   assert.equal(p.articleEditForm.value.id, 'new')
   await p.saveArticle()
   assert.equal(p.articleEditForm.value.title, 'new'); assert.match(p.managementError.value, /刷新/)
+  p.dispose()
+})
+
+test('source editing isolates request headers until save and opens old sources with system defaults', () => {
+  const p = page({})
+  const original = { id: 'source', request_config: { proxy_mode: 'custom', proxy_url: 'http://127.0.0.1:7890', proxy_configured: true, headers: [{ name: 'Cookie', value: '', configured: true }] } }
+  p.editSource(original)
+  assert.equal(p.sourceForm.value.request_config.proxy_url, 'http://127.0.0.1:7890')
+  p.sourceForm.value.request_config.headers[0].name = 'User-Agent'
+  p.sourceForm.value.request_config.headers.splice(0, 1)
+  assert.equal(original.request_config.headers[0].name, 'Cookie')
+  p.editSource({ id: 'legacy' })
+  assert.equal(p.sourceForm.value.request_config.proxy_mode, 'system')
+  assert.equal(p.sourceForm.value.request_config.headers.length, 0)
   p.dispose()
 })

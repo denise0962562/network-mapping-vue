@@ -51,3 +51,20 @@ export function debugParameterSummary(parameters) {
     parameters.stream != null ? `流式${parameters.stream ? '开启' : '关闭'}` : '',
   ].filter(Boolean).join(' · ')
 }
+
+export function debugOutputRate(usage, elapsedMs) {
+  const tokens = usage?.output_tokens
+  if (!Number.isSafeInteger(tokens) || tokens < 0 || !Number.isFinite(elapsedMs) || elapsedMs <= 0) return '—'
+  const rate = tokens * 1000 / elapsedMs
+  return Number.isFinite(rate) ? `${rate.toFixed(1)} token/s` : '—'
+}
+
+export function debugCacheUsage(usage) {
+  const cached = usage?.cached_input_tokens, input = usage?.input_tokens
+  const validCached = Number.isSafeInteger(cached) && cached >= 0
+  return {
+    tokens: validCached ? `${cached} token` : '—',
+    hitRate: validCached && Number.isSafeInteger(input) && input > 0 && cached <= input
+      ? `${(cached / input * 100).toFixed(1)}%` : '—',
+  }
+}

@@ -201,3 +201,75 @@ test('debug controls affect only subsequent debug requests and record effective 
   assert.match(p.error.value, /温度/)
   p.dispose()
 })
+
+test('thinking starts collapsed, expands independently and collapses once at the first real output', async () => {
+  const calls = []
+  const p = page({ chatRequest: async (body, _signal, emit) => {
+    calls.push(body)
+    emit({ type: 'started', stream: true })
+    const answer = p.messages.value.at(-1)
+    assert.equal(answer.thinking, true)
+    assert.equal(answer.reasoningExpanded, false)
+    emit({ type: 'reasoning', text: '思考第一段' })
+    emit({ type: 'reasoning', text: '\n思考第二段' })
+    assert.equal(answer.reasoning, '思考第一段\n思考第二段')
+    assert.equal(answer.content, '')
+    answer.reasoningExpanded = true
+    emit({ type: 'delta', text: '' })
+    assert.equal(answer.reasoningExpanded, true)
+    emit({ type: 'delta', text: '正式' })
+    assert.equal(answer.thinking, false)
+    assert.equal(answer.reasoningExpanded, false)
+    answer.reasoningExpanded = true
+    emit({ type: 'delta', text: '回答' })
+    assert.equal(answer.reasoningExpanded, true)
+    emit({ type: 'done', text: '正式回答', elapsed_ms: 25 })
+    assert.equal(answer.reasoningExpanded, true)
+  } })
+  await p.load(); p.input.value = 'hello'; await p.send()
+  assert.equal(p.messages.value[1].complete, true)
+  assert.equal(p.messages.value[1].outputRate, '—')
+  assert.equal(p.messages.value[1].cacheUsage.tokens, '—')
+  assert.equal(p.messages.value[1].cacheUsage.hitRate, '—')
+  p.input.value = 'follow up'; await p.send()
+  assert.equal(JSON.stringify(calls[1]).includes('思考第一段'), false)
+  assert.equal(calls[1].messages[1].content, '正式回答')
+  assert.match(descriptor.template.content, /skeleton skeleton-text/)
+  assert.match(descriptor.template.content, /aria-expanded="m.reasoningExpanded"/)
+  p.dispose()
+})
+
+test('complete responses expose reasoning separately without requiring stream deltas', async () => {
+  const p = page({ chatRequest: async (_body, _signal, emit) => {
+    emit({ type: 'started', stream: false })
+    p.messages.value.at(-1).reasoningExpanded = true
+    emit({ type: 'done', text: 'answer', reasoning: '供应商返回的思考摘要', elapsed_ms: 2500, usage: { output_tokens: 100, input_tokens: 1000, cached_input_tokens: 800 } })
+  } })
+  await p.load(); p.input.value = 'hello'; await p.send()
+  const answer = p.messages.value[1]
+  assert.equal(answer.outputRate, '40.0 token/s')
+  assert.equal(answer.cacheUsage.tokens, '800 token')
+  assert.equal(answer.cacheUsage.hitRate, '80.0%')
+  assert.equal(answer.reasoning, '供应商返回的思考摘要')
+  assert.equal(answer.content, 'answer')
+  assert.equal(answer.reasoningExpanded, false)
+  assert.equal(answer.thinking, false)
+  p.dispose()
+})
+
+test('failed and cancelled reasoning stops animation while keeping already received text', async () => {
+  for (const failure of ['error', 'cancel']) {
+    const p = page({ chatRequest: async (_body, _signal, emit) => {
+      emit({ type: 'started', stream: true })
+      emit({ type: 'reasoning', text: 'partial thought' })
+      if (failure === 'error') emit({ type: 'error', code: 'llm_stream_failed' })
+      else throw Object.assign(new Error('cancelled'), { name: 'AbortError' })
+    } })
+    await p.load(); p.input.value = 'hello'; await p.send()
+    assert.equal(p.messages.value[1].thinking, false)
+    assert.equal(p.messages.value[1].reasoning, 'partial thought')
+    assert.equal(p.messages.value[1].complete, false)
+    assert.equal(p.generating.value, false)
+    p.dispose()
+  }
+})

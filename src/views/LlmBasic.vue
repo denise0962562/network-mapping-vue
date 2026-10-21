@@ -1,10 +1,11 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import { ChevronDown } from '@lucide/vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { availableModels, llmError, settingsPayload } from '@/utils/llm'
 import { chatRequest } from '@/utils/llmChat'
-import { debugParameterForm, debugParameterPayload, debugParameterSummary, debugReasoningOptions } from '@/utils/llmDebug'
+import { debugParameterForm, debugParameterPayload, debugParameterSummary, debugOutputRate, debugCacheUsage, debugReasoningOptions } from '@/utils/llmDebug'
 import http from '@/utils/http'
 
 const state = ref(null), enabled = ref(false), providerId = ref(''), modelId = ref(''), saved = ref('')
@@ -109,7 +110,7 @@ async function send() {
   chatController = new AbortController(); generating.value = true
   const history = [...(useSystemPrompt.value ? [{ role: 'system', content: effectiveSystemPrompt.value }] : []), ...messages.value.filter(m => m.complete).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
   messages.value.push({ role: 'user', content: text, complete: true })
-  messages.value.push({ role: 'assistant', content: '', complete: false, status: '正在连接…' })
+  messages.value.push({ role: 'assistant', content: '', reasoning: '', reasoningExpanded: false, thinking: false, complete: false, status: '正在连接…' })
   const index = messages.value.length - 1
   input.value = ''; await scroll()
   if (disposed || current !== chatVersion) return
@@ -117,15 +118,16 @@ async function send() {
     await chatRequest({ provider_id: chatProvider.value, model_id: chatModel.value, session_id: session.value, messages: history, parameters }, chatController.signal, event => {
       if (disposed || current !== chatVersion) return
       const answer = messages.value[index]
-      if (event.type === 'started') { answer.status = event.stream ? '正在生成…' : '等待完整响应…'; answer.parameters = event.parameters }
-      if (event.type === 'delta') { answer.content += event.text; answer.status = '正在生成…' }
-      if (event.type === 'done') { answer.content = event.text; answer.complete = true; answer.status = `完成 · ${(event.elapsed_ms / 1000).toFixed(1)} 秒`; answer.usage = event.usage; answer.firstDeltaMs = event.first_delta_ms }
-      if (event.type === 'error') answer.status = llmError(event.code)
+      if (event.type === 'started') { answer.thinking = !answer.content; answer.status = event.stream ? '正在生成…' : '等待完整响应…'; answer.parameters = event.parameters }
+      if (event.type === 'reasoning' && event.text) { answer.reasoning += event.text; answer.thinking = !answer.content; if (answer.thinking) answer.status = '正在思考…' }
+      if (event.type === 'delta' && event.text) { if (!answer.content) answer.reasoningExpanded = false; answer.thinking = false; answer.content += event.text; answer.status = '正在生成…' }
+      if (event.type === 'done') { if (!answer.content) answer.reasoningExpanded = false; if (event.reasoning) answer.reasoning = event.reasoning; answer.thinking = false; answer.content = event.text; answer.complete = true; answer.status = `完成 · ${(event.elapsed_ms / 1000).toFixed(1)} 秒`; answer.usage = event.usage; answer.outputRate = debugOutputRate(event.usage, event.elapsed_ms); answer.cacheUsage = debugCacheUsage(event.usage); answer.firstDeltaMs = event.first_delta_ms }
+      if (event.type === 'error') { answer.thinking = false; answer.status = llmError(event.code) }
       scroll()
     })
   } catch (e) {
     if (!disposed && current === chatVersion) messages.value[index].status = e.name === 'AbortError' ? '已停止，未完整的回答不会继续发送。' : llmError(e.response ? e : e.message)
-  } finally { if (!disposed && current === chatVersion) { generating.value = false; await scroll() } }
+  } finally { if (!disposed && current === chatVersion) { messages.value[index].thinking = false; generating.value = false; await scroll() } }
 }
 onMounted(load)
 onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort() })
@@ -166,8 +168,20 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
             <div ref="transcript" role="log" aria-label="调试对话" aria-live="polite" class="min-h-64 flex-1 max-h-[36rem] overflow-y-auto rounded-box border border-base-300 p-3">
               <p v-if="!messages.length" class="py-12 text-center text-sm opacity-60">选择供应商和模型后发送消息，检查连接与回答。</p>
               <div v-for="(m, index) in messages" :key="index" class="chat" :class="m.role === 'user' ? 'chat-end' : 'chat-start'">
-                <div class="chat-header mb-1 opacity-60">{{ m.role === 'user' ? '你' : '模型' }}</div><div class="chat-bubble max-w-full whitespace-pre-wrap break-words" :class="m.role === 'user' ? 'chat-bubble-neutral' : 'bg-base-200 text-base-content'">{{ m.content || '…' }}</div>
-                <div v-if="m.role === 'assistant'" class="chat-footer mt-1 max-w-full flex-wrap break-words text-xs opacity-65">{{ m.status }}<span v-if="m.firstDeltaMs != null"> · 首段 {{ (m.firstDeltaMs / 1000).toFixed(1) }} 秒</span><span v-if="m.usage?.input_tokens != null"> · 输入 {{ m.usage.input_tokens }} token</span><span v-if="m.usage?.output_tokens != null"> · 输出 {{ m.usage.output_tokens }} token</span><p v-if="m.parameters" class="mt-1 basis-full">{{ debugParameterSummary(m.parameters) }}</p></div>
+                <div class="chat-header mb-1 opacity-60">{{ m.role === 'user' ? '你' : '模型' }}</div>
+                <div class="row-start-2 min-w-0 max-w-full space-y-2" :class="m.role === 'user' ? 'col-start-1' : 'col-start-2'">
+                  <div v-if="m.role === 'assistant' && (m.thinking || m.reasoning)" class="min-w-0 max-w-full text-sm">
+                    <div class="flex items-center gap-1">
+                      <span :class="m.thinking ? 'skeleton skeleton-text' : 'opacity-65'">{{ m.thinking ? 'Thinking...' : '思考数据' }}</span>
+                      <button type="button" class="btn btn-ghost btn-xs btn-square" :aria-label="m.reasoningExpanded ? '收起思考数据' : '展开思考数据'" :aria-expanded="m.reasoningExpanded" :aria-controls="`debug-reasoning-${index}`" @click="m.reasoningExpanded = !m.reasoningExpanded">
+                        <ChevronDown class="size-4 transition-transform" :class="{ '-rotate-90': !m.reasoningExpanded }" aria-hidden="true" />
+                      </button>
+                    </div>
+                    <div v-show="m.reasoningExpanded" :id="`debug-reasoning-${index}`" class="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-base-300 pl-3 text-base-content/65">{{ m.reasoning || '等待模型返回思考数据…' }}</div>
+                  </div>
+                  <div v-if="m.content || (!m.thinking && !m.reasoning)" class="chat-bubble max-w-full whitespace-pre-wrap break-words" :class="m.role === 'user' ? 'chat-bubble-neutral' : 'bg-base-200 text-base-content'">{{ m.content || '…' }}</div>
+                </div>
+                <div v-if="m.role === 'assistant'" class="chat-footer mt-1 max-w-full flex-wrap break-words text-xs opacity-65">{{ m.status }}<span v-if="m.firstDeltaMs != null"> · 首段 {{ (m.firstDeltaMs / 1000).toFixed(1) }} 秒</span><span v-if="m.usage?.input_tokens != null"> · 输入 {{ m.usage.input_tokens }} token</span><span v-if="m.usage?.output_tokens != null"> · 输出 {{ m.usage.output_tokens }} token</span><span v-if="m.usage?.reasoning_tokens != null"> · 思考 {{ m.usage.reasoning_tokens }} token</span><p v-if="m.parameters" class="mt-1 basis-full">{{ debugParameterSummary(m.parameters) }}<span title="平均输出速率 = 供应商返回的输出 token 数 ÷ 总耗时（包含等待与思考）；未提供用量或耗时无效时显示 —"> · 输出速率 {{ generating && index === messages.length - 1 && !m.complete ? '统计中…' : m.outputRate || '—' }}</span><span title="供应商返回的缓存命中输入 token 数"> · 缓存命中 {{ m.cacheUsage?.tokens || '—' }}</span><span title="命中率 = 缓存命中 token 数 ÷ 输入 token 总数；缺少用量、输入为 0 或数据无效时显示 —"> · 命中率 {{ m.cacheUsage?.hitRate || '—' }}</span></p></div>
               </div>
             </div>
             <form class="space-y-3" @submit.prevent="send">
