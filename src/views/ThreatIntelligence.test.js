@@ -11,15 +11,19 @@ const compiled = compileScript(descriptor, { id: 'intel-lifecycle' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 function readyResponse() { return { data: { data: { ready: true } } } }
-function page(http) {
+function page(http, routeQuery = {}) {
   let dispose; const timers = new Map(); let count = 0
   const p = vm.runInNewContext(`${source}\n;({loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog})`, {
-    ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v,
+    ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v, useRoute: () => ({ query: routeQuery }),
     document: { visibilityState: 'visible' }, navigator: { clipboard: { writeText: async () => {} } }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
   })
   return { ...p, dispose: () => dispose(), timers }
 }
+test('returning from report review restores its list tab and ignores unknown tabs', () => {
+  for (const tab of ['articles', 'review']) assert.equal(page({}, { tab }).tab.value, tab)
+  assert.equal(page({}, { tab: 'unknown' }).tab.value, 'sources')
+})
 test('source details opens with the selected source and resets the copy status on reselection', async () => {
   const p = page({})
   let opened = 0

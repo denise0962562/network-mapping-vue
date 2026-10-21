@@ -78,8 +78,8 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
 </script>
 
 <template>
-  <div class="min-w-0 w-full space-y-5 p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="text-2xl font-semibold">LLM 基础</h1><p class="mt-2 text-sm opacity-65">选择 IOC 提取使用的供应商和模型，并通过对话调试连接。</p></div><button class="btn btn-outline btn-sm" :disabled="loading || busy" @click="refresh">{{ loading ? '加载中…' : '刷新' }}</button></div>
+  <div class="page-shell space-y-5">
+    <div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="page-title">LLM 基础</h1><p class="mt-2 text-sm opacity-65">选择 IOC 提取使用的供应商和模型，并通过对话调试连接。</p></div><button class="btn btn-outline btn-sm" :disabled="loading || busy" @click="refresh">{{ loading ? '加载中…' : '刷新' }}</button></div>
     <AppAlert v-for="alert in alerts" :key="alert.id" :title="alert.title" type="success" @close="alerts = alerts.filter(a => a.id !== alert.id)" />
     <div v-if="error" role="alert" class="alert alert-error">{{ error }}</div>
     <template v-if="state">
@@ -87,8 +87,8 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
         <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">IOC 提取</h2><button class="btn btn-neutral btn-sm" :disabled="busy || loading || !dirty">{{ busy ? '保存中…' : '保存设置' }}</button></div>
         <label class="flex items-center gap-2 text-sm"><input v-model="enabled" type="checkbox" class="toggle toggle-sm" />启用 LLM IOC 提取</label>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3">
-          <label class="form-control text-sm">供应商<select v-model="providerId" class="select select-bordered mt-1 w-full" :required="enabled" @change="chooseProvider"><option value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
-          <label class="form-control text-sm">模型<select v-model="modelId" class="select select-bordered mt-1 w-full" :required="Boolean(providerId)" :disabled="!providerId"><option value="">请选择</option><option v-for="m in availableModels(provider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
+          <label class="form-control text-sm">供应商<select v-model="providerId" class="select select-bordered mt-1 w-full" :required="enabled" @change="chooseProvider"><option disabled selected value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
+          <label class="form-control text-sm">模型<select v-model="modelId" class="select select-bordered mt-1 w-full" :required="Boolean(providerId)" :disabled="!providerId"><option disabled selected value="">请选择</option><option v-for="m in availableModels(provider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
         </div>
         <p class="text-sm opacity-65">一次只使用一组供应商和模型。暂停保留当前选择；可信 IOC 同步继续运行，LLM 提议仍须人工审核。</p>
         <div v-if="state.effective && !dirty" class="rounded-box border border-base-300 p-3 text-sm space-y-1"><p>当前生效：{{ state.providers.find(p => p.id === state.provider_id)?.name }} / {{ state.model_id }}</p><p class="opacity-65">流式{{ state.effective.stream ? '开启' : '关闭' }} · {{ { system: '系统代理', direct: '直连', custom: '指定代理' }[state.effective.proxy_mode] }} · Session {{ state.effective.session_mode === 'disabled' ? '关闭' : state.effective.session_mode === 'auto' ? '自动生成' : '固定值' }}</p></div>
@@ -97,8 +97,8 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
       <section class="card border border-base-300 bg-base-100 p-4 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">在线调试</h2><button type="button" class="btn btn-ghost btn-sm" @click="newSession">新建会话／清空</button></div>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3">
-          <label class="form-control text-sm">调试供应商<select v-model="chatProvider" class="select select-bordered mt-1 w-full" :disabled="generating" @change="chooseChatProvider"><option value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
-          <label class="form-control text-sm">调试模型<select v-model="chatModel" class="select select-bordered mt-1 w-full" :disabled="generating || !chatProvider" @change="newSession"><option value="">请选择</option><option v-for="m in availableModels(debugProvider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
+          <label class="form-control text-sm">调试供应商<select v-model="chatProvider" class="select select-bordered mt-1 w-full" :disabled="generating" @change="chooseChatProvider"><option disabled selected value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
+          <label class="form-control text-sm">调试模型<select v-model="chatModel" class="select select-bordered mt-1 w-full" :disabled="generating || !chatProvider" @change="newSession"><option disabled selected value="">请选择</option><option v-for="m in availableModels(debugProvider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
         </div>
         <p class="text-xs opacity-60">临时调试不改变 IOC 提取配置。切换模型会清空会话；对话仅保留在当前页面，使用所选供应商的请求设置。</p>
         <div ref="transcript" role="log" aria-label="调试对话" aria-live="polite" class="min-h-48 max-h-[32rem] overflow-y-auto rounded-box border border-base-300 p-3">
@@ -108,7 +108,9 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
             <div v-if="m.role === 'assistant'" class="chat-footer mt-1 max-w-full break-words text-xs opacity-65">{{ m.status }}<span v-if="m.firstDeltaMs != null"> · 首段 {{ (m.firstDeltaMs / 1000).toFixed(1) }} 秒</span><span v-if="m.usage?.input_tokens != null"> · 输入 {{ m.usage.input_tokens }} token</span><span v-if="m.usage?.output_tokens != null"> · 输出 {{ m.usage.output_tokens }} token</span></div>
           </div>
         </div>
-        <form class="space-y-3" @submit.prevent="send"><label class="form-control text-sm">消息<textarea v-model="input" required maxlength="32000" rows="3" class="textarea textarea-bordered mt-1 w-full" :disabled="generating" placeholder="输入调试消息" /></label><div class="flex justify-end gap-2"><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
+        <form class="space-y-3" @submit.prevent="send">
+          <label class="form-control text-sm">消息<textarea v-model="input" required maxlength="32000" rows="3" class="textarea textarea-bordered mt-1 mb-5 w-full" :disabled="generating" placeholder="输入调试消息" />
+          </label><div class="flex justify-end gap-2"><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
       </section>
     </template>
   </div>

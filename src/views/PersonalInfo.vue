@@ -172,9 +172,9 @@ onMounted(() => {
     />
   </div>
 
-  <div class="p-5">
+  <div class="page-shell">
     <div class="mb-5">
-      <h2 class="text-lg font-semibold">个人信息</h2>
+      <h1 class="page-title">个人信息</h1>
       <p class="mt-1 text-xs opacity-60">查看当前用户资料、登录状态和基础账号信息。</p>
     </div>
 

@@ -244,9 +244,9 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
     />
   </div>
 
-  <div class="p-5">
+  <div class="page-shell">
     <div class="mb-4">
-      <h2 class="text-lg font-semibold">扫描器</h2>
+      <h1 class="page-title">扫描器</h1>
       <p class="text-xs opacity-60">该页面展示了添加的所有扫描器</p>
     </div>
 

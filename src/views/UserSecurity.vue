@@ -320,9 +320,9 @@ onMounted(() => {
     />
   </div>
 
-  <div class="p-5">
+  <div class="page-shell">
     <div class="mb-5">
-      <h2 class="text-lg font-semibold">用户安全</h2>
+      <h1 class="page-title">用户安全</h1>
       <p class="mt-1 text-xs opacity-60">管理当前用户的登录保护、双因素认证和安全验证状态。</p>
     </div>
 

@@ -32,6 +32,7 @@ const router = createRouter({
     { path: '/llm', redirect: '/llm/basic' },
     { path: '/llm/basic', component: () => import('../views/LlmBasic.vue'), meta: { title: 'LLM 基础' } },
     { path: '/llm/providers', component: () => import('../views/LlmProviders.vue'), meta: { title: 'LLM 供应商' } },
+    { name: 'intel-report-review', path: '/admin/intel/articles/:articleId/review', component: () => import('../views/IntelReportReview.vue'), meta: { title: '审核报告' } },
     { path: '/admin/intel', component: () => import('../views/ThreatIntelligence.vue'), meta: { title: '威胁情报与自动标记' } },
     { path: '/admin/backups', component: () => import('../views/BackupManagement.vue'), meta: { title: '数据备份' } },
     { path: '/open-source', component: () => import('../views/open-source.vue'), meta: { title: '开源项目' } },

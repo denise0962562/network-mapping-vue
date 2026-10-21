@@ -90,8 +90,8 @@ onBeforeUnmount(() => { disposed = true; requests.abort() })
 </script>
 
 <template>
-  <div class="min-w-0 w-full space-y-5 p-5">
-    <div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="text-2xl font-semibold">LLM 供应商</h1><p class="mt-2 text-sm opacity-65">管理模型接口与公共请求设置，供应商局部配置可覆盖全局。</p></div><button type="button" class="btn btn-outline btn-sm" :disabled="loading || busy" @click="refresh">{{ loading ? '加载中…' : '刷新' }}</button></div>
+  <div class="page-shell space-y-5">
+    <div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="page-title">LLM 供应商</h1><p class="mt-2 text-sm opacity-65">管理模型接口与公共请求设置，供应商局部配置可覆盖全局。</p></div><button type="button" class="btn btn-outline btn-sm" :disabled="loading || busy" @click="refresh">{{ loading ? '加载中…' : '刷新' }}</button></div>
     <AppAlert v-for="alert in alerts" :key="alert.id" :type="alert.type" :title="alert.title" @close="alerts = alerts.filter(a => a.id !== alert.id)" />
     <div v-if="error && !editing" role="alert" class="alert alert-error">{{ error }}</div>
     <template v-if="state">

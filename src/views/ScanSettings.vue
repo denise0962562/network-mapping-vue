@@ -100,9 +100,9 @@ onMounted(fetchSettings)
     />
   </div>
 
-  <div class="p-5">
+  <div class="page-shell">
     <div class="mb-4">
-      <h2 class="text-lg font-semibold">扫描设置</h2>
+      <h1 class="page-title">扫描设置</h1>
       <p class="text-xs opacity-60">设置未显式指定模式的新任务及系统自动任务使用的默认扫描模式。</p>
     </div>
 

@@ -156,10 +156,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="space-y-6 p-4 md:p-6">
+  <div class="page-shell space-y-6">
     <AppAlert v-for="item in alerts" :key="item.id" v-bind="item" @close="alerts = alerts.filter(value => value.id !== item.id)" />
     <div class="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 class="text-2xl font-semibold">通知渠道</h1><p class="mt-2 text-sm opacity-60">统一管理邮件、飞书和 Telegram。各渠道独立启停、订阅通知，同一事件可同时发送到多个渠道。</p></div>
+      <div><h1 class="page-title">通知渠道</h1><p class="mt-2 text-sm opacity-60">统一管理邮件、飞书和 Telegram。各渠道独立启停、订阅通知，同一事件可同时发送到多个渠道。</p></div>
       <div v-if="!forbidden" class="flex gap-2"><button class="btn btn-sm" :disabled="loading || historyLoading" @click="refresh">刷新</button><button class="btn btn-neutral btn-sm" :disabled="busy || loadFailed" @click="openEditor()">添加通知渠道</button></div>
     </div>
     <div v-if="forbidden" class="alert alert-warning" role="alert">仅管理员可以管理通知渠道和查看投递记录。</div>

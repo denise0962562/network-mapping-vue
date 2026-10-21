@@ -227,10 +227,10 @@ onMounted(loadEvents)
     />
   </div>
 
-  <main class="p-4 md:p-6">
+  <main class="page-shell">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">审计日志</h1>
+        <h1 class="page-title">审计日志</h1>
         <p class="mt-1 text-sm text-base-content/60">追踪关键身份认证、任务和扫描器管理操作。</p>
       </div>
       <button class="btn btn-outline btn-sm" :disabled="exporting || loading" @click="exportCsv">

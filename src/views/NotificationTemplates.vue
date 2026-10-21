@@ -86,9 +86,9 @@ async function restoreVersion(version) {
 </script>
 
 <template>
-  <div class="min-w-0 w-full p-5">
+  <div class="page-shell">
     <div class="mb-5">
-      <h1 class="text-lg font-semibold">通知模板</h1>
+      <h1 class="page-title">通知模板</h1>
       <p class="mt-1 text-xs opacity-60">分别配置邮件、飞书和 Telegram 的模板。各渠道独立保存和发布，同类渠道共用对应事件的已发布模板。</p>
     </div>
     <div class="grid min-w-0 items-start gap-5 lg:grid-cols-[14rem_minmax(0,1fr)]">

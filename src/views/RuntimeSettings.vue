@@ -363,9 +363,9 @@ onMounted(loadAll)
     <AppAlert v-for="alert in alerts" :key="alert.id" class="pointer-events-auto" v-bind="alert" @close="closeAlert(alert.id)" />
   </div>
 
-  <div class="min-w-0 w-full p-5">
+  <div class="page-shell">
     <div class="mb-5">
-      <h2 class="text-lg font-semibold">运行策略</h2>
+      <h1 class="page-title">运行策略</h1>
       <p class="mt-1 text-xs opacity-60">管理日志、监控告警、自动扫描与分析策略，保存后生效。</p>
     </div>
 

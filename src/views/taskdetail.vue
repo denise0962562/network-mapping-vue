@@ -310,12 +310,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="p-5">
+  <div class="page-shell">
     <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-2">
       <div class="min-w-0 flex items-center gap-2">
-        <h2 class="text-lg font-semibold truncate text-left" :title="taskId">
+        <h1 class="page-title truncate text-left" :title="taskId">
           任务 UUID：{{ displayTaskId }}
-        </h2>
+        </h1>
         <div class="tooltip tooltip-bottom" :data-tip="taskId">
           <button class="btn btn-ghost btn-xs gap-1" @click="copyTaskId">
             UUID

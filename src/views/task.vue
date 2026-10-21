@@ -256,11 +256,11 @@ onMounted(async () => {
     />
   </div>
 
-  <main class="px-4 pb-4 pt-3 md:px-6 md:pb-6 md:pt-4">
+  <main class="page-shell">
     <div class="space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 class="text-2xl font-semibold">任务</h1>
+          <h1 class="page-title">任务</h1>
           <p class="mt-1 text-sm text-base-content/60">查看扫描任务、执行状态及调度信息。</p>
         </div>
         <button class="btn btn-outline btn-sm" :disabled="isLoadingData" @click="reloadFromFirstPage">

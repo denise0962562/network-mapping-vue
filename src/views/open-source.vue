@@ -86,10 +86,10 @@ onMounted(fetchProjects)
 </script>
 
 <template>
-  <div class="p-5">
+  <div class="page-shell">
     <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h2 class="text-lg font-semibold">开源项目</h2>
+        <h1 class="page-title">开源项目</h1>
         <p class="text-xs opacity-60">本系统直接使用的主要开源软件与许可证信息</p>
       </div>
       <p v-if="lastReviewed" class="text-xs opacity-60">清单复核日期：{{ lastReviewed }}</p>

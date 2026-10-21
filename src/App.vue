@@ -26,7 +26,7 @@ const activeMenuGroup = computed(() => {
   if (path === '/analysis' || path.startsWith('/analysis/')) return 'analysis'
   if (path === '/audit' || path === '/requests' || path.startsWith('/requests/')) return 'logs'
   if (path === '/llm' || path.startsWith('/llm/')) return 'llm'
-  if (path === '/setting' || path.startsWith('/setting/') || path === '/admin/tags' || path === '/admin/intel') return 'settings'
+  if (path === '/setting' || path.startsWith('/setting/') || path === '/admin/tags' || path === '/admin/intel' || path.startsWith('/admin/intel/')) return 'settings'
   return null
 })
 const taskMenuOpen = ref(activeMenuGroup.value === 'task')
