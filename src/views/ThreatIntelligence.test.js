@@ -286,6 +286,17 @@ test('accepted retry immediately marks queue state and duplicate clicks cannot s
   assert.match(p.notice.value, /已入队/)
   p.dispose()
 })
+test('disabled source blocks retry without submitting or changing article state', async () => {
+  let calls = 0
+  const p = page({ post: async () => { calls++ }, get: async () => { calls++ } })
+  const row = { id: 'article', source_enabled: false, status: 'proposed' }
+  await p.retryArticle(row)
+  assert.equal(calls, 0)
+  assert.equal(row.status, 'proposed')
+  assert.match(p.error.value, /来源已停用.*启用后再提取/)
+  assert.equal(p.busy.value, false)
+  p.dispose()
+})
 test('failed retry refreshes actual state and keeps its error visible', async () => {
   let refreshed = false
   const p = page({ post: async () => { throw { response: { data: { code: 'intel_source_disabled' } } } }, get: async () => { refreshed = true; return { data: { data: { items: [{ id: 'article', status: 'cancelled' }] } } } } })
