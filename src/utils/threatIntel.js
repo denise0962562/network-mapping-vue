@@ -161,6 +161,7 @@ const diagnosticFields = {
 const evidenceReasons = {
   evidence_not_in_body: '引用不是正文中的连续原文',
   evidence_block_not_found: '引用的正文块不存在',
+  evidence_unit_not_found: '所选原文证据单元不存在或不适用于该 IOC 类型',
   ioc_not_in_evidence: '引用未包含该 IOC 的完整值',
   evidence_context_scope_mismatch: '上下文与 IOC 不属于同一列表范围',
   evidence_context_record_field_unsupported: '上下文字段不能支持该 IOC 的恶意结论',

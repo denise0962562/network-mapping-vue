@@ -34,5 +34,7 @@ test('article failure details show stage and correlation ID, escape text, and ex
     assert.match(evidence, /预期上下文标题块/)
     assert.match(evidence, /根据所属记录标题重新定位/)
     assert.doesNotMatch(evidence, /private-evidence/)
+    const unit = await render({ reason: 'evidence_unit_not_found' })
+    assert.match(unit, /所选原文证据单元不存在或不适用于该 IOC 类型/)
   } finally { await server.close() }
 })
