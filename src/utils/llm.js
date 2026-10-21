@@ -49,6 +49,7 @@ const errors = {
   llm_secret_unavailable: '配置无法解密，请检查服务端加密密钥。',
   llm_debug_busy: '已有调试请求正在运行，请停止后重试。',
   llm_invalid_messages: '对话为空或超过限制，请缩短内容或新建会话。',
+  llm_invalid_debug_parameters: '调试参数无效，请检查推理强度、数值范围及当前协议支持的选项。',
   llm_invalid_stream: '供应商未返回有效的 SSE 流，请检查流式支持。',
   llm_stream_failed: '流式响应失败，请检查供应商连接；未完整的回答不会继续发送。',
   llm_stream_incomplete: '响应意外中断，请重试。',

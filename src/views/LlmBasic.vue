@@ -4,6 +4,7 @@ import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { availableModels, llmError, settingsPayload } from '@/utils/llm'
 import { chatRequest } from '@/utils/llmChat'
+import { debugParameterForm, debugParameterPayload, debugParameterSummary, debugReasoningOptions } from '@/utils/llmDebug'
 import http from '@/utils/http'
 
 const state = ref(null), enabled = ref(false), providerId = ref(''), modelId = ref(''), saved = ref('')
@@ -17,6 +18,8 @@ const effectiveSystemPrompt = computed(() => state.value?.ioc_prompt || state.va
 const promptDirty = computed(() => state.value && promptDraft.value !== (state.value.ioc_prompt || state.value.default_ioc_prompt || ''))
 const provider = computed(() => state.value?.providers.find(p => p.id === providerId.value))
 const debugProvider = computed(() => state.value?.providers.find(p => p.id === chatProvider.value))
+const debugParameters = ref(debugParameterForm())
+const debugProtocol = computed(() => debugProvider.value?.models.find(m => m.id === chatModel.value)?.protocol || debugProvider.value?.protocol || 'chat')
 const selected = computed(() => JSON.stringify([enabled.value, providerId.value, modelId.value]))
 const selectionDirty = computed(() => state.value && selected.value !== saved.value)
 const dirty = computed(() => selectionDirty.value || promptDirty.value)
@@ -98,6 +101,10 @@ async function send() {
   if (!text || generating.value || !chatProvider.value || !chatModel.value) return
   if (useSystemPrompt.value && !effectiveSystemPrompt.value) { error.value = '系统提示词尚未加载，请刷新后重试。'; return }
   if (messages.value.length >= 60) { error.value = '当前对话较长，请新建会话后继续。'; return }
+  let parameters
+  try { parameters = debugParameterPayload(debugParameters.value, debugProtocol.value) }
+  catch (e) { error.value = e.message; return }
+  error.value = ''
   const current = ++chatVersion
   chatController = new AbortController(); generating.value = true
   const history = [...(useSystemPrompt.value ? [{ role: 'system', content: effectiveSystemPrompt.value }] : []), ...messages.value.filter(m => m.complete).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
@@ -107,10 +114,10 @@ async function send() {
   input.value = ''; await scroll()
   if (disposed || current !== chatVersion) return
   try {
-    await chatRequest({ provider_id: chatProvider.value, model_id: chatModel.value, session_id: session.value, messages: history }, chatController.signal, event => {
+    await chatRequest({ provider_id: chatProvider.value, model_id: chatModel.value, session_id: session.value, messages: history, parameters }, chatController.signal, event => {
       if (disposed || current !== chatVersion) return
       const answer = messages.value[index]
-      if (event.type === 'started') answer.status = event.stream ? '正在生成…' : '等待完整响应…'
+      if (event.type === 'started') { answer.status = event.stream ? '正在生成…' : '等待完整响应…'; answer.parameters = event.parameters }
       if (event.type === 'delta') { answer.content += event.text; answer.status = '正在生成…' }
       if (event.type === 'done') { answer.content = event.text; answer.complete = true; answer.status = `完成 · ${(event.elapsed_ms / 1000).toFixed(1)} 秒`; answer.usage = event.usage; answer.firstDeltaMs = event.first_delta_ms }
       if (event.type === 'error') answer.status = llmError(event.code)
@@ -154,16 +161,34 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
           <label class="form-control text-sm">调试模型<select v-model="chatModel" class="select select-bordered mt-1 w-full" :disabled="generating || !chatProvider" @change="newSession"><option disabled selected value="">请选择</option><option v-for="m in availableModels(debugProvider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
         </div>
         <p class="text-xs opacity-60">临时调试不改变 IOC 提取配置。启用系统提示词时使用已保存的内容；切换模型或提示词开关会清空会话。对话仅保留在当前页面，使用所选供应商的请求设置。</p>
-        <div ref="transcript" role="log" aria-label="调试对话" aria-live="polite" class="min-h-48 max-h-[32rem] overflow-y-auto rounded-box border border-base-300 p-3">
-          <p v-if="!messages.length" class="py-12 text-center text-sm opacity-60">选择供应商和模型后发送消息，检查连接与回答。</p>
-          <div v-for="(m, index) in messages" :key="index" class="chat" :class="m.role === 'user' ? 'chat-end' : 'chat-start'">
-            <div class="chat-header mb-1 opacity-60">{{ m.role === 'user' ? '你' : '模型' }}</div><div class="chat-bubble max-w-full whitespace-pre-wrap break-words" :class="m.role === 'user' ? 'chat-bubble-neutral' : 'bg-base-200 text-base-content'">{{ m.content || '…' }}</div>
-            <div v-if="m.role === 'assistant'" class="chat-footer mt-1 max-w-full break-words text-xs opacity-65">{{ m.status }}<span v-if="m.firstDeltaMs != null"> · 首段 {{ (m.firstDeltaMs / 1000).toFixed(1) }} 秒</span><span v-if="m.usage?.input_tokens != null"> · 输入 {{ m.usage.input_tokens }} token</span><span v-if="m.usage?.output_tokens != null"> · 输出 {{ m.usage.output_tokens }} token</span></div>
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
+          <div class="min-w-0 flex flex-col gap-4">
+            <div ref="transcript" role="log" aria-label="调试对话" aria-live="polite" class="min-h-64 flex-1 max-h-[36rem] overflow-y-auto rounded-box border border-base-300 p-3">
+              <p v-if="!messages.length" class="py-12 text-center text-sm opacity-60">选择供应商和模型后发送消息，检查连接与回答。</p>
+              <div v-for="(m, index) in messages" :key="index" class="chat" :class="m.role === 'user' ? 'chat-end' : 'chat-start'">
+                <div class="chat-header mb-1 opacity-60">{{ m.role === 'user' ? '你' : '模型' }}</div><div class="chat-bubble max-w-full whitespace-pre-wrap break-words" :class="m.role === 'user' ? 'chat-bubble-neutral' : 'bg-base-200 text-base-content'">{{ m.content || '…' }}</div>
+                <div v-if="m.role === 'assistant'" class="chat-footer mt-1 max-w-full flex-wrap break-words text-xs opacity-65">{{ m.status }}<span v-if="m.firstDeltaMs != null"> · 首段 {{ (m.firstDeltaMs / 1000).toFixed(1) }} 秒</span><span v-if="m.usage?.input_tokens != null"> · 输入 {{ m.usage.input_tokens }} token</span><span v-if="m.usage?.output_tokens != null"> · 输出 {{ m.usage.output_tokens }} token</span><p v-if="m.parameters" class="mt-1 basis-full">{{ debugParameterSummary(m.parameters) }}</p></div>
+              </div>
+            </div>
+            <form class="space-y-3" @submit.prevent="send">
+              <label class="form-control text-sm">消息<textarea v-model="input" required maxlength="32000" rows="3" class="textarea textarea-bordered mt-1 mb-5 w-full" :disabled="generating" placeholder="输入调试消息" />
+              </label><div class="flex justify-end gap-2"><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
           </div>
+          <aside aria-label="调试参数" class="min-w-0 border-t border-base-300 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+            <fieldset :disabled="generating" class="space-y-3">
+              <div class="flex items-center justify-between gap-2"><h3 class="font-semibold text-sm">调试参数</h3><button type="button" class="btn btn-ghost btn-xs" @click="debugParameters = debugParameterForm()">重置参数</button></div>
+              <p class="text-xs opacity-60">仅用于当前调试，下次发送生效；留空继承配置或使用接口默认值。</p>
+              <label class="form-control text-xs" for="debug-reasoning">推理强度<select id="debug-reasoning" v-model="debugParameters.reasoning_effort" class="select select-bordered select-sm mt-1 w-full"><option v-for="option in debugReasoningOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+              <label class="form-control text-xs" for="debug-max-tokens">输出上限（token）<input id="debug-max-tokens" v-model="debugParameters.max_output_tokens" type="number" min="1" max="393216" step="1" class="input input-bordered input-sm mt-1 w-full" :placeholder="`继承：${debugProvider?.max_output_tokens || 65536}`" /></label>
+              <label class="form-control text-xs" for="debug-temperature">温度（Temperature）<input id="debug-temperature" v-model="debugParameters.temperature" type="number" min="0" max="2" step="0.1" class="input input-bordered input-sm mt-1 w-full" placeholder="接口默认 · 0–2" /></label>
+              <label class="form-control text-xs" for="debug-top-p">Top P<input id="debug-top-p" v-model="debugParameters.top_p" type="number" min="0" max="1" step="0.05" class="input input-bordered input-sm mt-1 w-full" placeholder="接口默认 · 0–1" /></label>
+              <label class="form-control text-xs" for="debug-timeout">请求超时（秒）<input id="debug-timeout" v-model="debugParameters.timeout_seconds" type="number" min="1" max="1800" step="1" class="input input-bordered input-sm mt-1 w-full" :placeholder="`继承：${debugProvider?.timeout_seconds || 180}`" /></label>
+              <label class="form-control text-xs" for="debug-stream">流式输出<select id="debug-stream" v-model="debugParameters.stream" class="select select-bordered select-sm mt-1 w-full"><option value="inherit">继承请求配置</option><option value="on">开启</option><option value="off">关闭</option></select></label>
+              <label v-if="debugProtocol === 'chat'" class="form-control text-xs" for="debug-token-field">输出上限字段<select id="debug-token-field" v-model="debugParameters.token_limit_field" class="select select-bordered select-sm mt-1 w-full"><option value="inherit">兼容接口默认</option><option value="max_tokens">max_tokens</option><option value="max_completion_tokens">max_completion_tokens</option></select></label>
+              <p class="text-xs opacity-60">可按模型支持情况选择参数；重置后恢复继承配置。</p>
+            </fieldset>
+          </aside>
         </div>
-        <form class="space-y-3" @submit.prevent="send">
-          <label class="form-control text-sm">消息<textarea v-model="input" required maxlength="32000" rows="3" class="textarea textarea-bordered mt-1 mb-5 w-full" :disabled="generating" placeholder="输入调试消息" />
-          </label><div class="flex justify-end gap-2"><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
       </section>
     </template>
   </div>

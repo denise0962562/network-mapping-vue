@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { computed, ref, nextTick } from 'vue'
 import { parse, compileScript } from 'vue/compiler-sfc'
 import * as llm from '../utils/llm.js'
+import * as debug from '../utils/llmDebug.js'
 
 const { descriptor } = parse(readFileSync(new URL('./LlmBasic.vue', import.meta.url), 'utf8'))
 const compiled = compileScript(descriptor, { id: 'llm-basic-test' })
@@ -12,8 +13,8 @@ const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration
 const fixture = () => ({ revision: 7, enabled: true, provider_id: 'one', model_id: 'a', ioc_prompt: '', default_ioc_prompt: '系统默认提示词\n返回 JSON 原文证据。', prompt_max_bytes: 65536, global: llm.transportForm(true), providers: [{ id: 'one', default_model: 'a', models: [{ id: 'a', protocol: 'chat', available: true }] }, { id: 'two', default_model: 'b', models: [{ id: 'b', protocol: 'responses', available: true }] }] })
 function page({ http, chatRequest } = {}) {
   let dispose
-  const context = { ...llm, computed, ref, nextTick, TextEncoder, crypto: { randomUUID: () => 'session-id' }, AbortController, window: { confirm: () => true }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http: http || { get: async () => ({ data: { data: fixture() } }) }, chatRequest: chatRequest || (async () => {}) }
-  const p = vm.runInNewContext(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error,promptDraft,promptDirty,promptEditing,editPrompt,cancelPrompt,selectionDirty,dirty,savePrompt,restorePrompt,saveAll,useSystemPrompt})`, context)
+  const context = { ...llm, ...debug, computed, ref, nextTick, TextEncoder, crypto: { randomUUID: () => 'session-id' }, AbortController, window: { confirm: () => true }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http: http || { get: async () => ({ data: { data: fixture() } }) }, chatRequest: chatRequest || (async () => {}) }
+  const p = vm.runInNewContext(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error,promptDraft,promptDirty,promptEditing,editPrompt,cancelPrompt,selectionDirty,dirty,savePrompt,restorePrompt,saveAll,useSystemPrompt,debugParameters})`, context)
   return { ...p, dispose: () => dispose() }
 }
 test('pausing saves the selected pair while temporary debugging keeps IOC binding intact', async () => {
@@ -164,5 +165,39 @@ test('new session cancels the old request and late events cannot repopulate the 
   p.newSession(); assert(signal.aborted)
   emit({ type: 'delta', text: 'obsolete' }); finish(); await pending
   assert.equal(p.messages.value.length, 0); assert.equal(p.generating.value, false)
+  p.dispose()
+})
+
+test('debug controls affect only subsequent debug requests and record effective response parameters', async () => {
+  const calls = [], writes = []
+  const p = page({
+    http: { get: async () => ({ data: { data: fixture() } }), put: async (...args) => writes.push(args) },
+    chatRequest: async (body, _signal, emit) => {
+      calls.push(body)
+      emit({ type: 'started', stream: true, parameters: { reasoning_effort: body.parameters.reasoning_effort || 'medium', max_output_tokens: body.parameters.max_output_tokens || 4096, stream: true } })
+      emit({ type: 'done', text: 'answer', elapsed_ms: 1 })
+    },
+  })
+  await p.load(); p.input.value = 'inherit'; await p.send()
+  assert.deepEqual(Object.keys(calls[0].parameters), [])
+  Object.assign(p.debugParameters.value, { reasoning_effort: 'high', max_output_tokens: '128', temperature: '0', timeout_seconds: '30', stream: 'on', token_limit_field: 'max_completion_tokens' })
+  p.input.value = 'override'; await p.send()
+  assert.equal(calls[1].messages.length, 3)
+  assert.equal(calls[1].parameters.temperature, 0)
+  assert.equal(calls[1].parameters.max_output_tokens, 128)
+  assert.equal(calls[1].parameters.stream, true)
+  assert.equal(calls[1].parameters.token_limit_field, 'max_completion_tokens')
+  assert.equal(p.messages.value[1].parameters.reasoning_effort, 'medium')
+  assert.equal(p.messages.value[3].parameters.reasoning_effort, 'high')
+  assert.equal(p.dirty.value, false)
+  assert.equal(writes.length, 0)
+  p.debugParameters.value = debug.debugParameterForm()
+  p.input.value = 'reset'; await p.send()
+  assert.deepEqual(Object.keys(calls[2].parameters), [])
+  p.debugParameters.value.temperature = '3'
+  p.input.value = 'invalid'
+  await p.send(); assert.equal(calls.length, 3)
+  assert.equal(p.input.value, 'invalid')
+  assert.match(p.error.value, /温度/)
   p.dispose()
 })
