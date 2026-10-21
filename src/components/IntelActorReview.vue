@@ -23,6 +23,7 @@ async function load() {
     if (current !== version) return
     matches.value = response.data.data.items
     actorId.value ||= props.record.actor_id || matches.value[0]?.attack_id || ''
+    publish()
   } catch (e) { if (current === version && e.code !== 'ERR_CANCELED') error.value = intelError(e) }
   finally { if (current === version) loading.value = false }
 }
