@@ -141,6 +141,7 @@ const extractionStages = {
   indicator_store: '保存 IOC 提议',
 }
 const diagnosticFields = {
+  prompt_source: '提示词来源', prompt_hash: '提示词 SHA-256',
   expected_context_block_id: '预期上下文标题块', correction_method: '证据纠正方式',
   context_block_id: '上下文正文块', ioc_block_id: 'IOC 正文块', ioc_scope_block_id: 'IOC 所属标题块', context_block_kind: '上下文块类型', ioc_block_kind: 'IOC 块类型',
   provider_error_category: '提供方错误分类', provider_error_code: '提供方错误代码', provider_error_type: '提供方错误类型', provider_trace_id: '提供方跟踪 ID', error_body_sample_bytes: '错误响应采样字节数', error_body_complete: '错误响应是否完整读取', error_body_read_failed: '错误响应读取失败',
@@ -171,6 +172,7 @@ const evidenceReasons = {
   evidence_too_short: '历史规则判定引用过短',
 }
 const diagnosticValueLabels = {
+  prompt_source: { default: '系统默认', custom: '用户自定义' },
   correction_method: { record_heading: '根据所属记录标题重新定位' },
   context_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },
   ioc_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },

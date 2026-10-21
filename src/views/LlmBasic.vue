@@ -10,27 +10,36 @@ const state = ref(null), enabled = ref(false), providerId = ref(''), modelId = r
 const loading = ref(false), busy = ref(false), error = ref(''), alerts = ref([])
 const chatProvider = ref(''), chatModel = ref(''), input = ref(''), messages = ref([]), generating = ref(false), transcript = ref(null)
 const session = ref(crypto.randomUUID())
+const promptDraft = ref('')
+const promptEditing = ref(false)
+const useSystemPrompt = ref(false)
+const effectiveSystemPrompt = computed(() => state.value?.ioc_prompt || state.value?.default_ioc_prompt || '')
+const promptDirty = computed(() => state.value && promptDraft.value !== (state.value.ioc_prompt || state.value.default_ioc_prompt || ''))
 const provider = computed(() => state.value?.providers.find(p => p.id === providerId.value))
 const debugProvider = computed(() => state.value?.providers.find(p => p.id === chatProvider.value))
 const selected = computed(() => JSON.stringify([enabled.value, providerId.value, modelId.value]))
-const dirty = computed(() => state.value && selected.value !== saved.value)
-useUnsavedChanges(dirty, save)
+const selectionDirty = computed(() => state.value && selected.value !== saved.value)
+const dirty = computed(() => selectionDirty.value || promptDirty.value)
+useUnsavedChanges(dirty, saveAll)
 const requests = new AbortController()
 let disposed = false, chatController, chatVersion = 0
 
-async function load() {
+async function load({ preservePrompt = false } = {}) {
   loading.value = true; error.value = ''
   try {
     const r = await http.get('/api/llm/settings', { signal: requests.signal })
     if (disposed) return
+    const previousPrompt = effectiveSystemPrompt.value
     state.value = r.data.data
+    if (useSystemPrompt.value && previousPrompt && previousPrompt !== effectiveSystemPrompt.value) newSession()
+    if (!preservePrompt) { promptDraft.value = state.value.ioc_prompt || state.value.default_ioc_prompt || ''; promptEditing.value = false }
     enabled.value = state.value.enabled; providerId.value = state.value.provider_id || ''; modelId.value = state.value.model_id || ''
     saved.value = selected.value
     if (!chatProvider.value) { chatProvider.value = providerId.value; chatModel.value = modelId.value }
   } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = llmError(e) }
   finally { if (!disposed) loading.value = false }
 }
-function refresh() { if (dirty.value && !window.confirm('刷新将放弃未保存的选择，确定继续吗？')) return; load() }
+function refresh() { if (dirty.value && !window.confirm('刷新将放弃未保存的设置，确定继续吗？')) return; load() }
 function chooseProvider() { modelId.value = provider.value?.default_model || availableModels(provider.value)[0]?.id || ''; if (!providerId.value) modelId.value = '' }
 async function save() {
   if (!state.value || busy.value) return false
@@ -38,10 +47,47 @@ async function save() {
   busy.value = true; error.value = ''
   try {
     await http.put('/api/llm/settings', settingsPayload(state.value, { enabled: enabled.value, provider_id: providerId.value || null, model_id: modelId.value || null }), { signal: requests.signal })
-    if (!disposed) { await load(); alerts.value.unshift({ id: crypto.randomUUID(), title: 'IOC 提取设置已保存。' }) }
+    if (!disposed) { await load({ preservePrompt: true }); alerts.value.unshift({ id: crypto.randomUUID(), title: 'IOC 提取设置已保存。' }) }
     return true
   } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = llmError(e); return false }
   finally { busy.value = false }
+}
+async function persistPrompt(value, restored = false) {
+  if (!state.value || !promptEditing.value || busy.value || loading.value) return false
+  if (!restored && (!value.trim() || new TextEncoder().encode(value).length > (state.value.prompt_max_bytes || 65536) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/.test(value))) {
+    error.value = '提示词不能为空、包含非法控制字符或超过允许的字节数。'; return false
+  }
+  busy.value = true; error.value = ''
+  try {
+    const r = await http.put('/api/llm/prompt', { expected_revision: state.value.revision, prompt: value }, { signal: requests.signal })
+    if (disposed) return false
+    const previousPrompt = effectiveSystemPrompt.value
+    state.value.revision = r.data.data.revision
+    state.value.ioc_prompt = r.data.data.ioc_prompt
+    state.value.prompt_version = r.data.data.prompt_version
+    if (useSystemPrompt.value && previousPrompt !== effectiveSystemPrompt.value) newSession()
+    promptDraft.value = state.value.ioc_prompt || state.value.default_ioc_prompt
+    promptEditing.value = false
+    alerts.value.unshift({ id: crypto.randomUUID(), title: restored ? '已恢复并保存系统默认提示词。' : 'IOC 提取提示词已保存。' })
+    return true
+  } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = llmError(e); return false }
+  finally { busy.value = false }
+}
+function savePrompt() { return promptDraft.value === state.value?.default_ioc_prompt ? persistPrompt('', true) : persistPrompt(promptDraft.value) }
+function editPrompt() { if (state.value && !busy.value && !loading.value) promptEditing.value = true }
+function cancelPrompt() {
+  if (busy.value) return
+  promptDraft.value = state.value.ioc_prompt || state.value.default_ioc_prompt || ''
+  promptEditing.value = false
+}
+function restorePrompt() {
+  if (!promptEditing.value || busy.value || loading.value) return
+  promptDraft.value = state.value.default_ioc_prompt
+}
+async function saveAll() {
+  if (selectionDirty.value && !await save()) return false
+  if (promptDirty.value && !await savePrompt()) return false
+  return true
 }
 function newSession() { chatVersion++; chatController?.abort(); generating.value = false; messages.value = []; input.value = ''; session.value = crypto.randomUUID() }
 function chooseChatProvider() { chatModel.value = debugProvider.value?.default_model || availableModels(debugProvider.value)[0]?.id || ''; newSession() }
@@ -50,10 +96,11 @@ async function scroll() { await nextTick(); if (transcript.value) transcript.val
 async function send() {
   const text = input.value.trim()
   if (!text || generating.value || !chatProvider.value || !chatModel.value) return
+  if (useSystemPrompt.value && !effectiveSystemPrompt.value) { error.value = '系统提示词尚未加载，请刷新后重试。'; return }
   if (messages.value.length >= 60) { error.value = '当前对话较长，请新建会话后继续。'; return }
   const current = ++chatVersion
   chatController = new AbortController(); generating.value = true
-  const history = [...messages.value.filter(m => m.complete).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
+  const history = [...(useSystemPrompt.value ? [{ role: 'system', content: effectiveSystemPrompt.value }] : []), ...messages.value.filter(m => m.complete).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
   messages.value.push({ role: 'user', content: text, complete: true })
   messages.value.push({ role: 'assistant', content: '', complete: false, status: '正在连接…' })
   const index = messages.value.length - 1
@@ -84,23 +131,29 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
     <div v-if="error" role="alert" class="alert alert-error">{{ error }}</div>
     <template v-if="state">
       <form class="card border border-base-300 bg-base-100 p-4 space-y-4" @submit.prevent="save">
-        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">IOC 提取</h2><button class="btn btn-neutral btn-sm" :disabled="busy || loading || !dirty">{{ busy ? '保存中…' : '保存设置' }}</button></div>
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">IOC 提取</h2><button class="btn btn-neutral btn-sm" :disabled="busy || loading || !selectionDirty">{{ busy ? '保存中…' : '保存设置' }}</button></div>
         <label class="flex items-center gap-2 text-sm"><input v-model="enabled" type="checkbox" class="toggle toggle-sm" />启用 LLM IOC 提取</label>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3">
           <label class="form-control text-sm">供应商<select v-model="providerId" class="select select-bordered mt-1 w-full" :required="enabled" @change="chooseProvider"><option disabled selected value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
           <label class="form-control text-sm">模型<select v-model="modelId" class="select select-bordered mt-1 w-full" :required="Boolean(providerId)" :disabled="!providerId"><option disabled selected value="">请选择</option><option v-for="m in availableModels(provider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
         </div>
         <p class="text-sm opacity-65">一次只使用一组供应商和模型。暂停保留当前选择；可信 IOC 同步继续运行，LLM 提议仍须人工审核。</p>
-        <div v-if="state.effective && !dirty" class="rounded-box border border-base-300 p-3 text-sm space-y-1"><p>当前生效：{{ state.providers.find(p => p.id === state.provider_id)?.name }} / {{ state.model_id }}</p><p class="opacity-65">流式{{ state.effective.stream ? '开启' : '关闭' }} · {{ { system: '系统代理', direct: '直连', custom: '指定代理' }[state.effective.proxy_mode] }} · Session {{ state.effective.session_mode === 'disabled' ? '关闭' : state.effective.session_mode === 'auto' ? '自动生成' : '固定值' }}</p></div>
+        <div v-if="state.effective && !selectionDirty" class="rounded-box border border-base-300 p-3 text-sm space-y-1"><p>当前生效：{{ state.providers.find(p => p.id === state.provider_id)?.name }} / {{ state.model_id }}</p><p class="opacity-65">流式{{ state.effective.stream ? '开启' : '关闭' }} · {{ { system: '系统代理', direct: '直连', custom: '指定代理' }[state.effective.proxy_mode] }} · Session {{ state.effective.session_mode === 'disabled' ? '关闭' : state.effective.session_mode === 'auto' ? '自动生成' : '固定值' }}</p></div>
         <router-link to="/llm/providers" class="link text-sm">管理供应商与全局配置</router-link>
       </form>
+      <form class="card border border-base-300 bg-base-100 p-4 space-y-4" @submit.prevent="savePrompt">
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">IOC 提取提示词</h2><div class="flex flex-wrap gap-2"><button v-if="!promptEditing" type="button" class="btn btn-outline btn-sm" :disabled="busy || loading" @click="editPrompt">编辑提示词</button><template v-else><button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="cancelPrompt">取消编辑</button><button type="button" class="btn btn-outline btn-sm" :disabled="busy || loading || !state.default_ioc_prompt" @click="restorePrompt">恢复系统默认</button><button class="btn btn-neutral btn-sm" :disabled="busy || loading || !promptDirty">保存提示词</button></template></div></div>
+        <p class="text-sm opacity-65">当前使用{{ state.ioc_prompt ? '自定义提示词' : '系统默认提示词' }}。{{ promptEditing ? '修改或恢复默认后，点击保存才会生效。' : '点击编辑提示词后可修改。' }} 保存后用于后续文章提取；系统默认内容随系统更新。</p>
+        <label class="form-control text-sm" for="ioc-system-prompt">系统提示词<textarea id="ioc-system-prompt" v-model="promptDraft" required rows="14" class="textarea textarea-bordered mt-1 w-full font-mono text-sm" :readonly="!promptEditing" :disabled="busy || loading" spellcheck="false" /></label>
+        <p class="text-xs opacity-60">支持多行文本，最多 {{ state.prompt_max_bytes || 65536 }} 字节。请保留 IOC JSON 输出和原文证据要求；所有提议仍须校验及人工审核。</p>
+      </form>
       <section class="card border border-base-300 bg-base-100 p-4 space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">在线调试</h2><button type="button" class="btn btn-ghost btn-sm" @click="newSession">新建会话／清空</button></div>
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">在线调试</h2><div class="flex flex-wrap items-center gap-3"><label class="flex items-center gap-2 text-sm"><input v-model="useSystemPrompt" type="checkbox" class="toggle toggle-sm" :disabled="generating" @change="newSession" />启用系统提示词</label><button type="button" class="btn btn-ghost btn-sm" @click="newSession">新建会话／清空</button></div></div>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3">
           <label class="form-control text-sm">调试供应商<select v-model="chatProvider" class="select select-bordered mt-1 w-full" :disabled="generating" @change="chooseChatProvider"><option disabled selected value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
           <label class="form-control text-sm">调试模型<select v-model="chatModel" class="select select-bordered mt-1 w-full" :disabled="generating || !chatProvider" @change="newSession"><option disabled selected value="">请选择</option><option v-for="m in availableModels(debugProvider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
         </div>
-        <p class="text-xs opacity-60">临时调试不改变 IOC 提取配置。切换模型会清空会话；对话仅保留在当前页面，使用所选供应商的请求设置。</p>
+        <p class="text-xs opacity-60">临时调试不改变 IOC 提取配置。启用系统提示词时使用已保存的内容；切换模型或提示词开关会清空会话。对话仅保留在当前页面，使用所选供应商的请求设置。</p>
         <div ref="transcript" role="log" aria-label="调试对话" aria-live="polite" class="min-h-48 max-h-[32rem] overflow-y-auto rounded-box border border-base-300 p-3">
           <p v-if="!messages.length" class="py-12 text-center text-sm opacity-60">选择供应商和模型后发送消息，检查连接与回答。</p>
           <div v-for="(m, index) in messages" :key="index" class="chat" :class="m.role === 'user' ? 'chat-end' : 'chat-start'">

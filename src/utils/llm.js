@@ -24,6 +24,7 @@ const errors = {
   intel_invalid_credential: 'API Key 格式无效，不能同时填写并清除凭据。',
   intel_credential_crypto_failed: '凭据无法解密，请检查服务端加密密钥。',
   intel_invalid_ai_settings: '请检查模型、协议、输出预算和推理强度。',
+  intel_invalid_ai_prompt: '提示词不能为空白、包含非法控制字符或超过 65536 字节。',
   intel_ai_protocol_mismatch: '完整端点与模型协议不匹配，请修改接口地址或协议。',
   intel_url_not_allowed: '接口需使用公网 HTTPS 地址和 443 端口，不能包含 URL 凭据或片段。',
   intel_ai_timeout: '模型请求超时，可调整供应商的请求时限。',

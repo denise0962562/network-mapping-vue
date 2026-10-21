@@ -9,11 +9,11 @@ import * as llm from '../utils/llm.js'
 const { descriptor } = parse(readFileSync(new URL('./LlmBasic.vue', import.meta.url), 'utf8'))
 const compiled = compileScript(descriptor, { id: 'llm-basic-test' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
-const fixture = () => ({ revision: 7, enabled: true, provider_id: 'one', model_id: 'a', global: llm.transportForm(true), providers: [{ id: 'one', default_model: 'a', models: [{ id: 'a', protocol: 'chat', available: true }] }, { id: 'two', default_model: 'b', models: [{ id: 'b', protocol: 'responses', available: true }] }] })
+const fixture = () => ({ revision: 7, enabled: true, provider_id: 'one', model_id: 'a', ioc_prompt: '', default_ioc_prompt: '系统默认提示词\n返回 JSON 原文证据。', prompt_max_bytes: 65536, global: llm.transportForm(true), providers: [{ id: 'one', default_model: 'a', models: [{ id: 'a', protocol: 'chat', available: true }] }, { id: 'two', default_model: 'b', models: [{ id: 'b', protocol: 'responses', available: true }] }] })
 function page({ http, chatRequest } = {}) {
   let dispose
-  const context = { ...llm, computed, ref, nextTick, crypto: { randomUUID: () => 'session-id' }, AbortController, window: { confirm: () => true }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http: http || { get: async () => ({ data: { data: fixture() } }) }, chatRequest: chatRequest || (async () => {}) }
-  const p = vm.runInNewContext(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error})`, context)
+  const context = { ...llm, computed, ref, nextTick, TextEncoder, crypto: { randomUUID: () => 'session-id' }, AbortController, window: { confirm: () => true }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http: http || { get: async () => ({ data: { data: fixture() } }) }, chatRequest: chatRequest || (async () => {}) }
+  const p = vm.runInNewContext(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error,promptDraft,promptDirty,promptEditing,editPrompt,cancelPrompt,selectionDirty,dirty,savePrompt,restorePrompt,saveAll,useSystemPrompt})`, context)
   return { ...p, dispose: () => dispose() }
 }
 test('pausing saves the selected pair while temporary debugging keeps IOC binding intact', async () => {
@@ -23,6 +23,94 @@ test('pausing saves the selected pair while temporary debugging keeps IOC bindin
   assert.equal(p.chatModel.value, 'b'); assert.equal(p.providerId.value, 'one')
   p.enabled.value = false; await p.save()
   assert.equal(sent.provider_id, 'one'); assert.equal(sent.model_id, 'a'); assert.equal(sent.enabled, false); assert.equal(sent.expected_revision, 7)
+  p.dispose()
+})
+
+test('prompt editing requires explicit edit and save, including restoring the default', async () => {
+  const data = fixture(), writes = []
+  const p = page({ http: {
+    get: async () => ({ data: { data: structuredClone(data) } }),
+    put: async (url, body) => { writes.push({ url, ...body }); data.ioc_prompt = body.prompt; data.revision++; return { data: { data: { revision: data.revision, ioc_prompt: data.ioc_prompt } } } },
+  } })
+  await p.load()
+  assert.equal(p.promptDraft.value, data.default_ioc_prompt)
+  assert.equal(p.promptEditing.value, false)
+  assert.equal(await p.savePrompt(), false)
+  assert.equal(writes.length, 0)
+  p.editPrompt()
+  p.promptDraft.value = '自定义提示词\n只返回 JSON。'
+  assert.equal(p.promptDirty.value, true)
+  assert.equal(await p.savePrompt(), true)
+  assert.equal(writes[0].url, '/api/llm/prompt')
+  assert.equal(writes[0].expected_revision, 7)
+  assert.equal(writes[0].prompt, '自定义提示词\n只返回 JSON。')
+  assert.equal(p.promptEditing.value, false)
+  await p.load(); assert.equal(p.promptDraft.value, data.ioc_prompt)
+  p.providerId.value = 'two'; p.chooseProvider()
+  p.restorePrompt()
+  assert.equal(writes.length, 1)
+  assert.equal(p.promptDraft.value, data.ioc_prompt)
+  p.editPrompt(); p.restorePrompt()
+  assert.equal(p.promptDraft.value, data.default_ioc_prompt)
+  assert.equal(writes.length, 1)
+  assert.equal(p.promptDirty.value, true)
+  assert.equal(await p.savePrompt(), true)
+  assert.equal(writes[1].prompt, '')
+  assert.equal(writes[1].expected_revision, 8)
+  assert.equal(p.promptDraft.value, data.default_ioc_prompt)
+  assert.equal(p.promptDirty.value, false)
+  assert.equal(p.providerId.value, 'two')
+  assert.equal(p.selectionDirty.value, true)
+  assert.equal(p.state.value.revision, 9)
+  assert.equal(p.promptEditing.value, false)
+  p.editPrompt(); p.promptDraft.value = '取消的草稿'; p.cancelPrompt()
+  assert.equal(p.promptDraft.value, data.default_ioc_prompt)
+  assert.equal(p.promptDirty.value, false)
+  assert.equal(p.promptEditing.value, false)
+  assert.equal(writes.length, 2)
+  p.dispose()
+})
+
+test('invalid or conflicted prompt edits remain unsaved and preserve the draft', async () => {
+  let writes = 0
+  const p = page({ http: {
+    get: async () => ({ data: { data: fixture() } }),
+    put: async () => { writes++; throw { response: { data: { code: 'intel_revision_conflict' } } } },
+  } })
+  await p.load()
+  p.editPrompt()
+  for (const value of ['', '   ', '含\u0000控制字符', '中'.repeat(21846)]) {
+    p.promptDraft.value = value
+    assert.equal(p.promptDirty.value, true)
+    assert.equal(await p.savePrompt(), false)
+  }
+  assert.equal(writes, 0)
+  p.promptDraft.value = '有效草稿'
+  assert.equal(await p.savePrompt(), false)
+  assert.equal(p.promptDraft.value, '有效草稿')
+  assert.equal(p.state.value.revision, 7)
+  assert.equal(p.promptDirty.value, true)
+  assert.match(p.error.value, /配置已被其他操作修改/)
+  p.dispose()
+})
+
+test('saving model selection retains a prompt draft and save-before-leaving saves both', async () => {
+  const data = fixture(), writes = []
+  const p = page({ http: {
+    get: async () => ({ data: { data: structuredClone(data) } }),
+    put: async (url, body) => {
+      writes.push({ url, ...body }); data.revision++
+      if (url === '/api/llm/prompt') data.ioc_prompt = body.prompt
+      else { data.enabled = body.enabled; data.provider_id = body.provider_id; data.model_id = body.model_id }
+      return { data: { data: { revision: data.revision, ioc_prompt: data.ioc_prompt } } }
+    },
+  } })
+  await p.load(); p.enabled.value = false; p.editPrompt(); p.promptDraft.value = '保留的提示词草稿'
+  assert.equal(await p.saveAll(), true)
+  assert.equal(writes.length, 2)
+  assert.equal(writes[1].expected_revision, 8)
+  assert.equal(writes[1].prompt, '保留的提示词草稿')
+  assert.equal(p.dirty.value, false)
   p.dispose()
 })
 test('partial failed replies never become history for the next paid request', async () => {
@@ -38,6 +126,35 @@ test('partial failed replies never become history for the next paid request', as
   assert(!JSON.stringify(calls[1]).includes('partial-private-output'))
   assert.equal(p.messages.value[3].complete, true)
   assert(!descriptor.template.content.includes('v-html'))
+  p.dispose()
+})
+
+test('debug system prompt toggle uses saved content exactly once and excludes editor drafts', async () => {
+  const calls = [], data = fixture()
+  const p = page({
+    http: { get: async () => ({ data: { data: structuredClone(data) } }) },
+    chatRequest: async (body, _signal, emit) => { calls.push(body); emit({ type: 'done', text: 'answer', elapsed_ms: 1 }) },
+  })
+  await p.load(); assert.equal(p.useSystemPrompt.value, false)
+  p.input.value = 'plain'; await p.send()
+  assert.equal(calls[0].messages[0].role, 'user')
+  p.useSystemPrompt.value = true; p.newSession()
+  p.editPrompt(); p.promptDraft.value = 'unsaved editor draft'
+  p.input.value = 'first'; await p.send()
+  assert.equal(calls[1].messages[0].role, 'system')
+  assert.equal(calls[1].messages[0].content, data.default_ioc_prompt)
+  p.input.value = 'second'; await p.send()
+  assert.equal(calls[2].messages.filter(m => m.role === 'system').length, 1)
+  assert.equal(calls[2].messages.length, 4)
+  assert(!JSON.stringify(calls).includes('unsaved editor draft'))
+  p.useSystemPrompt.value = false; p.newSession()
+  p.input.value = 'off again'; await p.send()
+  assert.equal(calls[3].messages.length, 1)
+  assert.equal(calls[3].messages[0].role, 'user')
+  data.ioc_prompt = 'saved custom prompt'; p.useSystemPrompt.value = true
+  await p.load(); assert.equal(p.messages.value.length, 0)
+  p.input.value = 'custom'; await p.send()
+  assert.equal(calls[4].messages[0].content, 'saved custom prompt')
   p.dispose()
 })
 test('new session cancels the old request and late events cannot repopulate the conversation', async () => {
