@@ -25,7 +25,7 @@ const activeMenuGroup = computed(() => {
   if (path === '/create_scan' || path === '/task' || path.startsWith('/task/')) return 'task'
   if (path === '/analysis' || path.startsWith('/analysis/')) return 'analysis'
   if (path === '/audit' || path === '/requests' || path.startsWith('/requests/')) return 'logs'
-  if (path === '/setting' || path.startsWith('/setting/') || path === '/admin/tags') return 'settings'
+  if (path === '/setting' || path.startsWith('/setting/') || path === '/admin/tags' || path === '/admin/intel') return 'settings'
   return null
 })
 const taskMenuOpen = ref(activeMenuGroup.value === 'task')
@@ -464,6 +464,11 @@ async function handleLogout() {
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/admin/intel">
+                    <span class="whitespace-nowrap">威胁情报</span>
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/maintenance">
                     <span class="whitespace-nowrap">系统维护</span>
                   </router-link>
@@ -581,6 +586,11 @@ async function handleLogout() {
 </template>
 
 <style scoped>
+.drawer-side {
+  /* Reserve space before expanded navigation needs its own scrollbar. */
+  scrollbar-gutter: stable;
+}
+
 .drawer-side .menu li > button.active {
   background-color: var(--color-base-300);
   color: var(--color-base-content);

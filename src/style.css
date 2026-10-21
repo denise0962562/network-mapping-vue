@@ -4,6 +4,8 @@
  }
 
 :root {
+    /* Keep the page and navbar width stable as content grows or shrinks. */
+    scrollbar-gutter: stable;
     --maintenance-label-bg: #fef3c7;
     --maintenance-label-text: #78350f;
 }

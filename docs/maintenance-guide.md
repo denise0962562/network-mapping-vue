@@ -43,6 +43,7 @@
 | `/health` | `src/views/Health.vue` | 健康告警 | 告警历史 |
 | `/admin/users` | `src/views/UserManagement.vue` | 用户管理 | 管理员用户操作 |
 | `/admin/tags` | `src/views/TagManagement.vue` | 标签管理 | 资产标签 |
+| `/admin/intel` | `src/views/ThreatIntelligence.vue` | 威胁情报 | 来源、离线上传、有效期、AI 固定审核、MITRE 与作业 |
 | `/admin/backups` | `src/views/BackupManagement.vue` | 数据备份 | pgBackRest 管理 |
 | `/setting/maintenance` | `src/views/SystemMaintenance.vue` | 系统维护 | 维护状态 |
 | `/setting/scan` | `src/views/ScanSettings.vue` | 扫描设置 | 默认扫描模式 |
@@ -83,6 +84,8 @@
 | `AppAlert.vue` | 成功、错误、警告与信息通知 |
 | `EmptyState.vue` | 空数据和首次加载失败 |
 | `AssetTags.vue` | 资产标签展示与管理 |
+| `IntelEvidence.vue` / `IntelLookup.vue` | 自动情报有效/过期证据与精确域名查询，保持人工标签独立 |
+| `threatIntel` | 来源/AI 请求字段、只写凭据、默认周期/六个月有效期和安全引用链接 |
 | `SystemDateTimeInput.vue` | 系统时区下的日期时间输入 |
 | `ScannerDiagnostics.vue` | 扫描器错误、日志采集与告警 |
 | `useUnsavedChanges` | 未保存变更的离开提示 |

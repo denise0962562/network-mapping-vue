@@ -1,5 +1,7 @@
 # Network Mapping Web 文档
 
+新增[威胁情报管理与自动标记](THREAT_INTELLIGENCE.md)：来源、周期、AI 开关与固定人工审核。
+
 [项目首页](../README.md) · [前端维护与扩展](maintenance-guide.md)
 
 Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。页面行为与前端开发在此维护，服务端配置和协议由配套服务端文档说明。

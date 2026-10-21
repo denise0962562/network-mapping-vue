@@ -29,6 +29,7 @@ const router = createRouter({
     { path: '/health', component: () => import('../views/Health.vue'), meta: { title: '健康告警' } },
     { path: '/admin/users', component: () => import('../views/UserManagement.vue'), meta: { title: '用户管理' } },
     { path: '/admin/tags', component: () => import('../views/TagManagement.vue'), meta: { title: '标签管理' } },
+    { path: '/admin/intel', component: () => import('../views/ThreatIntelligence.vue'), meta: { title: '威胁情报与自动标记' } },
     { path: '/admin/backups', component: () => import('../views/BackupManagement.vue'), meta: { title: '数据备份' } },
     { path: '/open-source', component: () => import('../views/open-source.vue'), meta: { title: '开源项目' } },
     { path: '/open-platform/:section?', component: () => import('../views/OpenPlatform.vue'), meta: { title: '开放平台' } },

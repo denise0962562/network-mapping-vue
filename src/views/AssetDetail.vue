@@ -4,6 +4,7 @@ import { computed, markRaw, onMounted, ref } from 'vue'
 import ApexMaps from 'vue-apexmaps'
 import 'apexmaps/apexmaps.css'
 import AssetTags from '../components/AssetTags.vue'
+import IntelEvidence from '../components/IntelEvidence.vue'
 import WebTechnologies from '@/components/WebTechnologies.vue'
 import OsFingerprint from '@/components/OsFingerprint.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
@@ -506,6 +507,7 @@ onMounted(() => {
               <div class="mt-1 flex flex-wrap items-center gap-2">
                 <h2 class="break-all font-mono text-2xl font-semibold">{{ summary.ip }}</h2>
                 <AssetTags :tags="assignedTags" />
+                <IntelEvidence :intel="summary.intel" label="IP 情报" />
               </div>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -593,7 +595,7 @@ onMounted(() => {
               </thead>
               <tbody>
                 <tr v-for="port in ports" :key="port.port">
-                  <td class="font-mono font-semibold">{{ port.port }}</td>
+                  <td><span class="font-mono font-semibold">{{ port.port }}</span><IntelEvidence :intel="port.intel" label="端点情报" /></td>
                   <td>
                     <div>{{ port.protocol || '-' }}<span v-if="port.service"> · {{ port.service }}</span></div>
                     <div v-if="port.service_stale" class="mt-1 text-xs text-warning">服务信息早于最近端口观察</div>
