@@ -13,13 +13,28 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark})`, {
+  const p = vm.runInNewContext(`${source}\n;({loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog})`, {
     ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v,
-    document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
+    document: { visibilityState: 'visible' }, navigator: { clipboard: { writeText: async () => {} } }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
   })
   return { ...p, dispose: () => dispose(), timers }
 }
+test('source details opens with the selected source and resets the copy status on reselection', async () => {
+  const p = page({})
+  let opened = 0
+  p.sourceDetailsDialog.value = { showModal() { opened++ } }
+  p.showSourceDetails({ id: 'first', name: 'First source' })
+  assert.equal(opened, 1)
+  assert.equal(p.sourceDetails.value.id, 'first')
+  await p.copySourceId()
+  assert.equal(p.sourceCopyMessage.value, '来源 ID 已复制。')
+  p.showSourceDetails({ id: 'second', name: 'Second source' })
+  assert.equal(opened, 2)
+  assert.equal(p.sourceDetails.value.name, 'Second source')
+  assert.equal(p.sourceCopyMessage.value, '')
+  p.dispose()
+})
 test('late responses cannot overwrite the selected tab results', async () => {
   const pending = deferred()
   const p = page({ get: url => url.endsWith('/records') ? pending.promise : Promise.resolve({ data: { data: { items: [{ id: 'article' }] } } }) })

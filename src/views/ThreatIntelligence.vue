@@ -20,6 +20,7 @@ const tab = ref('sources'), sources = ref([]), records = ref([]), articles = ref
 const reviewGroups = ref([]), reportReview = ref(null)
 const error = ref(''), notice = ref(''), loading = ref(false), busy = ref(false), total = ref(0), offset = ref(0), query = ref(''), recordStatus = ref('approved'), recordType = ref(''), attackType = ref(''), entityKind = ref('actor')
 const settings = ref({ ai_enabled: false, ai_model: '' })
+const sourceDetails = ref(null), sourceCopyMessage = ref(''), sourceDetailsDialog = ref(null)
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
 const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), uploadChecking = ref(false), importError = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)

@@ -12,7 +12,7 @@ API Key、请求头值、代理地址和固定 session 值均不回显。“已�
 
 POST SSE 使用 `llmChat.js`，沿用 `http.js` 的会话失效处理和 CSRF Cookie。SSE 解析支持任意 UTF-8 分片与 CRLF，必须收到 done 或 error；EOF 不能标记完成。
 
-原威胁情报页移除 AI 编辑表单，保留状态与入口。需与支持 `/api/llm/*` 的服务端配套部署，发布时更新服务端 `.github/frontend-ref`。
+原威胁情报页移除 AI 编辑表单，保留状态与入口。来源名称与“配置详情”仍可打开来源详情并复制来源 ID。需与支持 `/api/llm/*` 的服务端配套部署，发布时更新服务端 `.github/frontend-ref`。
 
 验证：
 
