@@ -13,7 +13,7 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http, routeQuery = {}) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog})`, {
+  const p = vm.runInNewContext(`${source}\n;({loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog,confirmDelete,deleteItem,deleteTarget,deleteDialog,managementError,editArticle,saveArticle,articleEditForm,articleEditDialog,articleEditLoading,busy})`, {
     ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v, useRoute: () => ({ query: routeQuery }),
     document: { visibilityState: 'visible' }, navigator: { clipboard: { writeText: async () => {} } }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
@@ -313,5 +313,53 @@ test('only approval submits a human attribution operation', async () => {
   assert.equal(p.settings.value.ai_model, 'current-model')
   assert.match(descriptor.template.content, /to="\/llm\/basic"/)
   assert.doesNotMatch(descriptor.template.content, /v-model="settings\.ai_/)
+  p.dispose()
+})
+
+
+test('delete requires deliberate confirmation and sends the displayed revision only once', async () => {
+  const pending = deferred(), sent = []
+  const p = page({ delete: (url, options) => { sent.push({ url, options }); return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
+  let opened = 0, closed = 0
+  p.deleteDialog.value = { showModal() { opened++ }, close() { closed++ } }
+  p.confirmDelete('sources', { id: 'source', name: '测试来源', revision: 7 })
+  assert.equal(sent.length, 0); assert.equal(opened, 1)
+  const first = p.deleteItem(); await p.deleteItem()
+  assert.equal(sent.length, 1); assert.equal(sent[0].url, '/api/intel/sources/source')
+  assert.equal(sent[0].options.data.expected_revision, 7)
+  pending.resolve({}); await first
+  assert.equal(closed, 1); assert.equal(p.deleteTarget.value, null)
+  assert.match(p.notice.value, /来源已删除/)
+  p.dispose()
+})
+test('delete conflicts keep the confirmation visible with an actionable error', async () => {
+  const p = page({ delete: async () => { throw { response: { data: { code: 'intel_revision_conflict' } } } } })
+  p.confirmDelete('articles', { id: 'article', title: '报告', revision: 3 })
+  await p.deleteItem()
+  assert.equal(p.deleteTarget.value.id, 'article'); assert.match(p.managementError.value, /刷新/)
+  assert.equal(p.busy.value, false)
+  p.dispose()
+})
+test('article edit loads the snapshot and submits both revisions without display-only fields', async () => {
+  const calls = []
+  const p = page({ get: async url => ({ data: { data: url.endsWith('/article') ? { revision: 4, title: ' 原标题 ', url: 'https://research.example/report', body: 'Saved evidence body' } : { items: [] } } }), put: async (url, body) => { calls.push({ url, body }) } })
+  await p.editArticle({ id: 'article', source_id: 'source', source_name: '来源', current_source_revision: 8 })
+  assert.equal(p.articleEditForm.value.body, 'Saved evidence body')
+  p.articleEditForm.value.title = ' 修改标题 '
+  await p.saveArticle()
+  assert.equal(calls[0].url, '/api/intel/articles/article')
+  assert.equal(calls[0].body.expected_article_revision, 4); assert.equal(calls[0].body.expected_revision, 8)
+  assert.equal(calls[0].body.title, '修改标题'); assert.equal(calls[0].body.source_name, undefined)
+  assert.equal(p.articleEditForm.value, null); assert.match(p.notice.value, /新快照/)
+  p.dispose()
+})
+test('failed article saves preserve the draft and late loads cannot replace a newer selection', async () => {
+  const pending = deferred()
+  const p = page({ get: url => url.endsWith('/old') ? pending.promise : Promise.resolve({ data: { data: { revision: 1, title: 'new', url: 'https://research.example/new', body: 'new body' } } }), put: async () => { throw { response: { data: { code: 'intel_revision_conflict' } } } } })
+  const first = p.editArticle({ id: 'old' }); await p.editArticle({ id: 'new' })
+  pending.resolve({ data: { data: { title: 'old' } } }); await first
+  assert.equal(p.articleEditForm.value.id, 'new')
+  await p.saveArticle()
+  assert.equal(p.articleEditForm.value.title, 'new'); assert.match(p.managementError.value, /刷新/)
   p.dispose()
 })

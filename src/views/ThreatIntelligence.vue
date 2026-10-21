@@ -22,6 +22,9 @@ const reviewGroups = ref([])
 const error = ref(''), notice = ref(''), loading = ref(false), busy = ref(false), total = ref(0), offset = ref(0), query = ref(''), recordStatus = ref('approved'), recordType = ref(''), attackType = ref(''), entityKind = ref('actor')
 const settings = ref({ ai_enabled: false, ai_model: '' })
 const sourceDetails = ref(null), sourceCopyMessage = ref(''), sourceDetailsDialog = ref(null)
+const deleteDialog = ref(null), deleteTarget = ref(null), managementError = ref('')
+const articleEditDialog = ref(null), articleEditForm = ref(null), articleEditLoading = ref(false)
+let articleEditVersion = 0
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
 const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), uploadChecking = ref(false), importError = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
@@ -103,6 +106,7 @@ async function uploadImport() {
   } catch (e) { if (!disposed) importError.value = e.code === 'ERR_CANCELED' ? '已取消上传等待，可在同步作业中确认是否已接收。' : intelError(e) } finally { busy.value = false; uploadChecking.value = false; uploadController = null }
 }
 async function saveSource() {
+  if (busy.value) return
   busy.value = true; error.value = ''; notice.value = ''
   try {
     const payload = sourcePayload(sourceForm.value, hostsText.value)
@@ -110,6 +114,48 @@ async function saveSource() {
     else await http.post('/api/intel/sources', payload)
     sourceDialog.value?.close(); clearSourceCredential(); await loadSources(); notice.value = payload.transport === 'manual' ? '文章来源已保存，请在文章页提交链接或正文快照。所有 AI 提议固定人工审核。' : payload.transport === 'upload' || payload.kind === 'threatfox_export' ? '离线来源已保存，请手动上传文件或从本地导入。' : '来源已保存，将按检查周期更新；AI 提议的人工审核规则不受来源设置影响。'
   } catch (e) { fail(e) } finally { busy.value = false }
+}
+function confirmDelete(kind, row) {
+  if (busy.value) return
+  deleteTarget.value = { kind, id: row.id, revision: row.revision, name: row.name || row.title || row.url }
+  managementError.value = ''; deleteDialog.value?.showModal()
+}
+async function deleteItem() {
+  if (!deleteTarget.value || busy.value) return
+  const target = { ...deleteTarget.value }
+  busy.value = true; managementError.value = ''; error.value = ''; notice.value = ''
+  try {
+    await http.delete(`/api/intel/${target.kind}/${target.id}`, { data: { expected_revision: target.revision }, signal: requests.signal })
+    if (disposed) return
+    deleteDialog.value?.close(); deleteTarget.value = null
+    notice.value = target.kind === 'sources' ? '来源已删除，后台任务已停止，关联情报不再参与标记。' : '文章已删除，仅由此文章支持的情报不再参与标记。'
+    try { await loadSources() } catch (e) { fail(e) }
+    await refresh()
+  } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') managementError.value = intelError(e) } finally { busy.value = false }
+}
+async function editArticle(row) {
+  if (busy.value) return
+  const version = ++articleEditVersion
+  articleEditForm.value = null; articleEditLoading.value = true; managementError.value = ''; articleEditDialog.value?.showModal()
+  try {
+    const response = await http.get(`/api/intel/articles/${row.id}`, { signal: requests.signal })
+    if (disposed || version !== articleEditVersion) return
+    const detail = response.data.data
+    articleEditForm.value = { id: row.id, source_id: row.source_id, source_name: row.source_name, expected_revision: row.current_source_revision, expected_article_revision: detail.revision, title: detail.title, url: detail.url, body: detail.body || '' }
+  } catch (e) { if (version === articleEditVersion && !disposed && e.code !== 'ERR_CANCELED') managementError.value = intelError(e) }
+  finally { if (version === articleEditVersion) articleEditLoading.value = false }
+}
+async function saveArticle() {
+  if (!articleEditForm.value || busy.value || articleEditLoading.value) return
+  const { id, source_name, ...form } = articleEditForm.value
+  busy.value = true; managementError.value = ''; error.value = ''; notice.value = ''
+  try {
+    await http.put(`/api/intel/articles/${id}`, { ...form, title: form.title.trim(), url: form.url.trim(), body: form.body.trim() || null }, { signal: requests.signal })
+    if (disposed) return
+    articleEditDialog.value?.close(); articleEditForm.value = null
+    notice.value = '文章已修改并生成新快照，已重新排队；提取结果须人工审核，历史快照与审核记录保留。'
+    await refresh()
+  } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') managementError.value = intelError(e) } finally { busy.value = false }
 }
 async function sync(source) {
   busy.value = true; error.value = ''
@@ -164,7 +210,7 @@ async function poll() {
   if (!disposed) timer = setTimeout(poll, 5000)
 }
 onMounted(async () => { try { await Promise.all([loadSettings(), loadSources()]); await refresh() } catch (e) { fail(e) } if (!disposed) timer = setTimeout(poll, 5000) })
-onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; clearSourceCredential(); importFile.value = null; uploadController?.abort(); requests.abort(); clearTimeout(timer) })
+onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; articleEditVersion++; clearSourceCredential(); importFile.value = null; uploadController?.abort(); requests.abort(); clearTimeout(timer) })
 </script>
 
 <template>
@@ -191,7 +237,7 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; clearSo
     <IntelArticleForm v-if="tab === 'articles'" :sources="sources" @saved="refresh" />
     <div class="card border border-base-300 bg-base-100 overflow-x-auto">
       <table v-if="tab === 'sources'" class="table table-sm"><thead><tr><th>来源</th><th>位置与格式</th><th>接纳策略</th><th>检查周期</th><th>最近作业</th><th>操作</th></tr></thead><tbody>
-        <tr v-for="s in sources" :key="s.id"><td><button type="button" class="link link-hover text-left font-semibold" @click="showSourceDetails(s)">{{ s.name }}</button><p class="text-xs opacity-60"><IntelStatusText :text="s.enabled ? '已启用' : '已停用'" /></p></td><td><p>{{ sourceKinds[s.kind] }} · {{ s.transport === 'manual' ? '手动文章' : s.transport === 'upload' ? '离线上传' : s.transport === 'local' ? '本地文件' : '远程 HTTPS' }}</p><p class="mt-1 max-w-md break-all text-xs opacity-60">{{ s.location }}</p><p v-if="s.auth_env || s.credential_configured" class="text-xs">凭据 {{ s.credential_source === 'database' ? '数据库加密存储' : s.credential_configured ? '环境变量' : '未配置' }}</p></td><td>{{ ['rss','article'].includes(s.kind) ? 'AI 固定人工审核' : s.kind === 'mitre_stix' ? '规范化基准库' : s.require_review ? '人工审核后接纳' : '可信 IOC 直接接纳' }}</td><td>{{ s.transport === 'manual' ? '手动提交，不周期抓取' : s.transport === 'upload' || s.kind === 'threatfox_export' ? '手动导入，不定时拉取' : `${s.interval_seconds} 秒` }}<p class="text-xs opacity-60">有效期 {{ s.expiry_months ? `${s.expiry_months} 个月` : '不设置本地期限' }}</p><p v-if="s.import_status" class="text-xs"><IntelStatusText :text="`${states[s.import_status.stage]} · ${s.import_status.processed}/${s.import_status.total}`" /></p></td><td><IntelStatusText :text="states[s.last_run?.status] || '尚未同步'" /><p v-if="s.last_run?.error_code" class="max-w-xs text-xs text-error">{{ intelError(s.last_run.error_code) }}</p><IntelValidation :report="(s.import_status?.stage !== 'cancelled' && s.import_status?.validation) || s.last_run?.summary?.validation" /></td><td><div class="flex flex-wrap gap-2"><button type="button" class="btn btn-ghost btn-xs" @click="showSourceDetails(s)">配置详情</button><button class="btn btn-ghost btn-xs" @click="editSource(s)">编辑</button><button v-if="s.transport === 'upload'" class="btn btn-neutral btn-xs" :disabled="busy || !s.enabled" @click="openImport(s)">上传文件</button><button v-if="s.transport !== 'manual' && (s.transport !== 'upload' || ['downloaded','ready','paused'].includes(s.import_status?.stage))" class="btn btn-outline btn-xs" :disabled="busy || !s.enabled" @click="sync(s)">{{ s.transport === 'upload' ? '继续导入' : '立即同步' }}</button></div></td></tr>
+        <tr v-for="s in sources" :key="s.id"><td><button type="button" class="link link-hover text-left font-semibold" @click="showSourceDetails(s)">{{ s.name }}</button><p class="text-xs opacity-60"><IntelStatusText :text="s.enabled ? '已启用' : '已停用'" /></p></td><td><p>{{ sourceKinds[s.kind] }} · {{ s.transport === 'manual' ? '手动文章' : s.transport === 'upload' ? '离线上传' : s.transport === 'local' ? '本地文件' : '远程 HTTPS' }}</p><p class="mt-1 max-w-md break-all text-xs opacity-60">{{ s.location }}</p><p v-if="s.auth_env || s.credential_configured" class="text-xs">凭据 {{ s.credential_source === 'database' ? '数据库加密存储' : s.credential_configured ? '环境变量' : '未配置' }}</p></td><td>{{ ['rss','article'].includes(s.kind) ? 'AI 固定人工审核' : s.kind === 'mitre_stix' ? '规范化基准库' : s.require_review ? '人工审核后接纳' : '可信 IOC 直接接纳' }}</td><td>{{ s.transport === 'manual' ? '手动提交，不周期抓取' : s.transport === 'upload' || s.kind === 'threatfox_export' ? '手动导入，不定时拉取' : `${s.interval_seconds} 秒` }}<p class="text-xs opacity-60">有效期 {{ s.expiry_months ? `${s.expiry_months} 个月` : '不设置本地期限' }}</p><p v-if="s.import_status" class="text-xs"><IntelStatusText :text="`${states[s.import_status.stage]} · ${s.import_status.processed}/${s.import_status.total}`" /></p></td><td><IntelStatusText :text="states[s.last_run?.status] || '尚未同步'" /><p v-if="s.last_run?.error_code" class="max-w-xs text-xs text-error">{{ intelError(s.last_run.error_code) }}</p><IntelValidation :report="(s.import_status?.stage !== 'cancelled' && s.import_status?.validation) || s.last_run?.summary?.validation" /></td><td><div class="flex flex-wrap gap-2"><button type="button" class="btn btn-ghost btn-xs" @click="showSourceDetails(s)">配置详情</button><button class="btn btn-ghost btn-xs" :disabled="busy" @click="editSource(s)">编辑</button><button type="button" class="btn btn-ghost btn-xs text-error" :disabled="busy" @click="confirmDelete('sources', s)">删除</button><button v-if="s.transport === 'upload'" class="btn btn-neutral btn-xs" :disabled="busy || !s.enabled" @click="openImport(s)">上传文件</button><button v-if="s.transport !== 'manual' && (s.transport !== 'upload' || ['downloaded','ready','paused'].includes(s.import_status?.stage))" class="btn btn-outline btn-xs" :disabled="busy || !s.enabled" @click="sync(s)">{{ s.transport === 'upload' ? '继续导入' : '立即同步' }}</button></div></td></tr>
         <tr v-if="!sources.length"><td colspan="6" class="py-8 text-center opacity-60">暂无来源。</td></tr>
       </tbody></table>
       <table v-else-if="tab === 'review'" class="table table-sm"><thead><tr><th>报告 / IOC</th><th>来源</th><th>待审 IOC</th><th>操作</th></tr></thead><tbody><tr v-for="group in reviewGroups" :key="group.id"><td><p class="max-w-lg break-words font-semibold">{{ group.article_id ? group.title || '文章报告' : group.record.value }}</p><p v-if="group.article_id" class="mt-1 max-w-lg break-all text-xs opacity-60">{{ group.url }}</p></td><td>{{ group.record.source_name }}<p class="text-xs opacity-60">{{ originLabel(group.record) }}</p></td><td>{{ group.pending_count }} 条</td><td><router-link v-if="group.article_id" :to="{ name: 'intel-report-review', params: { articleId: group.article_id }, query: { from: 'review' } }" class="btn btn-neutral btn-xs">审核报告</router-link><button v-else type="button" class="btn btn-neutral btn-xs" @click="openReview(group.record)">审核</button></td></tr><tr v-if="!reviewGroups.length"><td colspan="4" class="py-8 text-center opacity-60">暂无待审提议。</td></tr></tbody></table>
@@ -199,13 +245,38 @@ onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; clearSo
         <tr v-for="r in records" :key="r.id"><td><span class="badge badge-outline badge-xs">{{ r.type }}</span><p class="mt-1 max-w-xs break-all font-mono">{{ r.value }}</p><span class="badge badge-xs transition-colors duration-200 motion-reduce:transition-none" :class="r.payload.verdict === 'malicious' ? 'badge-error' : 'badge-warning'"><IntelStatusText :text="r.payload.verdict === 'malicious' ? '恶意' : '可疑'" /></span></td><td>{{ r.source_name }}<p class="text-xs opacity-60">{{ originLabel(r) }}</p></td><td class="max-w-md"><p v-if="r.payload.actor_name">组织原名：{{ r.payload.actor_name }} <span v-if="r.actor_id">（{{ r.actor_id }}）</span></p><p v-if="r.payload.malware">软件：{{ r.payload.malware }}</p><p v-if="r.payload.confidence != null">来源置信度：{{ r.payload.confidence }}</p><p v-if="r.payload.evidence" class="mt-1 line-clamp-3 break-words text-xs opacity-70">{{ r.payload.evidence }}</p></td><td><IntelStatusText :text="states[r.status]" /><p v-if="r.valid_until" class="text-xs">有效至 {{ formatDateTime(r.valid_until) }}</p></td><td><button v-if="r.status === 'pending'" class="btn btn-neutral btn-xs" @click="openReview(r)">审核</button><button v-else-if="['approved','expired'].includes(r.status)" class="btn btn-outline btn-xs" @click="openReview(r, 'revoked')">证据 / 撤销</button></td></tr>
         <tr v-if="!records.length"><td colspan="5" class="py-8 text-center opacity-60">{{ tab === 'review' ? '暂无待审提议。AI 关闭时不会产生新的 AI 提议。' : '暂无匹配记录。' }}</td></tr>
       </tbody></table>
-      <table v-else-if="tab === 'articles'" class="table table-sm"><thead><tr><th>文章</th><th>来源</th><th>提取状态</th><th>操作</th></tr></thead><tbody><tr v-for="r in articles" :key="r.id"><td><a v-if="safeReference(r.url)" :href="safeReference(r.url)" target="_blank" rel="noopener noreferrer" class="link">{{ r.title || r.url }}</a><p class="text-xs opacity-60">{{ formatDateTime(r.created_at) }}</p></td><td>{{ r.source_name }}<p class="text-xs opacity-60">{{ articleIntakeLabel(r.extraction_metadata) }}</p></td><td><IntelStatusText :text="articleStatusLabel(r)" /><p v-if="r.extraction_metadata?.result" class="mt-1 text-xs opacity-65">本次有效 IOC {{ r.extraction_metadata.result.parsed }} 条，新增提议 {{ r.extraction_metadata.result.inserted }} 条<span v-if="r.extraction_metadata.result.validation?.rejected">；{{ r.extraction_metadata.result.validation.rejected }} 条因原文证据不符未保留</span>。</p><IntelArticleValidation :report="r.extraction_metadata?.result?.validation || r.extraction_metadata?.last_error?.validation" /><IntelArticleDiagnostics v-if="r.extraction_metadata?.ai_usage" kind="usage" :diagnostic="r.extraction_metadata.ai_usage" :article-id="r.id" /><p v-if="r.error_code" class="text-xs text-error">{{ intelError(r.error_code) }}</p><IntelArticleDiagnostics v-if="r.error_code" :diagnostic="r.extraction_metadata?.last_error" :article-id="r.id" /></td><td><IntelArticleSnapshot :article="r" /><button v-if="['failed','cancelled','proposed','succeeded'].includes(r.status)" class="btn btn-xs" :disabled="busy || !settings.ai_enabled" @click="retryArticle(r)">{{ ['proposed','succeeded'].includes(r.status) ? '重新提取' : '重试提取' }}</button><router-link v-if="r.pending_count > 0" :to="{ name: 'intel-report-review', params: { articleId: r.id }, query: { from: 'articles' } }" class="btn btn-neutral btn-xs ml-1">审核报告</router-link></td></tr><tr v-if="!articles.length"><td colspan="4" class="py-8 text-center opacity-60">暂无文章。</td></tr></tbody></table>
+      <table v-else-if="tab === 'articles'" class="table table-sm"><thead><tr><th>文章</th><th>来源</th><th>提取状态</th><th>操作</th></tr></thead><tbody><tr v-for="r in articles" :key="r.id"><td><a v-if="safeReference(r.url)" :href="safeReference(r.url)" target="_blank" rel="noopener noreferrer" class="link">{{ r.title || r.url }}</a><p class="text-xs opacity-60">{{ formatDateTime(r.created_at) }}</p></td><td>{{ r.source_name }}<p class="text-xs opacity-60">{{ articleIntakeLabel(r.extraction_metadata) }}</p></td><td><IntelStatusText :text="articleStatusLabel(r)" /><p v-if="r.extraction_metadata?.result" class="mt-1 text-xs opacity-65">本次有效 IOC {{ r.extraction_metadata.result.parsed }} 条，新增提议 {{ r.extraction_metadata.result.inserted }} 条<span v-if="r.extraction_metadata.result.validation?.rejected">；{{ r.extraction_metadata.result.validation.rejected }} 条因原文证据不符未保留</span>。</p><IntelArticleValidation :report="r.extraction_metadata?.result?.validation || r.extraction_metadata?.last_error?.validation" /><IntelArticleDiagnostics v-if="r.extraction_metadata?.ai_usage" kind="usage" :diagnostic="r.extraction_metadata.ai_usage" :article-id="r.id" /><p v-if="r.error_code" class="text-xs text-error">{{ intelError(r.error_code) }}</p><IntelArticleDiagnostics v-if="r.error_code" :diagnostic="r.extraction_metadata?.last_error" :article-id="r.id" /></td><td><IntelArticleSnapshot :article="r" /><button type="button" class="btn btn-ghost btn-xs" :disabled="busy" @click="editArticle(r)">编辑</button><button type="button" class="btn btn-ghost btn-xs text-error" :disabled="busy" @click="confirmDelete('articles', r)">删除</button><button v-if="['failed','cancelled','proposed','succeeded'].includes(r.status)" class="btn btn-xs" :disabled="busy || !settings.ai_enabled" @click="retryArticle(r)">{{ ['proposed','succeeded'].includes(r.status) ? '重新提取' : '重试提取' }}</button><router-link v-if="r.pending_count > 0" :to="{ name: 'intel-report-review', params: { articleId: r.id }, query: { from: 'articles' } }" class="btn btn-neutral btn-xs ml-1">审核报告</router-link></td></tr><tr v-if="!articles.length"><td colspan="4" class="py-8 text-center opacity-60">暂无文章。</td></tr></tbody></table>
       <table v-else-if="tab === 'entities'" class="table table-sm"><thead><tr><th>ATT&amp;CK ID</th><th>标准名称</th><th>关联名称</th><th>状态</th></tr></thead><tbody><tr v-for="r in entities" :key="r.attack_id"><td><button type="button" class="link font-mono" @click="showEntity(r)">{{ r.attack_id }}</button></td><td>{{ r.name }}</td><td class="max-w-lg">{{ r.aliases.join('、') || '—' }}<p class="text-xs opacity-60">关联名称可能仅部分重叠，不自动作为等价别名。</p></td><td><IntelStatusText :text="r.active ? '有效' : '已撤销 / 弃用'" /></td></tr><tr v-if="!entities.length"><td colspan="4" class="py-8 text-center opacity-60">暂无结果；首次使用请先同步 MITRE 来源。</td></tr></tbody></table>
       <div v-else-if="tab === 'mappings'" class="p-4 space-y-5"><div><h2 class="font-semibold">未映射组织与软件名称</h2><p class="mt-1 text-sm opacity-65">组织可对应到有效 MITRE 或人工创建的本地条目；软件仍使用 MITRE 基准库。未映射名称不会自动创建实体。</p><div v-for="r in mappings.unmapped" :key="`${r.source_id}:${r.kind}:${r.name}`" class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 py-3"><span>{{ r.kind === 'software' ? '软件 / 家族' : '组织' }} · {{ r.name }} · {{ r.source_name }} · {{ r.count }} 条</span><button class="btn btn-outline btn-xs" @click="openMapping(r)">核对对应关系</button></div><p v-if="!mappings.unmapped.length" class="py-4 text-sm opacity-60">暂无未映射名称。</p></div><div><h2 class="font-semibold">已确认的来源名称映射</h2><div v-for="r in mappings.mappings" :key="r.id" class="flex items-center justify-between gap-3 py-2 text-sm"><span>{{ r.name }} → {{ r.canonical_name }}（{{ r.attack_id }}）</span><button type="button" class="btn btn-ghost btn-xs" :disabled="busy" @click="deleteMapping(r)">撤销映射</button></div></div></div>
       <table v-else-if="tab === 'jobs'" class="table table-sm"><thead><tr><th>来源</th><th>时间</th><th>状态</th><th>结果</th></tr></thead><tbody><tr v-for="r in jobs" :key="r.id"><td>{{ r.source_name }}</td><td>{{ formatDateTime(r.created_at) }}</td><td><IntelStatusText :text="states[r.status]" /></td><td><p v-if="r.error_code" class="text-error">{{ intelError(r.error_code) }}</p><code class="text-xs break-all">{{ JSON.stringify(r.summary) }}</code><IntelValidation :report="r.summary?.validation" /></td></tr><tr v-if="!jobs.length"><td colspan="4" class="py-8 text-center opacity-60">暂无作业。</td></tr></tbody></table>
     </div>
     <div v-if="['records','review'].includes(tab) && (total > 50 || offset)" class="flex justify-end items-center gap-3 text-sm"><span>共 {{ total }} 条</span><button class="btn btn-sm" :disabled="loading || offset === 0" @click="offset = Math.max(0, offset - 50); refresh()">上一页</button><button class="btn btn-sm" :disabled="loading || offset + 50 >= total" @click="offset += 50; refresh()">下一页</button></div>
 
+    <dialog ref="deleteDialog" class="modal" @cancel="busy && $event.preventDefault()">
+      <div class="modal-box">
+        <h3 class="text-lg font-semibold">删除{{ deleteTarget?.kind === 'sources' ? '来源' : '文章' }}</h3>
+        <p class="mt-4 break-words">确认删除“{{ deleteTarget?.name }}”？</p>
+        <p class="mt-3 text-sm opacity-70">{{ deleteTarget?.kind === 'sources' ? '此来源将停止同步，关联文章将从列表移除，关联情报不再参与资产标记。' : '此文章将停止提取，仅由此文章支持的情报不再参与资产标记。' }}历史证据和审核记录保留供追溯。</p>
+        <p v-if="managementError" role="alert" class="mt-3 text-error">{{ managementError }}</p>
+        <div class="modal-action"><button type="button" class="btn btn-ghost" :disabled="busy" @click="deleteDialog?.close()">取消</button><button type="button" class="btn btn-error" :disabled="busy" @click="deleteItem">{{ busy ? '正在删除…' : '确认删除' }}</button></div>
+      </div>
+    </dialog>
+    <dialog ref="articleEditDialog" class="modal" @cancel="busy && $event.preventDefault()">
+      <div class="modal-box max-w-3xl">
+        <h3 class="text-lg font-semibold">编辑文章</h3>
+        <p class="my-3 text-sm opacity-65">保存后生成新快照并重新提取，结果须人工审核。原快照保留供追溯，其独有情报将停止参与标记。</p>
+        <p v-if="managementError" role="alert" class="my-3 text-error">{{ managementError }}</p>
+        <p v-if="articleEditLoading" role="status" class="py-8 text-center opacity-60">正在加载文章…</p>
+        <form v-if="articleEditForm" class="space-y-3" @submit.prevent="saveArticle">
+          <p class="text-sm">来源：{{ articleEditForm.source_name }}</p>
+          <label class="form-control block text-sm">标题<input v-model="articleEditForm.title" class="input input-bordered mt-1 w-full" maxlength="500" required :disabled="busy" /></label>
+          <label class="form-control block text-sm">原文 HTTPS 地址<input v-model="articleEditForm.url" type="url" class="input input-bordered mt-1 w-full" maxlength="4096" required :disabled="busy" /></label>
+          <label class="form-control block text-sm">正文快照（纯文本；留空重新抓取）<textarea v-model="articleEditForm.body" class="textarea textarea-bordered mt-1 w-full" rows="10" maxlength="100000" :disabled="busy"></textarea></label>
+          <div class="modal-action"><button type="button" class="btn btn-ghost" :disabled="busy" @click="articleEditDialog?.close()">取消</button><button class="btn btn-neutral" :disabled="busy">{{ busy ? '正在保存…' : '保存并重新提取' }}</button></div>
+        </form>
+        <div v-else class="modal-action"><button type="button" class="btn btn-ghost" @click="articleEditDialog?.close()">关闭</button></div>
+      </div>
+    </dialog>
     <dialog ref="importDialog" class="modal" @cancel="busy && $event.preventDefault()" @close="importFile = null">
       <form class="modal-box space-y-4" @submit.prevent="uploadImport">
         <h2 class="text-lg font-semibold">上传离线历史文件</h2>
