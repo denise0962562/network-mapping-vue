@@ -94,7 +94,7 @@ const errors = {
   intel_invalid_hash: '哈希长度或十六进制格式不符合声明的类型。',
   intel_invalid_indicator: '记录的字段类型、长度、置信度或必填内容无效。',
   intel_unsupported_indicator_type: '当前不支持该 IOC 类型，原始类型已保留在异常摘要中。',
-  intel_ai_evidence_not_found: 'AI 输出缺少可定位的 IOC 原文证据，未纳入有效库。',
+  intel_ai_evidence_not_found: 'AI 提议未通过原文证据校验，请查看具体原因；未纳入有效库。',
   intel_unknown_actor: '请选择基准库中类型匹配的有效 MITRE 实体。',
   intel_private_address_forbidden: '远程抓取不能访问私网或本机地址。',
   intel_ai_protocol_mismatch: '接口地址与所选协议不匹配，请核对 Chat Completions 或 Responses 路径。',
@@ -141,6 +141,7 @@ const extractionStages = {
   indicator_store: '保存 IOC 提议',
 }
 const diagnosticFields = {
+  expected_context_block_id: '预期上下文标题块', correction_method: '证据纠正方式',
   context_block_id: '上下文正文块', ioc_block_id: 'IOC 正文块', ioc_scope_block_id: 'IOC 所属标题块', context_block_kind: '上下文块类型', ioc_block_kind: 'IOC 块类型',
   provider_error_category: '提供方错误分类', provider_error_code: '提供方错误代码', provider_error_type: '提供方错误类型', provider_trace_id: '提供方跟踪 ID', error_body_sample_bytes: '错误响应采样字节数', error_body_complete: '错误响应是否完整读取', error_body_read_failed: '错误响应读取失败',
   endpoint_format: '接口地址格式', ai_protocol: 'AI 协议', max_output_tokens: '输出预算（token）', reasoning_effort: '推理强度', prompt_version: '提示词版本', request_bytes: '请求 JSON 字节数', system_prompt_bytes: '系统提示词字节数', report_blocks_bytes: '正文块 JSON 字节数', report_block_count: '正文块数', actor_candidate_count: '发送的组织候选数', input_tokens: '输入 token', output_tokens: '输出 token（含推理）', reasoning_tokens: '推理 token', cached_input_tokens: '缓存输入 token', total_tokens: '总 token',
@@ -162,10 +163,14 @@ const evidenceReasons = {
   evidence_block_not_found: '引用的正文块不存在',
   ioc_not_in_evidence: '引用未包含该 IOC 的完整值',
   evidence_context_scope_mismatch: '上下文与 IOC 不属于同一列表范围',
+  evidence_context_record_field_unsupported: '上下文字段不能支持该 IOC 的恶意结论',
+  evidence_context_record_heading_required: '应引用该 IOC 所属记录的标题',
+  evidence_context_record_mismatch: '上下文属于另一条资产记录',
   evidence_context_missing: '只有 IOC 值，缺少支持其角色的上下文',
   evidence_too_short: '历史规则判定引用过短',
 }
 const diagnosticValueLabels = {
+  correction_method: { record_heading: '根据所属记录标题重新定位' },
   context_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },
   ioc_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },
   provider_error_category: { model_unavailable: '模型或上游模型路由不可用', endpoint_not_found: '提供方报告接口路由不存在', authentication: '认证失败', quota: '额度不足', permission: '账号权限不足', unsupported_parameter: '请求参数不受支持', json_mode_prompt_missing: 'JSON 模式要求提示词明确包含 JSON 字样', unclassified: '无法从安全分类确定原因' },

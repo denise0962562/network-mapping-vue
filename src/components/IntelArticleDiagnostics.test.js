@@ -29,5 +29,10 @@ test('article failure details show stage and correlation ID, escape text, and ex
     assert.match(invalidJson, /JSON 错误行/)
     assert.match(invalidJson, /语法错误/)
     assert.doesNotMatch(invalidJson, /private-response/)
+    const evidence = await render({ reason: 'evidence_context_record_heading_required', expected_context_block_id: 29, correction_method: 'record_heading', raw: 'private-evidence' })
+    assert.match(evidence, /应引用该 IOC 所属记录的标题/)
+    assert.match(evidence, /预期上下文标题块/)
+    assert.match(evidence, /根据所属记录标题重新定位/)
+    assert.doesNotMatch(evidence, /private-evidence/)
   } finally { await server.close() }
 })

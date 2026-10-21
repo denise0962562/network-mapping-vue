@@ -27,5 +27,23 @@ test('verified evidence renders separate quotes and rejection summaries expose o
     assert.match(details, /不属于同一列表范围/)
     assert.match(details, /展示 2 条拒绝样本/)
     assert.doesNotMatch(details, /PRIVATE_AI_VALUE/)
+    const corrected = await renderToString(createSSRApp(validation, { report: {
+      direct_accepted: 2, corrected: 46, rejected: 1,
+      correction_samples: [{ record: 1, reason: 'evidence_context_record_field_unsupported', expected_context_block_id: 29, raw: 'PRIVATE_CORRECTION_VALUE' }],
+      rejection_samples: [{ record: 49, reason: 'evidence_context_record_mismatch', context_block_id: 29, ioc_block_id: 35, ioc_scope_block_id: 34 }],
+    } }))
+    assert.match(corrected, /已纠正 46 条/)
+    assert.match(corrected, /直接通过 2 条，纠正后通过 46 条，未保留 1 条/)
+    assert.match(corrected, /上下文字段不能支持/)
+    assert.match(corrected, /另一条资产记录/)
+    assert.match(corrected, /标题块 29/)
+    assert.match(corrected, /展示 1 条纠正样本/)
+    assert.match(corrected, /不代表已完成人工审核/)
+    assert.doesNotMatch(corrected, /PRIVATE_CORRECTION_VALUE/)
+    const recovered = await renderToString(createSSRApp(validation, { report: { corrected: 46, direct_accepted: 0, rejected: 0 } }))
+    assert.match(recovered, /已纠正 46 条/)
+    assert.match(recovered, /0 条未保留/)
+    const noReport = await renderToString(createSSRApp(validation, { report: null }))
+    assert.doesNotMatch(noReport, /证据校验详情/)
   } finally { await server.close() }
 })
