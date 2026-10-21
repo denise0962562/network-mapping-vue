@@ -1,6 +1,6 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ChevronDown, Copy } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Copy } from '@lucide/vue'
 import http from '../utils/http'
 import { formatDateTime } from '../utils/systemTime'
 import IntelReportReview from '../components/IntelReportReview.vue'
@@ -14,22 +14,12 @@ import IntelValidation from '../components/IntelValidation.vue'
 import IntelArticleForm from '../components/IntelArticleForm.vue'
 import IntelRefreshButton from '../components/IntelRefreshButton.vue'
 import IntelStatusText from '../components/IntelStatusText.vue'
-import { evidenceExcerpt, sourceKinds, defaultIntervals, states, attackTypes, attackLabel, roleLabel, articleStatusLabel, articleIntakeLabel, intelError, newSource, sourcePayload, settingsPayload, originLabel, safeReference } from '../utils/threatIntel'
+import { evidenceExcerpt, sourceKinds, defaultIntervals, states, attackTypes, attackLabel, roleLabel, articleStatusLabel, articleIntakeLabel, intelError, newSource, sourcePayload, originLabel, safeReference } from '../utils/threatIntel'
 const tabs = { sources: '来源', records: 'IOC 库', review: '审核', articles: '文章', entities: '组织与基准库', mappings: '名称映射', jobs: '同步作业' }
 const tab = ref('sources'), sources = ref([]), records = ref([]), articles = ref([]), entities = ref([]), jobs = ref([]), mappings = ref({ unmapped: [], mappings: [] })
 const reviewGroups = ref([]), reportReview = ref(null)
 const error = ref(''), notice = ref(''), loading = ref(false), busy = ref(false), total = ref(0), offset = ref(0), query = ref(''), recordStatus = ref('approved'), recordType = ref(''), attackType = ref(''), entityKind = ref('actor')
-const settings = ref({ ai_enabled: false, ai_endpoint: 'https://api.openai.com/v1/chat/completions', ai_model: '', ai_key_env: 'NM_INTEL_AI_API_KEY', ai_timeout_seconds: 180, ai_protocol: 'chat', ai_max_output_tokens: 65536, ai_reasoning_effort: 'none', credential: '', clear_credential: false })
-const aiExpanded = ref(false)
-const stopAiExpansionWatch = watch(() => settings.value.ai_enabled, enabled => { aiExpanded.value = Boolean(enabled) }, { immediate: true, flush: 'sync' })
-function showAiValidation(event) {
-  if (aiExpanded.value) return
-  event.preventDefault()
-  aiExpanded.value = true
-  nextTick(() => { if (!disposed) event.target.reportValidity() })
-}
-const settingsRevision = ref(0), aiCredential = ref(false), aiDatabaseCredential = ref(false), aiCredentialSource = ref('none')
-const sourceDetailsDialog = ref(null), sourceDetails = ref(null), sourceCopyMessage = ref('')
+const settings = ref({ ai_enabled: false, ai_model: '' })
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
 const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), uploadChecking = ref(false), importError = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
@@ -53,7 +43,7 @@ const requests = new AbortController()
 let timer, uploadController, disposed = false, tabVersion = 0, articleVersion = 0, candidateVersion = 0, entityVersion = 0
 function fail(e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = intelError(e) }
 async function loadSources() { const r = await http.get('/api/intel/sources', { signal: requests.signal }); if (!disposed) sources.value = r.data.data.items }
-async function loadSettings() { const r = await http.get('/api/intel/settings', { signal: requests.signal }); if (!disposed) { settings.value = { ai_timeout_seconds: 180, ai_protocol: 'chat', ai_max_output_tokens: 65536, ai_reasoning_effort: 'none', ...r.data.data.settings, credential: '', clear_credential: false }; settingsRevision.value = r.data.data.revision; aiCredential.value = r.data.data.credential_configured; aiDatabaseCredential.value = r.data.data.database_credential_configured; aiCredentialSource.value = r.data.data.credential_source } }
+async function loadSettings() { const r = await http.get('/api/intel/settings', { signal: requests.signal }); if (!disposed) settings.value = r.data.data.settings }
 async function refresh() {
   const version = ++tabVersion, current = tab.value
   loading.value = true; error.value = ''
@@ -74,10 +64,6 @@ async function refresh() {
   } catch (e) { if (version === tabVersion) fail(e) } finally { if (version === tabVersion) loading.value = false }
 }
 function changeTab(value) { tab.value = value; query.value = ''; offset.value = 0; refresh() }
-async function saveSettings() {
-  busy.value = true; error.value = ''; notice.value = ''
-  try { await http.put('/api/intel/settings', { settings: settingsPayload(settings.value), expected_revision: settingsRevision.value }); settings.value.credential = ''; settings.value.clear_credential = false; await loadSettings(); notice.value = 'AI 配置已保存。可信来源同步独立运行，AI 提议始终需要人工审核。' } catch (e) { fail(e) } finally { busy.value = false }
-}
 function showSourceDetails(source) { sourceDetails.value = source; sourceCopyMessage.value = ''; sourceDetailsDialog.value?.showModal() }
 async function copySourceId() {
   const id = sourceDetails.value?.id
@@ -177,7 +163,7 @@ async function poll() {
   if (!disposed) timer = setTimeout(poll, 5000)
 }
 onMounted(async () => { try { await Promise.all([loadSettings(), loadSources()]); await refresh() } catch (e) { fail(e) } if (!disposed) timer = setTimeout(poll, 5000) })
-onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; articleVersion++; settings.value.credential = ''; clearSourceCredential(); importFile.value = null; uploadController?.abort(); requests.abort(); clearTimeout(timer) })
+onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; clearSourceCredential(); importFile.value = null; uploadController?.abort(); requests.abort(); clearTimeout(timer) })
 </script>
 
 <template>
@@ -185,38 +171,9 @@ onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; a
     <div><h1 class="text-2xl font-semibold">威胁情报与自动标记</h1><p class="mt-2 text-sm opacity-65">可信来源的 IOC 默认直接接纳；AI 提取作为补充，所有提议均须人工审核后生效。</p></div>
     <div v-if="error" role="alert" class="alert alert-error">{{ error }}</div>
     <div v-if="notice" role="status" class="alert alert-info">{{ notice }}</div>
-    <form class="card border border-base-300 bg-base-100 p-4" @submit.prevent="saveSettings" @invalid.capture="showAiValidation">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="font-semibold">AI 文章提取</h2>
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <label class="flex items-center gap-2 text-sm"><input v-model="settings.ai_enabled" type="checkbox" class="toggle toggle-sm" />启用 AI 提取</label>
-          <button type="button" class="btn btn-ghost btn-sm" :aria-expanded="aiExpanded" aria-controls="intel-ai-settings" @click="aiExpanded = !aiExpanded">
-            {{ aiExpanded ? '收起' : '展开' }}
-            <ChevronDown class="size-4 transition-transform duration-300 motion-reduce:transition-none" :class="{ 'rotate-180': aiExpanded }" aria-hidden="true" />
-          </button>
-          <button class="btn btn-neutral btn-sm" :disabled="busy || !settingsRevision">保存 AI 设置</button>
-        </div>
-      </div>
-      <div id="intel-ai-settings" class="ai-settings-collapse" :class="{ 'is-expanded': aiExpanded }" :inert="!aiExpanded">
-        <div class="min-h-0 overflow-hidden">
-          <div class="space-y-3 pt-3">
-            <p class="text-sm opacity-65">{{ settings.ai_enabled ? '启用后处理 RSS 和手动提交的文章队列。' : '当前暂停 AI 提取，可信 IOC 同步与自动标记继续运行。' }}AI 人工审核为固定规则，无法关闭。</p>
-            <div class="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-              <label class="form-control min-w-0 text-sm">接口地址（基础地址或完整地址）<input v-model="settings.ai_endpoint" class="input input-bordered mt-1 w-full" type="url" required /></label>
-              <label class="form-control min-w-0 text-sm">模型名称<input v-model="settings.ai_model" class="input input-bordered mt-1 w-full" :required="settings.ai_enabled" maxlength="100" /></label>
-              <label class="form-control min-w-0 text-sm">接口协议<select v-model="settings.ai_protocol" class="select select-bordered mt-1 w-full"><option value="chat">Chat Completions</option><option value="responses">Responses</option></select><span class="mt-1 text-xs opacity-60">以 /v1 结尾的基础地址自动追加协议路径；完整地址不重复追加。</span></label>
-              <label class="form-control min-w-0 text-sm">输出预算（token）<input v-model.number="settings.ai_max_output_tokens" type="number" min="512" max="393216" step="1" required class="input input-bordered mt-1 w-full" /><span class="mt-1 text-xs opacity-60">默认 65536，最高支持 393216（384K）；推理计入预算，请按模型能力设置。</span></label>
-              <label class="form-control min-w-0 text-sm">推理强度<select v-model="settings.ai_reasoning_effort" class="select select-bordered mt-1 w-full"><option value="none">关闭推理（none）</option><option value="low">低（low）</option><option value="medium">中（medium）</option><option value="high">高（high）</option><option value="max">最高（max）</option><option value="default">接口默认（不发送参数）</option></select><span class="mt-1 text-xs opacity-60">常规提取默认关闭推理；接口不支持此参数时选择“接口默认”。</span></label>
-              <label class="form-control min-w-0 text-sm">AI 请求超时（秒）<input v-model.number="settings.ai_timeout_seconds" class="input input-bordered mt-1 w-full" type="number" min="1" max="1800" step="1" required /><span class="mt-1 text-xs opacity-60">默认 180 秒，可设置 1～1800 秒，包含等待响应和读取结果。</span></label>
-              <label class="form-control min-w-0 text-sm">环境变量备用来源（可选）<input v-model="settings.ai_key_env" class="input input-bordered mt-1 w-full" placeholder="NM_INTEL_AI_API_KEY" /></label>
-            </div>
-            <label class="form-control min-w-0 text-sm">数据库加密凭据（留空保留已保存值）<input v-model="settings.credential" type="password" autocomplete="new-password" maxlength="8192" class="input input-bordered mt-1 w-full" :disabled="settings.clear_credential" placeholder="输入原始 API Key，保存后不回显" /></label>
-            <label v-if="aiDatabaseCredential" class="flex items-center gap-2 text-sm"><input v-model="settings.clear_credential" type="checkbox" class="checkbox checkbox-sm" />清除已保存的数据库凭据</label>
-            <p class="text-xs opacity-60">凭据：{{ aiCredential ? (aiCredentialSource === 'database' ? '数据库加密存储' : '环境变量') : '未配置' }}。优先使用数据库凭据；未保存时使用环境变量。明文不会回显。</p>
-          </div>
-        </div>
-      </div>
-    </form>
+    <div class="card border border-base-300 bg-base-100 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-semibold">LLM 文章提取</h2><p class="mt-2 text-sm opacity-65">{{ settings.ai_enabled ? `已启用 · ${settings.ai_model}` : '当前已暂停，可信 IOC 同步继续运行。' }} 所有 LLM 提议固定人工审核。</p></div><router-link to="/llm/basic" class="btn btn-outline btn-sm">前往 LLM 设置</router-link></div>
+    </div>
     <div role="tablist" class="tabs tabs-border overflow-x-auto flex-nowrap"><button v-for="(label, key) in tabs" :key="key" type="button" role="tab" class="tab whitespace-nowrap" :aria-selected="tab === key" :class="{ 'tab-active': tab === key }" @click="changeTab(key)">{{ label }}</button></div>
     <div class="flex min-w-0 flex-wrap items-center justify-end gap-3">
       <IntelRefreshButton :loading="loading" @refresh="refresh" />
@@ -332,23 +289,3 @@ onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; a
     <dialog ref="mappingDialog" class="modal"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="saveMapping"><h2 class="text-lg font-semibold">核对来源名称与 MITRE 实体</h2><p>原名：{{ mappingForm.name }}</p><div class="flex min-w-0 flex-wrap justify-end gap-2"><input v-model="candidateQuery" class="input input-bordered min-w-0 max-w-full flex-1 basis-56" aria-label="搜索 MITRE 候选组织" /><button type="button" class="btn" @click="searchCandidates">搜索候选</button></div><label class="form-control min-w-0 text-sm">确认对应实体<select v-model="mappingForm.attack_id" class="select select-bordered mt-1 w-full" required><option disabled value="">请选择已核实的 MITRE 实体</option><option v-for="r in candidates" :key="r.attack_id" :value="r.attack_id">{{ r.attack_id }} · {{ r.name }}</option></select></label><p class="text-sm opacity-65">MITRE 关联名称可能仅部分重叠。此操作表示你已核实该来源的这个名称与所选实体对应，不会创建新实体；软件映射不产生组织归因。</p><div class="modal-action"><button type="button" class="btn btn-ghost" @click="mappingDialog?.close()">取消</button><button class="btn btn-neutral" :disabled="busy || !mappingForm.attack_id">保存已核实映射</button></div></form><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
   </main>
 </template>
-
-<style scoped>
-.ai-settings-collapse {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition: grid-template-rows 300ms ease, opacity 200ms ease;
-}
-
-.ai-settings-collapse.is-expanded {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ai-settings-collapse {
-    transition: none;
-  }
-}
-</style>

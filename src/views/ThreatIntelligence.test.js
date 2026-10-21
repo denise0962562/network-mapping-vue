@@ -13,7 +13,7 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({aiExpanded,loadSettings,tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark})`, {
+  const p = vm.runInNewContext(`${source}\n;({loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark})`, {
     ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v,
     document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
@@ -131,27 +131,8 @@ test('offline import sends the file body and source revision without scheduling 
   assert.equal(sent[0].options.signal.aborted, false)
   p.dispose()
 })
-test('AI switch changes only extraction settings and carries the revision', async () => {
-  const sent = []
-  const p = page({ put: async (url, body) => { sent.push({ url, body }); return {} }, get: async () => ({ data: { data: { settings: { ai_enabled: false }, revision: 3, credential_configured: false } } }) })
-  p.settingsRevision.value = 2; p.settings.value.ai_enabled = false
-  await p.saveSettings()
-  assert.equal(sent[0].url, '/api/intel/settings'); assert.equal(sent[0].body.expected_revision, 2)
-  assert.equal(sent[0].body.settings.ai_enabled, false)
-  assert.equal('ai_review_required' in sent[0].body.settings, false)
-  p.dispose()
-})
-test('saved AI credential is cleared locally and is not resent by a later settings edit', async () => {
-  const sent = []
-  const p = page({ put: async (url, body) => { sent.push(body) }, get: async () => ({ data: { data: { settings: { ai_enabled: false, ai_endpoint: 'https://api.example/chat', ai_model: '', ai_key_env: '' }, revision: 3, credential_configured: true, database_credential_configured: true, credential_source: 'database' } } }) })
-  p.settingsRevision.value = 2; p.settings.value.credential = 'test-only-key'
-  await p.saveSettings()
-  assert.equal(sent[0].settings.credential, 'test-only-key')
-  assert.equal(p.settings.value.credential, '')
-  await p.saveSettings()
-  assert.equal('credential' in sent[1].settings, false)
-  p.dispose()
-})
+
+
 test('review request approves exactly the displayed record version', async () => {
   const sent = []
   const p = page({ post: async (url, body) => { sent.push({ url, body }); return {} }, get: async url => ({ data: { data: url.includes('/articles/') ? { body: 'The saved report identifies this IOC as malicious.' } : { items: [], total: 0 } } }) })
@@ -250,55 +231,11 @@ test('unmount aborts requests and prevents new polling timers', async () => {
   assert.equal(p.records.value.length, 0); assert.equal(p.timers.size, 0)
 })
 
-test('AI settings automatically collapse when disabled and expand when enabled', () => {
-  const p = page({})
-  assert.equal(p.aiExpanded.value, false)
-  p.settings.value.ai_enabled = true
-  assert.equal(p.aiExpanded.value, true)
-  p.aiExpanded.value = false
-  assert.equal(p.settings.value.ai_enabled, true)
-  p.aiExpanded.value = true
-  p.settings.value.ai_model = 'preserved-model'
-  p.settings.value.ai_enabled = false
-  assert.equal(p.aiExpanded.value, false)
-  assert.equal(p.settings.value.ai_model, 'preserved-model')
-  p.settings.value.ai_enabled = true
-  assert.equal(p.aiExpanded.value, true)
-  p.dispose()
-})
 
-test('loaded AI settings expand only when enabled and preserve manual collapse on unchanged reload', async () => {
-  let enabled = true
-  const p = page({ get: async () => ({ data: { data: { settings: { ai_enabled: enabled }, revision: 1 } } }) })
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, true)
-  p.aiExpanded.value = false
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, false)
-  enabled = false
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, false)
-  enabled = true
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, true)
-  p.dispose()
-})
 
-test('AI timeout defaults for old responses and a manual value survives save and reload', async () => {
-  let saved = { ai_enabled: true, ai_model: 'fixture' }, submitted
-  const p = page({
-    get: async () => ({ data: { data: { settings: saved, revision: 2 } } }),
-    put: async (url, body) => { submitted = body; saved = body.settings },
-  })
-  assert.equal(p.settings.value.ai_timeout_seconds, 180)
-  await p.loadSettings()
-  assert.equal(p.settings.value.ai_timeout_seconds, 180)
-  p.settings.value.ai_timeout_seconds = 600
-  await p.saveSettings()
-  assert.equal(submitted.settings.ai_timeout_seconds, 600)
-  assert.equal(p.settings.value.ai_timeout_seconds, 600)
-  p.dispose()
-})
+
+
+
 
 test('source location clears across records and ignores mismatched ranges', async () => {
   const p = page({ get: async () => ({ data: { data: { body: '恶意 DNS\n192[.]0[.]2[.]1' } } }) })
@@ -347,5 +284,15 @@ test('only approval submits a human attribution operation', async () => {
   await p.submitReview(); assert.equal(submitted.attribution.action, 'create')
   p.reviewDecision.value = 'rejected'; await p.submitReview()
   assert.equal(submitted.attribution, undefined)
+  p.dispose()
+})
+
+ test('AI configuration is read-only here and links to the LLM page', async () => {
+  const p = page({ get: async () => ({ data: { data: { settings: { ai_enabled: true, ai_model: 'current-model' } } } }) })
+  await p.loadSettings()
+  assert.equal(p.settings.value.ai_enabled, true)
+  assert.equal(p.settings.value.ai_model, 'current-model')
+  assert.match(descriptor.template.content, /to="\/llm\/basic"/)
+  assert.doesNotMatch(descriptor.template.content, /v-model="settings\.ai_/)
   p.dispose()
 })

@@ -25,12 +25,14 @@ const activeMenuGroup = computed(() => {
   if (path === '/create_scan' || path === '/task' || path.startsWith('/task/')) return 'task'
   if (path === '/analysis' || path.startsWith('/analysis/')) return 'analysis'
   if (path === '/audit' || path === '/requests' || path.startsWith('/requests/')) return 'logs'
+  if (path === '/llm' || path.startsWith('/llm/')) return 'llm'
   if (path === '/setting' || path.startsWith('/setting/') || path === '/admin/tags' || path === '/admin/intel') return 'settings'
   return null
 })
 const taskMenuOpen = ref(activeMenuGroup.value === 'task')
 const analysisMenuOpen = ref(activeMenuGroup.value === 'analysis')
 const logsMenuOpen = ref(activeMenuGroup.value === 'logs')
+const llmMenuOpen = ref(activeMenuGroup.value === 'llm')
 const settingsMenuOpen = ref(activeMenuGroup.value === 'settings')
 let maintenanceRefreshTimer = null
 
@@ -44,6 +46,7 @@ watch(
     if (activeMenuGroup.value === 'task') taskMenuOpen.value = true
     if (activeMenuGroup.value === 'analysis') analysisMenuOpen.value = true
     if (activeMenuGroup.value === 'logs') logsMenuOpen.value = true
+    if (activeMenuGroup.value === 'llm') llmMenuOpen.value = true
     if (activeMenuGroup.value === 'settings') settingsMenuOpen.value = true
   },
 )
@@ -113,6 +116,11 @@ function toggleLogsMenu() {
     return
   }
   logsMenuOpen.value = !logsMenuOpen.value
+}
+
+function toggleLlmMenu() {
+  if (!drawerOpen.value) { drawerOpen.value = true; llmMenuOpen.value = true; return }
+  llmMenuOpen.value = !llmMenuOpen.value
 }
 
 function toggleSettingsMenu() {
@@ -417,6 +425,49 @@ async function handleLogout() {
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M8.21 3.61 2.39 17.02A2 2 0 0 0 4.22 20h15.56a2 2 0 0 0 1.83-2.98L15.79 3.61a2 2 0 0 0-3.58 0Z"/></svg>
               <span class="is-drawer-close:hidden whitespace-nowrap">Alert 测试</span>
             </router-link>
+          </li>
+
+          <li v-if="isAdmin">
+            <button
+              type="button"
+              class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
+              data-tip="LLM"
+              :class="{ active: isParentMenuActive('llm', llmMenuOpen) }"
+              :aria-current="isParentMenuActive('llm', llmMenuOpen) ? 'true' : undefined"
+              :aria-expanded="drawerOpen && llmMenuOpen"
+              aria-controls="llm-submenu"
+              @click="toggleLlmMenu"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9zM9 1v3m6-3v3M9 20v3m6-3v3M1 9h3m-3 6h3m16-6h3m-3 6h3"/></svg>
+              <span class="is-drawer-close:hidden whitespace-nowrap">LLM</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="ml-auto size-3.5 transition-transform duration-200 ease-out is-drawer-close:hidden"
+                :class="llmMenuOpen ? 'rotate-90' : 'rotate-0'"
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <Transition name="sidebar-submenu">
+              <ul v-if="llmMenuOpen" id="llm-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/llm/basic">
+                    <span class="whitespace-nowrap">基础</span>
+                  </router-link>
+                </li>
+                <li>
+                  <router-link class="sidebar-submenu-item" exact-active-class="active" to="/llm/providers">
+                    <span class="whitespace-nowrap">供应商</span>
+                  </router-link>
+                </li>
+              </ul>
+            </Transition>
           </li>
 
           <li>
