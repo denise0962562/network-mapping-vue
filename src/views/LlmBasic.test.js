@@ -2,21 +2,89 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
-import { computed, ref, nextTick } from 'vue'
+import { computed, ref, nextTick, watch } from 'vue'
 import { parse, compileScript } from 'vue/compiler-sfc'
 import * as llm from '../utils/llm.js'
 import * as debug from '../utils/llmDebug.js'
+import * as draft from '../utils/llmDraft.js'
 
 const { descriptor } = parse(readFileSync(new URL('./LlmBasic.vue', import.meta.url), 'utf8'))
 const compiled = compileScript(descriptor, { id: 'llm-basic-test' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
 const fixture = () => ({ revision: 7, enabled: true, provider_id: 'one', model_id: 'a', ioc_prompt: '', default_ioc_prompt: '系统默认提示词\n返回 JSON 原文证据。', prompt_max_bytes: 65536, global: llm.transportForm(true), providers: [{ id: 'one', default_model: 'a', models: [{ id: 'a', protocol: 'chat', available: true }] }, { id: 'two', default_model: 'b', models: [{ id: 'b', protocol: 'responses', available: true }] }] })
-function page({ http, chatRequest } = {}) {
+function page({ http, chatRequest, localStorage } = {}) {
   let dispose
-  const context = { ...llm, ...debug, computed, ref, nextTick, TextEncoder, crypto: { randomUUID: () => 'session-id' }, AbortController, window: { confirm: () => true }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http: http || { get: async () => ({ data: { data: fixture() } }) }, chatRequest: chatRequest || (async () => {}) }
-  const p = vm.runInNewContext(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error,promptDraft,promptDirty,promptEditing,editPrompt,cancelPrompt,selectionDirty,dirty,savePrompt,restorePrompt,saveAll,useSystemPrompt,debugParameters})`, context)
+  const context = { ...llm, ...debug, ...draft, computed, ref, nextTick, watch, TextEncoder, crypto: { randomUUID: () => 'session-id' }, AbortController, window: { confirm: () => true, localStorage }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http: http || { get: async () => ({ data: { data: fixture() } }) }, chatRequest: chatRequest || (async () => {}) }
+  const p = vm.runInNewContext(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error,promptDraft,promptDirty,promptEditing,editPrompt,cancelPrompt,selectionDirty,dirty,savePrompt,restorePrompt,saveAll,useSystemPrompt,debugParameters,retainIoc,retainDebug,historyId,session,loadHistory,replayLast,draftError})`, context)
   return { ...p, dispose: () => dispose() }
 }
+
+test('loaded IOC history freezes the original prompt, resumes through the server history ID and preserves thoughts', async () => {
+  const calls = []
+  const p = page({ chatRequest: async (body, _signal, emit) => {
+    calls.push(body); emit({ type: 'started', history_id: 'new-debug-snapshot' }); emit({ type: 'done', text: 'continued', elapsed_ms: 10 })
+  } })
+  await p.load(); p.input.value = 'unsent-draft'
+  p.loadHistory({ id: 'ioc-snapshot', provider_id: 'one', model_id: 'a', protocol: 'chat', parameters: { temperature: 0, max_output_tokens: 512 }, messages: [
+    { role: 'system', content: 'original-ioc-prompt' }, { role: 'user', content: 'original-report' },
+    { role: 'assistant', content: 'original-answer', reasoning: 'original-thought', complete: true },
+  ] })
+  assert.equal(p.input.value, 'unsent-draft')
+  assert.equal(p.messages.value[1].reasoning, 'original-thought')
+  p.state.value.ioc_prompt = 'changed-current-prompt'
+  await p.send()
+  assert.equal(calls[0].history_id, 'ioc-snapshot')
+  assert.equal(calls[0].messages[0].content, 'original-ioc-prompt')
+  assert.equal(calls[0].messages[2].content, 'original-answer')
+  assert.equal(JSON.stringify(calls[0]).includes('original-thought'), false)
+  assert.equal(calls[0].parameters.temperature, 0)
+  assert.equal(p.historyId.value, 'new-debug-snapshot')
+  p.input.value = 'next'; await p.send()
+  assert.equal(calls[1].history_id, 'new-debug-snapshot')
+  p.dispose()
+})
+
+test('replaying the last historical request excludes the old response and restores the exact original input', async () => {
+  let sent
+  const p = page({ chatRequest: async body => { sent = body } })
+  await p.load()
+  p.loadHistory({ id: 'failed-snapshot', provider_id: 'one', model_id: 'a', messages: [
+    { role: 'user', content: '{"untrusted_report_blocks":[]}' },
+    { role: 'assistant', content: 'partial-answer', reasoning: 'partial-thought', complete: false },
+  ] })
+  p.replayLast(); await p.send()
+  assert.equal(sent.messages.length, 1)
+  assert.equal(sent.messages[0].content, '{"untrusted_report_blocks":[]}')
+  assert.equal(sent.history_id, 'failed-snapshot')
+  p.dispose()
+})
+
+test('per-user browser drafts survive refresh and context changes, but sending and explicit clearing remove them', async () => {
+  const map = new Map()
+  const localStorage = { getItem: k => map.get(k), setItem: (k, v) => map.set(k, v), removeItem: k => map.delete(k) }
+  const http = { get: async () => ({ data: { data: { ...fixture(), current_user_id: 17 } } }) }
+  const first = page({ localStorage, http }); await first.load(); first.input.value = 'refresh-safe draft'; first.dispose()
+  const second = page({ localStorage, http, chatRequest: async () => { assert.equal(map.size, 0) } })
+  await second.load(); assert.equal(second.input.value, 'refresh-safe draft')
+  second.chatProvider.value = 'two'; second.chooseChatProvider()
+  assert.equal(second.input.value, 'refresh-safe draft')
+  await second.send(); assert.equal(map.size, 0)
+  second.input.value = 'delete this'; second.input.value = ''; assert.equal(map.size, 0)
+  second.input.value = 'clear this'; second.newSession({ clearDraft: true }); assert.equal(map.size, 0)
+  second.dispose()
+})
+
+test('retention switches are saved with the IOC card revision', async () => {
+  let sent
+  const p = page({ http: { get: async () => ({ data: { data: fixture() } }), put: async (_url, body) => { sent = body } } })
+  await p.load(); assert.equal(p.retainIoc.value, false); assert.equal(p.retainDebug.value, false)
+  p.retainIoc.value = true; p.retainDebug.value = true
+  assert.equal(p.selectionDirty.value, true)
+  await p.save()
+  assert.equal(sent.retain_ioc_conversations, true); assert.equal(sent.retain_debug_conversations, true)
+  assert.equal(sent.expected_revision, 7)
+  p.dispose()
+})
 test('pausing saves the selected pair while temporary debugging keeps IOC binding intact', async () => {
   let sent
   const p = page({ http: { get: async () => ({ data: { data: fixture() } }), put: async (_url, body) => { sent = body } } })

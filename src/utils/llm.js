@@ -16,6 +16,9 @@ export function mergeModels(existing, fetched) {
   return [...fetched, ...existing.filter(m => !found.has(m.id)).map(m => ({ ...m, available: false }))]
 }
 const errors = {
+  llm_history_configuration_changed: '历史对话的供应商、接口或协议已改变，请新建会话后调试。',
+  llm_history_too_large: '对话超过历史保留大小限制，请缩短输入或新建会话。',
+  llm_invalid_messages: '对话内容为空、过长或格式无效，请检查输入或新建会话。',
   intel_revision_conflict: '配置已被其他操作修改，请刷新后重试；当前未保存的内容仍保留。',
   intel_admin_required: '只有管理员可以管理 LLM。',
   intel_not_found: '供应商已被删除，请刷新列表。',

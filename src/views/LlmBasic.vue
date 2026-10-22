@@ -1,6 +1,8 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
+import LlmHistoryDialog from '@/components/LlmHistoryDialog.vue'
+import { readDraft, writeDraft, historyParameters } from '@/utils/llmDraft'
 import { ChevronDown } from '@lucide/vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { availableModels, llmError, settingsPayload } from '@/utils/llm'
@@ -12,6 +14,15 @@ const state = ref(null), enabled = ref(false), providerId = ref(''), modelId = r
 const loading = ref(false), busy = ref(false), error = ref(''), alerts = ref([])
 const chatProvider = ref(''), chatModel = ref(''), input = ref(''), messages = ref([]), generating = ref(false), transcript = ref(null)
 const session = ref(crypto.randomUUID())
+const retainIoc = ref(false), retainDebug = ref(false), historyId = ref(null), historyDialog = ref(null), conversationPrompt = ref(null), loadedHistory = ref(false)
+const draftUser = ref(null), draftError = ref('')
+let restoringDraft = false
+watch(input, text => {
+  if (restoringDraft || draftUser.value == null) return
+  let storage
+  try { storage = window.localStorage } catch {}
+  draftError.value = writeDraft(storage, draftUser.value, text) ? '' : '当前浏览器无法保存草稿，请在离开前复制未发送内容。'
+}, { flush: 'sync' })
 const promptDraft = ref('')
 const promptEditing = ref(false)
 const useSystemPrompt = ref(false)
@@ -21,7 +32,7 @@ const provider = computed(() => state.value?.providers.find(p => p.id === provid
 const debugProvider = computed(() => state.value?.providers.find(p => p.id === chatProvider.value))
 const debugParameters = ref(debugParameterForm())
 const debugProtocol = computed(() => debugProvider.value?.models.find(m => m.id === chatModel.value)?.protocol || debugProvider.value?.protocol || 'chat')
-const selected = computed(() => JSON.stringify([enabled.value, providerId.value, modelId.value]))
+const selected = computed(() => JSON.stringify([enabled.value, providerId.value, modelId.value, retainIoc.value, retainDebug.value]))
 const selectionDirty = computed(() => state.value && selected.value !== saved.value)
 const dirty = computed(() => selectionDirty.value || promptDirty.value)
 useUnsavedChanges(dirty, saveAll)
@@ -35,7 +46,18 @@ async function load({ preservePrompt = false } = {}) {
     if (disposed) return
     const previousPrompt = effectiveSystemPrompt.value
     state.value = r.data.data
-    if (useSystemPrompt.value && previousPrompt && previousPrompt !== effectiveSystemPrompt.value) newSession()
+    if (Number.isInteger(state.value.current_user_id) && draftUser.value !== state.value.current_user_id) {
+      restoringDraft = true
+      if (draftUser.value != null) newSession()
+      draftUser.value = state.value.current_user_id
+      let storage
+      try { storage = window.localStorage } catch {}
+      input.value = readDraft(storage, draftUser.value)
+      restoringDraft = false
+    }
+    retainIoc.value = Boolean(state.value.retain_ioc_conversations)
+    retainDebug.value = Boolean(state.value.retain_debug_conversations)
+    if (conversationPrompt.value === null && useSystemPrompt.value && previousPrompt && previousPrompt !== effectiveSystemPrompt.value) newSession()
     if (!preservePrompt) { promptDraft.value = state.value.ioc_prompt || state.value.default_ioc_prompt || ''; promptEditing.value = false }
     enabled.value = state.value.enabled; providerId.value = state.value.provider_id || ''; modelId.value = state.value.model_id || ''
     saved.value = selected.value
@@ -50,7 +72,7 @@ async function save() {
   if (enabled.value && (!providerId.value || !modelId.value)) { error.value = '启用 IOC 提取前请选择一个供应商及模型。'; return false }
   busy.value = true; error.value = ''
   try {
-    await http.put('/api/llm/settings', settingsPayload(state.value, { enabled: enabled.value, provider_id: providerId.value || null, model_id: modelId.value || null }), { signal: requests.signal })
+    await http.put('/api/llm/settings', settingsPayload(state.value, { enabled: enabled.value, provider_id: providerId.value || null, model_id: modelId.value || null, retain_ioc_conversations: retainIoc.value, retain_debug_conversations: retainDebug.value }), { signal: requests.signal })
     if (!disposed) { await load({ preservePrompt: true }); alerts.value.unshift({ id: crypto.randomUUID(), title: 'IOC 提取设置已保存。' }) }
     return true
   } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = llmError(e); return false }
@@ -69,7 +91,7 @@ async function persistPrompt(value, restored = false) {
     state.value.revision = r.data.data.revision
     state.value.ioc_prompt = r.data.data.ioc_prompt
     state.value.prompt_version = r.data.data.prompt_version
-    if (useSystemPrompt.value && previousPrompt !== effectiveSystemPrompt.value) newSession()
+    if (conversationPrompt.value === null && useSystemPrompt.value && previousPrompt !== effectiveSystemPrompt.value) newSession()
     promptDraft.value = state.value.ioc_prompt || state.value.default_ioc_prompt
     promptEditing.value = false
     alerts.value.unshift({ id: crypto.randomUUID(), title: restored ? '已恢复并保存系统默认提示词。' : 'IOC 提取提示词已保存。' })
@@ -93,14 +115,14 @@ async function saveAll() {
   if (promptDirty.value && !await savePrompt()) return false
   return true
 }
-function newSession() { chatVersion++; chatController?.abort(); generating.value = false; messages.value = []; input.value = ''; session.value = crypto.randomUUID() }
+function newSession({ clearDraft = false } = {}) { chatVersion++; chatController?.abort(); generating.value = false; messages.value = []; if (clearDraft) input.value = ''; session.value = crypto.randomUUID(); historyId.value = null; conversationPrompt.value = null; loadedHistory.value = false }
 function chooseChatProvider() { chatModel.value = debugProvider.value?.default_model || availableModels(debugProvider.value)[0]?.id || ''; newSession() }
 function stop() { chatController?.abort() }
 async function scroll() { await nextTick(); if (transcript.value) transcript.value.scrollTop = transcript.value.scrollHeight }
 async function send() {
   const text = input.value.trim()
   if (!text || generating.value || !chatProvider.value || !chatModel.value) return
-  if (useSystemPrompt.value && !effectiveSystemPrompt.value) { error.value = '系统提示词尚未加载，请刷新后重试。'; return }
+  if (useSystemPrompt.value && !(conversationPrompt.value ?? effectiveSystemPrompt.value)) { error.value = '系统提示词尚未加载，请刷新后重试。'; return }
   if (messages.value.length >= 60) { error.value = '当前对话较长，请新建会话后继续。'; return }
   let parameters
   try { parameters = debugParameterPayload(debugParameters.value, debugProtocol.value) }
@@ -108,16 +130,18 @@ async function send() {
   error.value = ''
   const current = ++chatVersion
   chatController = new AbortController(); generating.value = true
-  const history = [...(useSystemPrompt.value ? [{ role: 'system', content: effectiveSystemPrompt.value }] : []), ...messages.value.filter(m => m.complete).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
+  const history = [...(useSystemPrompt.value ? [{ role: 'system', content: conversationPrompt.value ?? effectiveSystemPrompt.value }] : []), ...messages.value.filter(m => m.complete).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
   messages.value.push({ role: 'user', content: text, complete: true })
   messages.value.push({ role: 'assistant', content: '', reasoning: '', reasoningExpanded: false, thinking: false, complete: false, status: '正在连接…' })
   const index = messages.value.length - 1
   input.value = ''; await scroll()
   if (disposed || current !== chatVersion) return
   try {
-    await chatRequest({ provider_id: chatProvider.value, model_id: chatModel.value, session_id: session.value, messages: history, parameters }, chatController.signal, event => {
+    await chatRequest({ provider_id: chatProvider.value, model_id: chatModel.value, session_id: session.value, history_id: historyId.value, messages: history, parameters }, chatController.signal, event => {
       if (disposed || current !== chatVersion) return
       const answer = messages.value[index]
+      if (event.history_id) historyId.value = event.history_id
+      if (event.history_saved === false) error.value = '本次对话未能保存，请复制所需内容后重试。'
       if (event.type === 'started') { answer.thinking = !answer.content; answer.status = event.stream ? '正在生成…' : '等待完整响应…'; answer.parameters = event.parameters }
       if (event.type === 'reasoning' && event.text) { answer.reasoning += event.text; answer.thinking = !answer.content; if (answer.thinking) answer.status = '正在思考…' }
       if (event.type === 'delta' && event.text) { if (!answer.content) answer.reasoningExpanded = false; answer.thinking = false; answer.content += event.text; answer.status = '正在生成…' }
@@ -128,6 +152,26 @@ async function send() {
   } catch (e) {
     if (!disposed && current === chatVersion) messages.value[index].status = e.name === 'AbortError' ? '已停止，未完整的回答不会继续发送。' : llmError(e.response ? e : e.message)
   } finally { if (!disposed && current === chatVersion) { messages.value[index].thinking = false; generating.value = false; await scroll() } }
+}
+function loadHistory(data) {
+  if (generating.value || (messages.value.length && !window.confirm('加载历史将替换当前显示的对话，未发送草稿会保留。继续吗？'))) return
+  newSession()
+  chatProvider.value = data.provider_id || ''; chatModel.value = data.model_id || ''
+  const system = data.messages.find(m => m.role === 'system')
+  conversationPrompt.value = system?.content || ''
+  useSystemPrompt.value = Boolean(system)
+  historyId.value = data.id; loadedHistory.value = true
+  debugParameters.value = historyParameters(data.parameters, data.protocol || debugProtocol.value)
+  messages.value = data.messages.filter(m => m.role !== 'system').map(m => ({ ...m, complete: m.role === 'user' || m.complete === true, thinking: false, reasoningExpanded: false, status: m.complete ? '历史完成' : ({ cancelled: '历史已停止', failed: '历史失败', running: '历史未完成' }[m.status] || ''), outputRate: debugOutputRate(m.usage, m.elapsed_ms), cacheUsage: debugCacheUsage(m.usage) }))
+  scroll()
+}
+function historyDeleted(id) { if (historyId.value === id) newSession() }
+function replayLast() {
+  if (generating.value) return
+  const index = messages.value.findLastIndex(m => m.role === 'user')
+  if (index < 0 || (input.value && !window.confirm('重放将替换当前未发送的草稿，继续吗？'))) return
+  input.value = messages.value[index].content
+  messages.value = messages.value.slice(0, index)
 }
 onMounted(load)
 onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort() })
@@ -142,6 +186,11 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
       <form class="card border border-base-300 bg-base-100 p-4 space-y-4" @submit.prevent="save">
         <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">IOC 提取</h2><button class="btn btn-neutral btn-sm" :disabled="busy || loading || !selectionDirty">{{ busy ? '保存中…' : '保存设置' }}</button></div>
         <label class="flex items-center gap-2 text-sm"><input v-model="enabled" type="checkbox" class="toggle toggle-sm" />启用 LLM IOC 提取</label>
+        <div class="space-y-2 border-t border-base-300 pt-3">
+          <label class="flex items-center gap-2 text-sm"><input v-model="retainIoc" type="checkbox" class="toggle toggle-sm" />保留文章 IOC 提取对话（包括思考）</label>
+          <label class="flex items-center gap-2 text-sm"><input v-model="retainDebug" type="checkbox" class="toggle toggle-sm" />保留调试对话（包括思考）</label>
+          <p class="text-xs opacity-60">默认关闭。保存设置后用于后续请求，已保留记录可在历史弹窗中加载或删除。思考仅保留供应商实际返回的文本。</p>
+        </div>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3">
           <label class="form-control text-sm">供应商<select v-model="providerId" class="select select-bordered mt-1 w-full" :required="enabled" @change="chooseProvider"><option disabled selected value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
           <label class="form-control text-sm">模型<select v-model="modelId" class="select select-bordered mt-1 w-full" :required="Boolean(providerId)" :disabled="!providerId"><option disabled selected value="">请选择</option><option v-for="m in availableModels(provider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
@@ -157,12 +206,14 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
         <p class="text-xs opacity-60">支持多行文本，最多 {{ state.prompt_max_bytes || 65536 }} 字节。请保留 IOC JSON 输出和原文证据要求；所有提议仍须校验及人工审核。</p>
       </form>
       <section class="card border border-base-300 bg-base-100 p-4 space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">在线调试</h2><div class="flex flex-wrap items-center gap-3"><label class="flex items-center gap-2 text-sm"><input v-model="useSystemPrompt" type="checkbox" class="toggle toggle-sm" :disabled="generating" @change="newSession" />启用系统提示词</label><button type="button" class="btn btn-ghost btn-sm" @click="newSession">新建会话／清空</button></div></div>
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">在线调试</h2><button type="button" class="btn btn-outline btn-sm" :disabled="generating" @click="historyDialog?.open()">加载历史对话</button><div class="flex flex-wrap items-center gap-3"><label class="flex items-center gap-2 text-sm"><input v-model="useSystemPrompt" type="checkbox" class="toggle toggle-sm" :disabled="generating" @change="newSession" />启用系统提示词</label><button type="button" class="btn btn-ghost btn-sm" @click="newSession({ clearDraft: true })">新建会话／清空</button></div></div>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3">
           <label class="form-control text-sm">调试供应商<select v-model="chatProvider" class="select select-bordered mt-1 w-full" :disabled="generating" @change="chooseChatProvider"><option disabled selected value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
           <label class="form-control text-sm">调试模型<select v-model="chatModel" class="select select-bordered mt-1 w-full" :disabled="generating || !chatProvider" @change="newSession"><option disabled selected value="">请选择</option><option v-for="m in availableModels(debugProvider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
         </div>
-        <p class="text-xs opacity-60">临时调试不改变 IOC 提取配置。启用系统提示词时使用已保存的内容；切换模型或提示词开关会清空会话。对话仅保留在当前页面，使用所选供应商的请求设置。</p>
+        <p class="text-xs opacity-60">临时调试不改变 IOC 提取配置。启用系统提示词时使用已保存的内容；切换模型或提示词开关会清空会话。启用保留后可加载历史。新建会话会重新生成 session；历史加载会保留原供应商 session，缓存是否命中仍由供应商决定。</p>
+        <div v-if="loadedHistory" class="alert text-sm"><span>已加载历史，继续使用当时的系统提示词和 session。继续发送会另存调试记录；接口或协议变化时请新建会话。</span></div>
+        <details v-if="loadedHistory && conversationPrompt" class="collapse collapse-arrow border border-base-300 rounded-box"><summary class="collapse-title text-sm">历史系统提示词</summary><pre class="collapse-content whitespace-pre-wrap break-words text-xs">{{ conversationPrompt }}</pre></details>
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17rem]">
           <div class="min-w-0 flex flex-col gap-4">
             <div ref="transcript" role="log" aria-label="调试对话" aria-live="polite" class="min-h-64 flex-1 max-h-[36rem] overflow-y-auto rounded-box border border-base-300 p-3">
@@ -185,8 +236,9 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
               </div>
             </div>
             <form class="space-y-3" @submit.prevent="send">
+              <p v-if="draftError" class="text-sm text-warning" role="status">{{ draftError }}</p>
               <label class="form-control text-sm">消息<textarea v-model="input" required maxlength="32000" rows="3" class="textarea textarea-bordered mt-1 mb-5 w-full" :disabled="generating" placeholder="输入调试消息" />
-              </label><div class="flex justify-end gap-2"><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
+              </label><p class="text-xs opacity-60">未发送草稿在此浏览器保留 7 天，发送或清空后立即移除。</p><div class="flex flex-wrap justify-end gap-2"><button type="button" class="btn btn-ghost btn-sm" :disabled="generating || !messages.some(m => m.role === 'user')" @click="replayLast">重放最后一轮</button><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
           </div>
           <aside aria-label="调试参数" class="min-w-0 border-t border-base-300 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
             <fieldset :disabled="generating" class="space-y-3">
@@ -205,5 +257,6 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
         </div>
       </section>
     </template>
+    <LlmHistoryDialog ref="historyDialog" @loaded="loadHistory" @deleted="historyDeleted" />
   </div>
 </template>
