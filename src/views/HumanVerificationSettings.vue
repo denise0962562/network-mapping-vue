@@ -81,9 +81,9 @@ onBeforeUnmount(() => { disposed = true; readController?.abort(); if (form.value
 </script>
 
 <template>
-  <div class="min-w-0 w-full space-y-5 p-5">
+  <div class="page-shell space-y-5">
     <div class="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 class="text-2xl font-semibold">登录保护</h1><p class="mt-2 text-sm opacity-60">配置密码登录的人机验证。保存后应用于新的登录，现有会话和两步验证沿用原有规则。</p></div>
+      <div><h1 class="page-title">登录保护</h1><p class="mt-2 text-sm opacity-60">配置密码登录的人机验证。保存后应用于新的登录，现有会话和两步验证沿用原有规则。</p></div>
       <button type="button" class="btn btn-outline btn-sm" :disabled="loading || saving" @click="load">重新加载</button>
     </div>
     <AppAlert v-if="alert" :type="alert.type" :title="alert.title" :description="alert.description" @close="alert = null" />

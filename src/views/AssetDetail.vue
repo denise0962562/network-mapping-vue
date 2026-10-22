@@ -471,11 +471,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-base-200 p-4 md:p-6">
-    <div class="mx-auto max-w-7xl space-y-5">
+  <main class="page-shell min-h-screen bg-base-200">
+    <div class="space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 class="text-2xl font-semibold">资产详情</h1>
+          <h1 class="page-title">资产详情</h1>
           <p class="mt-1 text-sm opacity-65">展示单个 IP 的网络属性、发现概况和端口服务。</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">

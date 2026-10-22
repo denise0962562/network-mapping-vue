@@ -379,8 +379,9 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
     />
   </div>
 
-  <div class="flex justify-center">
-    <div class="card bg-base-100 card-border m-2.5 border-base-300 w-[85%] p-5">
+  <div class="page-shell">
+    <h1 class="page-title mb-5">创建任务</h1>
+    <div class="card bg-base-100 card-border border-base-300 w-full p-5">
       <div class="grid grid-cols-1 gap-4">
         <fieldset class="fieldset min-w-0 w-full">
           <legend class="fieldset-legend"><label for="create_task_targets" class="input_items_required">扫描目标</label></legend>

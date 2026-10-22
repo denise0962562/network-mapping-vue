@@ -244,10 +244,10 @@ onBeforeUnmount(() => {
     <AppAlert v-for="alert in alerts" :key="alert.id" class="pointer-events-auto" v-bind="alert" @close="closeAlert(alert.id)" />
   </div>
 
-  <main class="p-4 md:p-6">
+  <main class="page-shell">
     <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h1 class="text-2xl font-semibold">数据备份</h1>
+        <h1 class="page-title">数据备份</h1>
         <p class="mt-1 text-sm text-base-content/60">管理 pgBackRest 备份集、手动任务和 WAL 归档检查。</p>
       </div>
       <div class="flex flex-wrap gap-2">

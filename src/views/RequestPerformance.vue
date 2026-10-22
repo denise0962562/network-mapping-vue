@@ -244,10 +244,10 @@ onMounted(loadPerformance)
     />
   </div>
 
-  <main class="p-4 md:p-6">
+  <main class="page-shell">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">请求性能基线</h1>
+        <h1 class="page-title">请求性能基线</h1>
         <p class="mt-1 text-sm text-base-content/60">按请求事件分析服务端处理耗时，并与上一等长周期比较。</p>
       </div>
       <span class="text-xs text-base-content/50">计时包含中间件与业务处理，不包含客户端网络传输</span>

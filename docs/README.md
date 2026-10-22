@@ -1,6 +1,7 @@
 # Network Mapping Web 文档
 
 新增[威胁情报管理与自动标记](THREAT_INTELLIGENCE.md)：来源、周期、AI 开关与固定人工审核。
+模型选择、供应商与全局设置、在线调试见 [LLM 配置](LLM.md)；近期改动见[更新日志](CHANGELOG.md)。
 
 [项目首页](../README.md) · [前端维护与扩展](maintenance-guide.md)
 
@@ -21,6 +22,7 @@ Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。�
 | 文档 | 内容 |
 | --- | --- |
 | [控制台功能指南](FEATURES.md) | 搜索、扫描、资产、分析与管理页面的行为 |
+| [LLM 配置与在线调试](LLM.md) | 供应商、模型、全局覆盖和调试会话 |
 | [Web 技术栈展示](WEB_DETECTION.md) | 框架组件、版本冲突、证据、搜索与 CSV |
 | [Web 技术标签图标](WEB_TECHNOLOGY_ICONS.md) | SVG 来源、许可、品牌与通用符号及扩展方法 |
 | [外观主题](theme-guide.md) | 主题设置、样式约定与组件适配 |

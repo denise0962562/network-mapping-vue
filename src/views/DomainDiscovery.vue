@@ -98,8 +98,8 @@ onBeforeUnmount(() => { disposed = true; requestVersion++; requests.abort(); cle
 </script>
 
 <template>
-  <main class="mx-auto max-w-7xl space-y-5 p-4 md:p-6">
-    <div><h1 class="text-2xl font-semibold">域名发现</h1><p class="mt-2 text-sm opacity-65">从 crt.sh 证书透明度记录发现子域名和证书关联，选中域名后执行 DNS 验证。</p><IntelLookup v-if="seed" type="domain" :value="seed" /></div>
+  <main class="page-shell space-y-5">
+    <div><h1 class="page-title">域名发现</h1><p class="mt-2 text-sm opacity-65">从 crt.sh 证书透明度记录发现子域名和证书关联，选中域名后执行 DNS 验证。</p><IntelLookup v-if="seed" type="domain" :value="seed" /></div>
     <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
     <div v-if="notice" class="alert alert-info" role="status">{{ notice }}</div>
     <form class="card border border-base-300 bg-base-100 p-4 space-y-3" @submit.prevent="create">
@@ -108,7 +108,7 @@ onBeforeUnmount(() => { disposed = true; requestVersion++; requests.abort(); cle
       <div class="flex flex-wrap gap-5 text-sm"><label class="flex items-center gap-2"><input v-model="includeRelated" type="checkbox" class="checkbox checkbox-sm" />补充完整证书与关联域名</label><label class="flex items-center gap-2"><input v-model="refresh" type="checkbox" class="checkbox checkbox-sm" />重新查询（不复用近期结果）</label></div>
       <p class="text-xs opacity-60">输入子域时只查询该子域及其后代。证书共同出现不代表同一组织或服务存活；通配证书不展开为实际主机。刷新受冷却和配额限制。</p>
     </form>
-    <section class="card border border-base-300 p-4 space-y-3">
+    <section class="card border border-base-300 bg-base-100 p-4 space-y-3">
       <div class="flex flex-wrap items-center gap-3"><h2 class="font-semibold">发现历史</h2><button class="btn btn-ghost btn-sm" @click="loadJobs">刷新</button></div>
       <label for="discovery-job" class="text-sm">我的发现作业（最近 100 条）</label>
       <select id="discovery-job" :value="activeId" class="select select-bordered w-full" @change="openJob($event.target.value)"><option value="">选择作业查看结果</option><option v-for="job in jobs" :key="job.id" :value="job.id">{{ job.seed }} · {{ discoveryStatuses[job.status] }} · {{ formatDateTime(job.created_at) }}</option></select>

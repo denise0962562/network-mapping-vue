@@ -31,7 +31,7 @@ const http = axios.create({
   withCredentials: true,
 })
 
-function handleUnauthorized() {
+export function handleUnauthorized() {
   if (getCookieValue('csrf_token')) {
     expireCookie('csrf_token')
   }

@@ -186,10 +186,10 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
 </script>
 
 <template>
-  <div class="p-3 sm:p-5">
+  <div class="page-shell">
     <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
       <div>
-        <h2 class="text-lg font-semibold">{{ scannerDetail?.name || '扫描器详情' }}</h2>
+        <h1 class="page-title">{{ scannerDetail?.name || '扫描器详情' }}</h1>
         <p class="text-sm opacity-80 mt-1">ID：{{ scannerId }}</p>
         <p v-if="scannerDetail" class="text-sm opacity-80 mt-1">位置：{{ scannerDetail.location || '无' }}</p>
       </div>

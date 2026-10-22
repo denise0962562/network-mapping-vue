@@ -380,10 +380,10 @@ onMounted(loadAll)
     />
   </div>
 
-  <main class="p-4 md:p-6">
+  <main class="page-shell">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">请求日志</h1>
+        <h1 class="page-title">请求日志</h1>
         <p class="mt-1 text-sm text-base-content/60">查看每一个业务请求，自动识别 4xx / 5xx 错误。</p>
       </div>
     </div>

@@ -24,6 +24,16 @@ body {
     margin: 0;
 }
 
+@layer components {
+    .page-shell {
+        @apply min-w-0 w-full p-5;
+    }
+
+    .page-title {
+        @apply text-2xl font-semibold;
+    }
+}
+
 .version-update-text {
     display: inline-block;
     transform-origin: center;

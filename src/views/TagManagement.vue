@@ -259,11 +259,11 @@ onMounted(loadCatalog)
 </script>
 
 <template>
-  <main class="p-4 md:p-6">
+  <main class="page-shell">
     <div class="space-y-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 class="text-xl font-semibold">标签管理</h1>
+          <h1 class="page-title">标签管理</h1>
           <p class="mt-1 text-sm opacity-65">集中维护标签分类与名称，并直接为已收录的 IP 地址打标。</p>
         </div>
         <div v-if="canManage" class="flex flex-wrap gap-2">

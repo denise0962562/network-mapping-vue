@@ -83,9 +83,9 @@ test('article completion labels reflect actual records including historical empt
   assert.equal(articleStatusLabel({ status: 'proposed' }), '提取已完成')
   assert.equal(articleStatusLabel({ status: 'failed', pending_count: 0 }), '失败')
 })
-test('manual article sources keep host and publisher binding without feed credentials', () => {
+test('manual article sources keep wildcard hosts and omit legacy publisher binding', () => {
   const payload=sourcePayload({...newSource(),kind:'article',transport:'manual',publisher_id:' ZXhhbXBsZQ== ',location:'https://stale.example',auth_env:'NM_INTEL_STALE',credential:'must-not-send'},'mp.weixin.qq.com\nresearch.example')
-  assert.equal(payload.location,'');assert.equal(payload.auth_env,'');assert.equal(payload.publisher_id,'ZXhhbXBsZQ==');assert.equal(payload.allowed_hosts.length,2);assert.ok(!Object.hasOwn(payload,'credential'))
+  assert.equal(payload.location,'');assert.equal(payload.auth_env,'');assert.equal('publisher_id' in payload,false);assert.equal(payload.allowed_hosts.length,2);assert.ok(!Object.hasOwn(payload,'credential'))
 })
 
 test('article diagnostics distinguish AI failures and allowlist only scalar diagnostic fields', () => {
@@ -153,4 +153,22 @@ test('AI payload separates protocol, reasoning effort and output budget from tim
   const maximum = settingsPayload({ ai_max_output_tokens: 393216, ai_reasoning_effort: 'max' })
   assert.equal(maximum.ai_max_output_tokens, 393216)
   assert.equal(maximum.ai_reasoning_effort, 'max')
+})
+
+test('source request configuration keeps secret values, preservation flags and wildcard rules', () => {
+  const form = { ...newSource(), kind: 'article', transport: 'manual', publisher_id: 'legacy', request_config: { proxy_mode: 'custom', proxy_url: '', proxy_configured: true, headers: [{ name: ' Cookie ', value: '', configured: true }, { name: 'User-Agent', value: ' Fixture/1.0 ', configured: false }] } }
+  const payload = sourcePayload(form, '*.example.com\n*')
+  assert.deepEqual(payload.allowed_hosts, ['*.example.com', '*'])
+  assert.equal('publisher_id' in payload, false)
+  assert.equal(payload.request_config.proxy_configured, true)
+  assert.deepEqual(payload.request_config.headers[0], { name: 'Cookie', value: '', configured: true })
+  assert.equal(payload.request_config.headers[1].value, ' Fixture/1.0 ')
+  form.request_config.headers.splice(0, 1)
+  form.request_config.proxy_mode = 'direct'
+  const updated = sourcePayload(form, '*')
+  assert.equal(updated.request_config.proxy_url, '')
+  assert.equal(updated.request_config.proxy_configured, false)
+  assert.equal(updated.request_config.headers.length, 1)
+  form.kind = 'json'; form.transport = 'upload'
+  assert.equal('request_config' in sourcePayload(form, ''), false)
 })

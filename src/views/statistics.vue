@@ -198,9 +198,9 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
 </script>
 
 <template>
-  <main class="p-4 md:p-6">
+  <main class="page-shell">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div><h1 class="text-2xl font-semibold">统计分析</h1><p class="mt-1 text-sm text-base-content/60">选择数据与汇总方式，生成图表并导出图片或数据。</p></div>
+      <div><h1 class="page-title">统计分析</h1><p class="mt-1 text-sm text-base-content/60">选择数据与汇总方式，生成图表并导出图片或数据。</p></div>
       <span v-if="result" class="text-xs text-base-content/50">生成于 {{ formatDateTime(result.meta.generated_at, result.meta.timezone) }}</span>
     </div>
     <AppAlert v-if="error" type="error" title="统计未能生成" :description="error" :timeout="0" :closable="false" class="mb-4" />

@@ -354,9 +354,9 @@ onMounted(() => {
     />
   </div>
 
-  <div class="p-5">
+  <div class="page-shell">
     <div class="mb-4">
-      <h2 class="text-lg font-semibold">系统设置</h2>
+      <h1 class="page-title">系统设置</h1>
       <p class="text-xs opacity-60">系统运行、安全策略与通知方式</p>
     </div>
 
