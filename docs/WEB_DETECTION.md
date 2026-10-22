@@ -54,3 +54,11 @@ SSR 测试验证证据文本转义、本地图标路径、未知技术回退、�
 第二批增加 `tech = git`，表示已观察到合法的 Git smart HTTP 广告响应。
 MinIO 与 S3、GitLab 与 Git 可分别出现或同时出现，界面不根据产品关系自动补标签。
 组合判定、支持目录和协议范围以服务端技术目录为准；本轮扩展无需更改前端字段或升级扫描器。
+
+## Elasticsearch 数据库标签
+
+服务端新规则以 category=database 返回 Elasticsearch，现有三个页面共用同一标签组件。使用已安装 @lucide/vue 的 Database 通用符号（ISC）和 daisyUI badge-outline，不使用 Elasticsearch 品牌图标，也不向外部图标服务请求资源。图标继承 currentColor，浅/深主题沿用现有样式。旧服务端没有 category 时保持原标签；不从端口号推断数据库。
+
+查询使用 `tech = elasticsearch` 或 `tech = "elasticsearch@8.19.0"`。响应只含产品头时不展示版本；多个版本显示冲突，截断/过期状态沿用既有提示。该标签指 HTTP/HTTPS REST 产品证据，不证明无需认证，也不代表已经识别 TCP Transport。
+
+UDP 创建任务、TCP/UDP 同端口展示和原生 Transport 将在后续批次交付，见[服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)。

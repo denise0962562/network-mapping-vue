@@ -79,3 +79,7 @@
 4. 未知 ID、非字符串 ID 或不在白名单内的值回退为通用服务器图标；加载失败也回退。图标请求不发往第三方，页面不要求外网连接。
 5. 图标在有已识别技术的 `identified/partial` 状态中显示；`pending`、`unsupported`、`unknown` 和空结果不展示旧组件图标。CSV 继续只导出文字。
 6. 运行 `pnpm test:web` 和 `pnpm build`，检查摘要、展开明细、长标签、明暗主题及未知技术回退。
+
+## 数据库类别通用符号
+
+category=database 的技术使用已安装 `@lucide/vue` 的 `Database` 组件（Lucide ISC 许可），替代静态品牌图标；图形固定在构建代码中，继承 currentColor，不内联服务端 SVG。Elasticsearch 名称由识别结果提供，通用符号不表示额外产品身份。其他技术继续使用静态 manifest 和白名单；CSV 不导出图形。

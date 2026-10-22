@@ -7,6 +7,10 @@
 
 Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。页面行为与前端开发在此维护，服务端配置和协议由配套服务端文档说明。
 
+## 版本更新
+
+[更新日志](CHANGELOG.md)记录已实现的变更；[服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)区分当前交付和后续 UDP/Transport 入口。
+
 ## 从这里开始
 
 | 当前任务 | 建议阅读顺序 |
