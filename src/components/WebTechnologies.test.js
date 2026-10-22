@@ -40,6 +40,24 @@ test('Web evidence renders safely and partial results retain their limits', asyn
     assert.match(pending, /识别中/)
     assert.doesNotMatch(pending, /jQuery/)
     assert.doesNotMatch(pending, /<img/)
+    const database = await renderToString(createSSRApp(component, { value: {
+      status: 'identified', ruleset_version: '2026-10-22.6',
+      technologies: [{ id: 'elasticsearch', name: 'Elasticsearch', category: 'database', version: '8.19.0', confidence: 'high', usage: 'response_marker', evidence: [{ module: 'https', rule_id: 'elasticsearch-root-json', field_path: '/body', excerpt: '<script>untrusted</script>' }] }],
+    } }))
+    assert.match(database, /Elasticsearch 8\.19\.0/)
+    assert.match(database, /badge badge-outline badge-sm/)
+    assert.match(database, /数据库/)
+    assert.match(database, /<svg[^>]+aria-hidden="true"/)
+    assert.match(database, /&lt;script&gt;untrusted&lt;\/script&gt;/)
+    assert.doesNotMatch(database, /<script>|<img/)
+    const databaseConflict = await renderToString(createSSRApp(component, { value: {
+      status: 'partial', truncated: true, stale: true,
+      technologies: [{ id: 'elasticsearch', name: 'Elasticsearch', category: 'database', version: '8.19.0', version_conflict: true }],
+    } }))
+    assert.match(databaseConflict, /Elasticsearch（版本冲突）/)
+    assert.doesNotMatch(databaseConflict, /8\.19\.0/)
+    assert.match(databaseConflict, /证据不完整/)
+    assert.match(databaseConflict, /证据可能过期/)
     const empty = await renderToString(createSSRApp(component))
     assert.match(empty, /暂无识别结果/)
   } finally {

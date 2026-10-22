@@ -16,3 +16,9 @@ test('conflicting versions are not shown as a confirmed version', () => {
   assert.equal(webLabel(web), 'jQuery（版本冲突）')
   assert.deepEqual(webCsvValues(web, String), ['jQuery（版本冲突）', 'partial', '123', '是', 'fixture'])
 })
+
+test('database fingerprints use the existing labels and CSV contract', () => {
+  const value = { status: 'identified', technologies: [{ id: 'elasticsearch', name: 'Elasticsearch', category: 'database', version: '8.19.0' }], ruleset_version: '2026-10-22.6' }
+  assert.equal(webLabel(value), 'Elasticsearch 8.19.0')
+  assert.deepEqual(webCsvValues(value, String), ['Elasticsearch 8.19.0', 'identified', '', '否', '2026-10-22.6'])
+})
