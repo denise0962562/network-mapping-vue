@@ -8,6 +8,8 @@
 
 API Key、请求头值、代理地址和固定 session 值均不回显。“已保存，留空保留”沿用服务端标记，删除头行清除该项。删除活动供应商可同时暂停提取；并发 revision 冲突保留当前编辑草稿并提示刷新。
 
+供应商勾选“清除数据库 API Key”后，清除操作优先于已输入的替换密钥，保存请求不提交替换值。保存失败保留草稿；取消勾选后可继续保存原先输入的新密钥。清除后可使用环境变量备用来源或有效的自定义 Authorization 请求头；未设置备用环境变量时，有效认证头仍可用于调试、模型刷新及 IOC 提取。数据库密钥解密失败仍会阻断请求。
+
 界面复用项目既有 daisyUI card、table、modal、input、select、toggle、chat、alert 和语义配色；沿用现有折叠导航、AppAlert、未保存修改提示及深浅主题。不新增独立配色或样式框架。
 
 POST SSE 使用 `llmChat.js`，沿用 `http.js` 的会话失效处理和 CSRF Cookie。SSE 解析支持任意 UTF-8 分片与 CRLF，必须收到 done 或 error；EOF 不能标记完成。

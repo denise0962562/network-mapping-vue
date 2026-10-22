@@ -35,3 +35,38 @@ test('failed model refresh preserves the editable list and a revision conflict p
   assert.equal(p.form.value.name, 'unsaved'); assert.match(p.error.value, /刷新/)
   p.dispose()
 })
+
+test('clearing a saved credential omits a typed replacement and keeps failed edits recoverable', async () => {
+  const writes = []
+  let fail = true
+  const p = page({
+    get: async () => ({ data: { data: state() } }),
+    put: async (_url, body) => {
+      writes.push(JSON.parse(JSON.stringify(body)))
+      if (fail) throw { response: { data: { code: 'intel_revision_conflict' } } }
+    },
+  })
+  await p.load(); p.open(p.state.value.providers[0])
+  p.form.value.credential = 'replacement-not-to-send'
+  p.form.value.clear_credential = true
+  assert.equal(await p.saveProvider(), false)
+  assert.equal(writes[0].provider.clear_credential, true)
+  assert.equal(Object.hasOwn(writes[0].provider, 'credential'), false)
+  assert.equal(p.form.value.credential, 'replacement-not-to-send')
+  assert.equal(p.form.value.clear_credential, true)
+  // Undoing the clear action must still allow the replacement to be saved.
+  p.form.value.clear_credential = false
+  fail = false
+  assert.equal(await p.saveProvider(), true)
+  assert.equal(writes[1].provider.credential, 'replacement-not-to-send')
+  assert.equal(writes[1].provider.clear_credential, false)
+  assert.equal(p.form.value.credential, '')
+  p.open(p.state.value.providers[0])
+  p.form.value.credential = 'another-replacement-not-to-send'
+  p.form.value.clear_credential = true
+  assert.equal(await p.saveProvider(), true)
+  assert.equal(writes[2].provider.clear_credential, true)
+  assert.equal(Object.hasOwn(writes[2].provider, 'credential'), false)
+  assert.equal(p.form.value.credential, '')
+  p.dispose()
+})

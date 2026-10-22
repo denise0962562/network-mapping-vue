@@ -54,7 +54,9 @@ async function saveProvider() {
   if (!state.value || busy.value || refreshing.value) return false
   busy.value = true; error.value = ''
   try {
-    const payload = { expected_revision: state.value.revision, provider: form.value }
+    const provider = { ...form.value }
+    if (provider.clear_credential) delete provider.credential
+    const payload = { expected_revision: state.value.revision, provider }
     const url = '/api/llm/providers' + (form.value.id ? `/${form.value.id}` : '')
     await http[form.value.id ? 'put' : 'post'](url, payload, { signal: requests.signal })
     if (!disposed) { editor.value.close(); editing.value = false; form.value = providerForm(); await load(); notify('供应商已保存。') }
