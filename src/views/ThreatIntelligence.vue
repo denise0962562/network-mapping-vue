@@ -1,9 +1,9 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ChevronDown, Copy } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Copy } from '@lucide/vue'
 import http from '../utils/http'
 import { formatDateTime } from '../utils/systemTime'
-import IntelReportReview from '../components/IntelReportReview.vue'
+import { useRoute } from 'vue-router'
 import { articleIocLocations } from '../utils/intelReportReview'
 import IntelArticleSnapshot from '../components/IntelArticleSnapshot.vue'
 import IntelActorReview from '../components/IntelActorReview.vue'
@@ -14,22 +14,17 @@ import IntelValidation from '../components/IntelValidation.vue'
 import IntelArticleForm from '../components/IntelArticleForm.vue'
 import IntelRefreshButton from '../components/IntelRefreshButton.vue'
 import IntelStatusText from '../components/IntelStatusText.vue'
-import { evidenceExcerpt, sourceKinds, defaultIntervals, states, attackTypes, attackLabel, roleLabel, articleStatusLabel, articleIntakeLabel, intelError, newSource, sourcePayload, settingsPayload, originLabel, safeReference } from '../utils/threatIntel'
+import { evidenceExcerpt, sourceKinds, defaultIntervals, states, attackTypes, attackLabel, roleLabel, articleStatusLabel, articleIntakeLabel, intelError, newSource, sourcePayload, originLabel, safeReference } from '../utils/threatIntel'
 const tabs = { sources: '来源', records: 'IOC 库', review: '审核', articles: '文章', entities: '组织与基准库', mappings: '名称映射', jobs: '同步作业' }
-const tab = ref('sources'), sources = ref([]), records = ref([]), articles = ref([]), entities = ref([]), jobs = ref([]), mappings = ref({ unmapped: [], mappings: [] })
-const reviewGroups = ref([]), reportReview = ref(null)
+const route = useRoute()
+const tab = ref(Object.hasOwn(tabs, route.query.tab) ? route.query.tab : 'sources'), sources = ref([]), records = ref([]), articles = ref([]), entities = ref([]), jobs = ref([]), mappings = ref({ unmapped: [], mappings: [] })
+const reviewGroups = ref([])
 const error = ref(''), notice = ref(''), loading = ref(false), busy = ref(false), total = ref(0), offset = ref(0), query = ref(''), recordStatus = ref('approved'), recordType = ref(''), attackType = ref(''), entityKind = ref('actor')
-const settings = ref({ ai_enabled: false, ai_endpoint: 'https://api.openai.com/v1/chat/completions', ai_model: '', ai_key_env: 'NM_INTEL_AI_API_KEY', ai_timeout_seconds: 180, ai_protocol: 'chat', ai_max_output_tokens: 65536, ai_reasoning_effort: 'none', credential: '', clear_credential: false })
-const aiExpanded = ref(false)
-const stopAiExpansionWatch = watch(() => settings.value.ai_enabled, enabled => { aiExpanded.value = Boolean(enabled) }, { immediate: true, flush: 'sync' })
-function showAiValidation(event) {
-  if (aiExpanded.value) return
-  event.preventDefault()
-  aiExpanded.value = true
-  nextTick(() => { if (!disposed) event.target.reportValidity() })
-}
-const settingsRevision = ref(0), aiCredential = ref(false), aiDatabaseCredential = ref(false), aiCredentialSource = ref('none')
-const sourceDetailsDialog = ref(null), sourceDetails = ref(null), sourceCopyMessage = ref('')
+const settings = ref({ ai_enabled: false, ai_model: '' })
+const sourceDetails = ref(null), sourceCopyMessage = ref(''), sourceDetailsDialog = ref(null)
+const deleteDialog = ref(null), deleteTarget = ref(null), managementError = ref('')
+const articleEditDialog = ref(null), articleEditForm = ref(null), articleEditLoading = ref(false)
+let articleEditVersion = 0
 const sourceDialog = ref(null), sourceForm = ref(newSource()), hostsText = ref('')
 const importDialog = ref(null), importSource = ref(null), importFile = ref(null), importFileInput = ref(null), uploadProgress = ref(null), uploadChecking = ref(false), importError = ref('')
 const reviewDialog = ref(null), selected = ref(null), reviewDecision = ref('approved'), reason = ref(''), article = ref(null), articleLoading = ref(false)
@@ -38,7 +33,6 @@ const articleError = ref('')
 const focusedEvidence = ref(null), evidenceMark = ref(null)
 const selectedIocLocation = computed(() => selected.value ? articleIocLocations(article.value?.body, [selected.value]).get(selected.value.id) : null)
 async function locateSelectedIoc() { await locateEvidence(selectedIocLocation.value) }
-async function reportReviewComplete() { notice.value = '报告审核已保存，标记已按有效证据更新。'; await refresh() }
 const focusedExcerpt = computed(() => evidenceExcerpt(article.value?.body, focusedEvidence.value))
 async function locateEvidence(span) {
   if (!evidenceExcerpt(article.value?.body, span)) return
@@ -53,7 +47,7 @@ const requests = new AbortController()
 let timer, uploadController, disposed = false, tabVersion = 0, articleVersion = 0, candidateVersion = 0, entityVersion = 0
 function fail(e) { if (!disposed && e.code !== 'ERR_CANCELED') error.value = intelError(e) }
 async function loadSources() { const r = await http.get('/api/intel/sources', { signal: requests.signal }); if (!disposed) sources.value = r.data.data.items }
-async function loadSettings() { const r = await http.get('/api/intel/settings', { signal: requests.signal }); if (!disposed) { settings.value = { ai_timeout_seconds: 180, ai_protocol: 'chat', ai_max_output_tokens: 65536, ai_reasoning_effort: 'none', ...r.data.data.settings, credential: '', clear_credential: false }; settingsRevision.value = r.data.data.revision; aiCredential.value = r.data.data.credential_configured; aiDatabaseCredential.value = r.data.data.database_credential_configured; aiCredentialSource.value = r.data.data.credential_source } }
+async function loadSettings() { const r = await http.get('/api/intel/settings', { signal: requests.signal }); if (!disposed) settings.value = r.data.data.settings }
 async function refresh() {
   const version = ++tabVersion, current = tab.value
   loading.value = true; error.value = ''
@@ -74,10 +68,6 @@ async function refresh() {
   } catch (e) { if (version === tabVersion) fail(e) } finally { if (version === tabVersion) loading.value = false }
 }
 function changeTab(value) { tab.value = value; query.value = ''; offset.value = 0; refresh() }
-async function saveSettings() {
-  busy.value = true; error.value = ''; notice.value = ''
-  try { await http.put('/api/intel/settings', { settings: settingsPayload(settings.value), expected_revision: settingsRevision.value }); settings.value.credential = ''; settings.value.clear_credential = false; await loadSettings(); notice.value = 'AI 配置已保存。可信来源同步独立运行，AI 提议始终需要人工审核。' } catch (e) { fail(e) } finally { busy.value = false }
-}
 function showSourceDetails(source) { sourceDetails.value = source; sourceCopyMessage.value = ''; sourceDetailsDialog.value?.showModal() }
 async function copySourceId() {
   const id = sourceDetails.value?.id
@@ -89,7 +79,7 @@ async function copySourceId() {
     if (!disposed && sourceDetails.value?.id === id) sourceCopyMessage.value = '复制失败，请手动选择来源 ID 复制。'
   }
 }
-function editSource(source = null) { sourceForm.value = source ? { ...newSource(), ...source } : newSource(); hostsText.value = (source?.allowed_hosts || []).join('\n'); sourceDialog.value?.showModal() }
+function editSource(source = null) { error.value = ''; sourceForm.value = source ? { ...newSource(), ...source, request_config: { ...newSource().request_config, ...source.request_config, headers: (source.request_config?.headers || []).map(header => ({ ...header })) } } : newSource(); hostsText.value = (source?.allowed_hosts || []).join('\n'); sourceDialog.value?.showModal() }
 function clearSourceCredential() { sourceForm.value.credential = ''; sourceForm.value.clear_credential = false }
 function kindChanged() { sourceForm.value.interval_seconds = defaultIntervals[sourceForm.value.kind]; if (sourceForm.value.kind === 'article') { sourceForm.value.transport = 'manual'; sourceForm.value.location = ''; sourceForm.value.auth_env = ''; clearSourceCredential() } else if (sourceForm.value.transport === 'manual') sourceForm.value.transport = 'https'; if (sourceForm.value.kind === 'threatfox_export') { sourceForm.value.transport = 'upload'; sourceForm.value.location = ''; sourceForm.value.auth_env = ''; clearSourceCredential(); hostsText.value = '' } else if (sourceForm.value.transport === 'upload' && !['json', 'lines'].includes(sourceForm.value.kind)) sourceForm.value.transport = 'https' }
 function openImport(source) { importSource.value = source; importFile.value = null; uploadProgress.value = null; importError.value = ''; if (importFileInput.value) importFileInput.value.value = ''; importDialog.value?.showModal() }
@@ -116,6 +106,7 @@ async function uploadImport() {
   } catch (e) { if (!disposed) importError.value = e.code === 'ERR_CANCELED' ? '已取消上传等待，可在同步作业中确认是否已接收。' : intelError(e) } finally { busy.value = false; uploadChecking.value = false; uploadController = null }
 }
 async function saveSource() {
+  if (busy.value) return
   busy.value = true; error.value = ''; notice.value = ''
   try {
     const payload = sourcePayload(sourceForm.value, hostsText.value)
@@ -123,6 +114,48 @@ async function saveSource() {
     else await http.post('/api/intel/sources', payload)
     sourceDialog.value?.close(); clearSourceCredential(); await loadSources(); notice.value = payload.transport === 'manual' ? '文章来源已保存，请在文章页提交链接或正文快照。所有 AI 提议固定人工审核。' : payload.transport === 'upload' || payload.kind === 'threatfox_export' ? '离线来源已保存，请手动上传文件或从本地导入。' : '来源已保存，将按检查周期更新；AI 提议的人工审核规则不受来源设置影响。'
   } catch (e) { fail(e) } finally { busy.value = false }
+}
+function confirmDelete(kind, row) {
+  if (busy.value) return
+  deleteTarget.value = { kind, id: row.id, revision: row.revision, name: row.name || row.title || row.url }
+  managementError.value = ''; deleteDialog.value?.showModal()
+}
+async function deleteItem() {
+  if (!deleteTarget.value || busy.value) return
+  const target = { ...deleteTarget.value }
+  busy.value = true; managementError.value = ''; error.value = ''; notice.value = ''
+  try {
+    await http.delete(`/api/intel/${target.kind}/${target.id}`, { data: { expected_revision: target.revision }, signal: requests.signal })
+    if (disposed) return
+    deleteDialog.value?.close(); deleteTarget.value = null
+    notice.value = target.kind === 'sources' ? '来源已删除，后台任务已停止，关联情报不再参与标记。' : '文章已删除，仅由此文章支持的情报不再参与标记。'
+    try { await loadSources() } catch (e) { fail(e) }
+    await refresh()
+  } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') managementError.value = intelError(e) } finally { busy.value = false }
+}
+async function editArticle(row) {
+  if (busy.value) return
+  const version = ++articleEditVersion
+  articleEditForm.value = null; articleEditLoading.value = true; managementError.value = ''; articleEditDialog.value?.showModal()
+  try {
+    const response = await http.get(`/api/intel/articles/${row.id}`, { signal: requests.signal })
+    if (disposed || version !== articleEditVersion) return
+    const detail = response.data.data
+    articleEditForm.value = { id: row.id, source_id: row.source_id, source_name: row.source_name, expected_revision: row.current_source_revision, expected_article_revision: detail.revision, title: detail.title, url: detail.url, body: detail.body || '' }
+  } catch (e) { if (version === articleEditVersion && !disposed && e.code !== 'ERR_CANCELED') managementError.value = intelError(e) }
+  finally { if (version === articleEditVersion) articleEditLoading.value = false }
+}
+async function saveArticle() {
+  if (!articleEditForm.value || busy.value || articleEditLoading.value) return
+  const { id, source_name, ...form } = articleEditForm.value
+  busy.value = true; managementError.value = ''; error.value = ''; notice.value = ''
+  try {
+    await http.put(`/api/intel/articles/${id}`, { ...form, title: form.title.trim(), url: form.url.trim(), body: form.body.trim() || null }, { signal: requests.signal })
+    if (disposed) return
+    articleEditDialog.value?.close(); articleEditForm.value = null
+    notice.value = '文章已修改并生成新快照，已重新排队；提取结果须人工审核，历史快照与审核记录保留。'
+    await refresh()
+  } catch (e) { if (!disposed && e.code !== 'ERR_CANCELED') managementError.value = intelError(e) } finally { busy.value = false }
 }
 async function sync(source) {
   busy.value = true; error.value = ''
@@ -157,6 +190,7 @@ async function submitReview() {
 }
 async function retryArticle(row) {
   if (busy.value) return
+  if (row.source_enabled === false) { error.value = '来源已停用，请在“来源”中启用后再提取。'; notice.value = ''; return }
   busy.value = true; error.value = ''; notice.value = ''
   try {
     const response = await http.post(`/api/intel/articles/${row.id}/retry`)
@@ -177,46 +211,17 @@ async function poll() {
   if (!disposed) timer = setTimeout(poll, 5000)
 }
 onMounted(async () => { try { await Promise.all([loadSettings(), loadSources()]); await refresh() } catch (e) { fail(e) } if (!disposed) timer = setTimeout(poll, 5000) })
-onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; articleVersion++; settings.value.credential = ''; clearSourceCredential(); importFile.value = null; uploadController?.abort(); requests.abort(); clearTimeout(timer) })
+onBeforeUnmount(() => { disposed = true; tabVersion++; articleVersion++; articleEditVersion++; clearSourceCredential(); importFile.value = null; uploadController?.abort(); requests.abort(); clearTimeout(timer) })
 </script>
 
 <template>
-  <main class="min-w-0 w-full space-y-5 p-5">
-    <div><h1 class="text-2xl font-semibold">威胁情报与自动标记</h1><p class="mt-2 text-sm opacity-65">可信来源的 IOC 默认直接接纳；AI 提取作为补充，所有提议均须人工审核后生效。</p></div>
+  <main class="page-shell space-y-5">
+    <div><h1 class="page-title">威胁情报与自动标记</h1><p class="mt-2 text-sm opacity-65">可信来源的 IOC 默认直接接纳；AI 提取作为补充，所有提议均须人工审核后生效。</p></div>
     <div v-if="error" role="alert" class="alert alert-error">{{ error }}</div>
     <div v-if="notice" role="status" class="alert alert-info">{{ notice }}</div>
-    <form class="card border border-base-300 bg-base-100 p-4" @submit.prevent="saveSettings" @invalid.capture="showAiValidation">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="font-semibold">AI 文章提取</h2>
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <label class="flex items-center gap-2 text-sm"><input v-model="settings.ai_enabled" type="checkbox" class="toggle toggle-sm" />启用 AI 提取</label>
-          <button type="button" class="btn btn-ghost btn-sm" :aria-expanded="aiExpanded" aria-controls="intel-ai-settings" @click="aiExpanded = !aiExpanded">
-            {{ aiExpanded ? '收起' : '展开' }}
-            <ChevronDown class="size-4 transition-transform duration-300 motion-reduce:transition-none" :class="{ 'rotate-180': aiExpanded }" aria-hidden="true" />
-          </button>
-          <button class="btn btn-neutral btn-sm" :disabled="busy || !settingsRevision">保存 AI 设置</button>
-        </div>
-      </div>
-      <div id="intel-ai-settings" class="ai-settings-collapse" :class="{ 'is-expanded': aiExpanded }" :inert="!aiExpanded">
-        <div class="min-h-0 overflow-hidden">
-          <div class="space-y-3 pt-3">
-            <p class="text-sm opacity-65">{{ settings.ai_enabled ? '启用后处理 RSS 和手动提交的文章队列。' : '当前暂停 AI 提取，可信 IOC 同步与自动标记继续运行。' }}AI 人工审核为固定规则，无法关闭。</p>
-            <div class="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-              <label class="form-control min-w-0 text-sm">接口地址（基础地址或完整地址）<input v-model="settings.ai_endpoint" class="input input-bordered mt-1 w-full" type="url" required /></label>
-              <label class="form-control min-w-0 text-sm">模型名称<input v-model="settings.ai_model" class="input input-bordered mt-1 w-full" :required="settings.ai_enabled" maxlength="100" /></label>
-              <label class="form-control min-w-0 text-sm">接口协议<select v-model="settings.ai_protocol" class="select select-bordered mt-1 w-full"><option value="chat">Chat Completions</option><option value="responses">Responses</option></select><span class="mt-1 text-xs opacity-60">以 /v1 结尾的基础地址自动追加协议路径；完整地址不重复追加。</span></label>
-              <label class="form-control min-w-0 text-sm">输出预算（token）<input v-model.number="settings.ai_max_output_tokens" type="number" min="512" max="393216" step="1" required class="input input-bordered mt-1 w-full" /><span class="mt-1 text-xs opacity-60">默认 65536，最高支持 393216（384K）；推理计入预算，请按模型能力设置。</span></label>
-              <label class="form-control min-w-0 text-sm">推理强度<select v-model="settings.ai_reasoning_effort" class="select select-bordered mt-1 w-full"><option value="none">关闭推理（none）</option><option value="low">低（low）</option><option value="medium">中（medium）</option><option value="high">高（high）</option><option value="max">最高（max）</option><option value="default">接口默认（不发送参数）</option></select><span class="mt-1 text-xs opacity-60">常规提取默认关闭推理；接口不支持此参数时选择“接口默认”。</span></label>
-              <label class="form-control min-w-0 text-sm">AI 请求超时（秒）<input v-model.number="settings.ai_timeout_seconds" class="input input-bordered mt-1 w-full" type="number" min="1" max="1800" step="1" required /><span class="mt-1 text-xs opacity-60">默认 180 秒，可设置 1～1800 秒，包含等待响应和读取结果。</span></label>
-              <label class="form-control min-w-0 text-sm">环境变量备用来源（可选）<input v-model="settings.ai_key_env" class="input input-bordered mt-1 w-full" placeholder="NM_INTEL_AI_API_KEY" /></label>
-            </div>
-            <label class="form-control min-w-0 text-sm">数据库加密凭据（留空保留已保存值）<input v-model="settings.credential" type="password" autocomplete="new-password" maxlength="8192" class="input input-bordered mt-1 w-full" :disabled="settings.clear_credential" placeholder="输入原始 API Key，保存后不回显" /></label>
-            <label v-if="aiDatabaseCredential" class="flex items-center gap-2 text-sm"><input v-model="settings.clear_credential" type="checkbox" class="checkbox checkbox-sm" />清除已保存的数据库凭据</label>
-            <p class="text-xs opacity-60">凭据：{{ aiCredential ? (aiCredentialSource === 'database' ? '数据库加密存储' : '环境变量') : '未配置' }}。优先使用数据库凭据；未保存时使用环境变量。明文不会回显。</p>
-          </div>
-        </div>
-      </div>
-    </form>
+    <div class="card border border-base-300 bg-base-100 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-semibold">LLM 文章提取</h2><p class="mt-2 text-sm opacity-65">{{ settings.ai_enabled ? `已启用 · ${settings.ai_model}` : '当前已暂停，可信 IOC 同步继续运行。' }} 所有 LLM 提议固定人工审核。</p></div><router-link to="/llm/basic" class="btn btn-outline btn-sm">前往 LLM 设置</router-link></div>
+    </div>
     <div role="tablist" class="tabs tabs-border overflow-x-auto flex-nowrap"><button v-for="(label, key) in tabs" :key="key" type="button" role="tab" class="tab whitespace-nowrap" :aria-selected="tab === key" :class="{ 'tab-active': tab === key }" @click="changeTab(key)">{{ label }}</button></div>
     <div class="flex min-w-0 flex-wrap items-center justify-end gap-3">
       <IntelRefreshButton :loading="loading" @refresh="refresh" />
@@ -233,21 +238,46 @@ onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; a
     <IntelArticleForm v-if="tab === 'articles'" :sources="sources" @saved="refresh" />
     <div class="card border border-base-300 bg-base-100 overflow-x-auto">
       <table v-if="tab === 'sources'" class="table table-sm"><thead><tr><th>来源</th><th>位置与格式</th><th>接纳策略</th><th>检查周期</th><th>最近作业</th><th>操作</th></tr></thead><tbody>
-        <tr v-for="s in sources" :key="s.id"><td><button type="button" class="link link-hover text-left font-semibold" @click="showSourceDetails(s)">{{ s.name }}</button><p class="text-xs opacity-60"><IntelStatusText :text="s.enabled ? '已启用' : '已停用'" /></p></td><td><p>{{ sourceKinds[s.kind] }} · {{ s.transport === 'manual' ? '手动文章' : s.transport === 'upload' ? '离线上传' : s.transport === 'local' ? '本地文件' : '远程 HTTPS' }}</p><p class="mt-1 max-w-md break-all text-xs opacity-60">{{ s.location }}</p><p v-if="s.auth_env || s.credential_configured" class="text-xs">凭据 {{ s.credential_source === 'database' ? '数据库加密存储' : s.credential_configured ? '环境变量' : '未配置' }}</p></td><td>{{ ['rss','article'].includes(s.kind) ? 'AI 固定人工审核' : s.kind === 'mitre_stix' ? '规范化基准库' : s.require_review ? '人工审核后接纳' : '可信 IOC 直接接纳' }}</td><td>{{ s.transport === 'manual' ? '手动提交，不周期抓取' : s.transport === 'upload' || s.kind === 'threatfox_export' ? '手动导入，不定时拉取' : `${s.interval_seconds} 秒` }}<p class="text-xs opacity-60">有效期 {{ s.expiry_months ? `${s.expiry_months} 个月` : '不设置本地期限' }}</p><p v-if="s.import_status" class="text-xs"><IntelStatusText :text="`${states[s.import_status.stage]} · ${s.import_status.processed}/${s.import_status.total}`" /></p></td><td><IntelStatusText :text="states[s.last_run?.status] || '尚未同步'" /><p v-if="s.last_run?.error_code" class="max-w-xs text-xs text-error">{{ intelError(s.last_run.error_code) }}</p><IntelValidation :report="(s.import_status?.stage !== 'cancelled' && s.import_status?.validation) || s.last_run?.summary?.validation" /></td><td><div class="flex flex-wrap gap-2"><button type="button" class="btn btn-ghost btn-xs" @click="showSourceDetails(s)">配置详情</button><button class="btn btn-ghost btn-xs" @click="editSource(s)">编辑</button><button v-if="s.transport === 'upload'" class="btn btn-neutral btn-xs" :disabled="busy || !s.enabled" @click="openImport(s)">上传文件</button><button v-if="s.transport !== 'manual' && (s.transport !== 'upload' || ['downloaded','ready','paused'].includes(s.import_status?.stage))" class="btn btn-outline btn-xs" :disabled="busy || !s.enabled" @click="sync(s)">{{ s.transport === 'upload' ? '继续导入' : '立即同步' }}</button></div></td></tr>
+        <tr v-for="s in sources" :key="s.id"><td><button type="button" class="link link-hover text-left font-semibold" @click="showSourceDetails(s)">{{ s.name }}</button><p class="text-xs opacity-60"><IntelStatusText :text="s.enabled ? '已启用' : '已停用'" /></p></td><td><p>{{ sourceKinds[s.kind] }} · {{ s.transport === 'manual' ? '手动文章' : s.transport === 'upload' ? '离线上传' : s.transport === 'local' ? '本地文件' : '远程 HTTPS' }}</p><p class="mt-1 max-w-md break-all text-xs opacity-60">{{ s.location }}</p><p v-if="s.auth_env || s.credential_configured" class="text-xs">凭据 {{ s.credential_source === 'database' ? '数据库加密存储' : s.credential_configured ? '环境变量' : '未配置' }}</p></td><td>{{ ['rss','article'].includes(s.kind) ? 'AI 固定人工审核' : s.kind === 'mitre_stix' ? '规范化基准库' : s.require_review ? '人工审核后接纳' : '可信 IOC 直接接纳' }}</td><td>{{ s.transport === 'manual' ? '手动提交，不周期抓取' : s.transport === 'upload' || s.kind === 'threatfox_export' ? '手动导入，不定时拉取' : `${s.interval_seconds} 秒` }}<p class="text-xs opacity-60">有效期 {{ s.expiry_months ? `${s.expiry_months} 个月` : '不设置本地期限' }}</p><p v-if="s.import_status" class="text-xs"><IntelStatusText :text="`${states[s.import_status.stage]} · ${s.import_status.processed}/${s.import_status.total}`" /></p></td><td><IntelStatusText :text="states[s.last_run?.status] || '尚未同步'" /><p v-if="s.last_run?.error_code" class="max-w-xs text-xs text-error">{{ intelError(s.last_run.error_code) }}</p><IntelValidation :report="(s.import_status?.stage !== 'cancelled' && s.import_status?.validation) || s.last_run?.summary?.validation" /></td><td><div class="flex flex-wrap gap-2"><button type="button" class="btn btn-ghost btn-xs" @click="showSourceDetails(s)">配置详情</button><button class="btn btn-ghost btn-xs" :disabled="busy" @click="editSource(s)">编辑</button><button type="button" class="btn btn-ghost btn-xs text-error" :disabled="busy" @click="confirmDelete('sources', s)">删除</button><button v-if="s.transport === 'upload'" class="btn btn-neutral btn-xs" :disabled="busy || !s.enabled" @click="openImport(s)">上传文件</button><button v-if="s.transport !== 'manual' && (s.transport !== 'upload' || ['downloaded','ready','paused'].includes(s.import_status?.stage))" class="btn btn-outline btn-xs" :disabled="busy || !s.enabled" @click="sync(s)">{{ s.transport === 'upload' ? '继续导入' : '立即同步' }}</button></div></td></tr>
         <tr v-if="!sources.length"><td colspan="6" class="py-8 text-center opacity-60">暂无来源。</td></tr>
       </tbody></table>
-      <table v-else-if="tab === 'review'" class="table table-sm"><thead><tr><th>报告 / IOC</th><th>来源</th><th>待审 IOC</th><th>操作</th></tr></thead><tbody><tr v-for="group in reviewGroups" :key="group.id"><td><p class="max-w-lg break-words font-semibold">{{ group.article_id ? group.title || '文章报告' : group.record.value }}</p><p v-if="group.article_id" class="mt-1 max-w-lg break-all text-xs opacity-60">{{ group.url }}</p></td><td>{{ group.record.source_name }}<p class="text-xs opacity-60">{{ originLabel(group.record) }}</p></td><td>{{ group.pending_count }} 条</td><td><button type="button" class="btn btn-neutral btn-xs" @click="group.article_id ? reportReview?.open(group) : openReview(group.record)">{{ group.article_id ? '审核报告' : '审核' }}</button></td></tr><tr v-if="!reviewGroups.length"><td colspan="4" class="py-8 text-center opacity-60">暂无待审提议。</td></tr></tbody></table>
+      <table v-else-if="tab === 'review'" class="table table-sm"><thead><tr><th>报告 / IOC</th><th>来源</th><th>待审 IOC</th><th>操作</th></tr></thead><tbody><tr v-for="group in reviewGroups" :key="group.id"><td><p class="max-w-lg break-words font-semibold">{{ group.article_id ? group.title || '文章报告' : group.record.value }}</p><p v-if="group.article_id" class="mt-1 max-w-lg break-all text-xs opacity-60">{{ group.url }}</p></td><td>{{ group.record.source_name }}<p class="text-xs opacity-60">{{ originLabel(group.record) }}</p></td><td>{{ group.pending_count }} 条</td><td><router-link v-if="group.article_id" :to="{ name: 'intel-report-review', params: { articleId: group.article_id }, query: { from: 'review' } }" class="btn btn-neutral btn-xs">审核报告</router-link><button v-else type="button" class="btn btn-neutral btn-xs" @click="openReview(group.record)">审核</button></td></tr><tr v-if="!reviewGroups.length"><td colspan="4" class="py-8 text-center opacity-60">暂无待审提议。</td></tr></tbody></table>
       <table v-else-if="tab === 'records'" class="table table-sm"><thead><tr><th>IOC</th><th>来源</th><th>上下文与证据</th><th>状态</th><th>操作</th></tr></thead><tbody>
         <tr v-for="r in records" :key="r.id"><td><span class="badge badge-outline badge-xs">{{ r.type }}</span><p class="mt-1 max-w-xs break-all font-mono">{{ r.value }}</p><span class="badge badge-xs transition-colors duration-200 motion-reduce:transition-none" :class="r.payload.verdict === 'malicious' ? 'badge-error' : 'badge-warning'"><IntelStatusText :text="r.payload.verdict === 'malicious' ? '恶意' : '可疑'" /></span></td><td>{{ r.source_name }}<p class="text-xs opacity-60">{{ originLabel(r) }}</p></td><td class="max-w-md"><p v-if="r.payload.actor_name">组织原名：{{ r.payload.actor_name }} <span v-if="r.actor_id">（{{ r.actor_id }}）</span></p><p v-if="r.payload.malware">软件：{{ r.payload.malware }}</p><p v-if="r.payload.confidence != null">来源置信度：{{ r.payload.confidence }}</p><p v-if="r.payload.evidence" class="mt-1 line-clamp-3 break-words text-xs opacity-70">{{ r.payload.evidence }}</p></td><td><IntelStatusText :text="states[r.status]" /><p v-if="r.valid_until" class="text-xs">有效至 {{ formatDateTime(r.valid_until) }}</p></td><td><button v-if="r.status === 'pending'" class="btn btn-neutral btn-xs" @click="openReview(r)">审核</button><button v-else-if="['approved','expired'].includes(r.status)" class="btn btn-outline btn-xs" @click="openReview(r, 'revoked')">证据 / 撤销</button></td></tr>
         <tr v-if="!records.length"><td colspan="5" class="py-8 text-center opacity-60">{{ tab === 'review' ? '暂无待审提议。AI 关闭时不会产生新的 AI 提议。' : '暂无匹配记录。' }}</td></tr>
       </tbody></table>
-      <table v-else-if="tab === 'articles'" class="table table-sm"><thead><tr><th>文章</th><th>来源</th><th>提取状态</th><th>操作</th></tr></thead><tbody><tr v-for="r in articles" :key="r.id"><td><a v-if="safeReference(r.url)" :href="safeReference(r.url)" target="_blank" rel="noopener noreferrer" class="link">{{ r.title || r.url }}</a><p class="text-xs opacity-60">{{ formatDateTime(r.created_at) }}</p></td><td>{{ r.source_name }}<p class="text-xs opacity-60">{{ articleIntakeLabel(r.extraction_metadata) }}</p></td><td><IntelStatusText :text="articleStatusLabel(r)" /><p v-if="r.extraction_metadata?.result" class="mt-1 text-xs opacity-65">本次有效 IOC {{ r.extraction_metadata.result.parsed }} 条，新增提议 {{ r.extraction_metadata.result.inserted }} 条<span v-if="r.extraction_metadata.result.validation?.rejected">；{{ r.extraction_metadata.result.validation.rejected }} 条因原文证据不符未保留</span>。</p><IntelArticleValidation :report="r.extraction_metadata?.result?.validation || r.extraction_metadata?.last_error?.validation" /><IntelArticleDiagnostics v-if="r.extraction_metadata?.ai_usage" kind="usage" :diagnostic="r.extraction_metadata.ai_usage" :article-id="r.id" /><p v-if="r.error_code" class="text-xs text-error">{{ intelError(r.error_code) }}</p><IntelArticleDiagnostics v-if="r.error_code" :diagnostic="r.extraction_metadata?.last_error" :article-id="r.id" /></td><td><IntelArticleSnapshot :article="r" /><button v-if="r.pending_count > 0" type="button" class="btn btn-neutral btn-xs" @click="reportReview?.open({ article_id: r.id, title: r.title })">审核报告</button><button v-if="['failed','cancelled','proposed','succeeded'].includes(r.status)" class="btn btn-xs" :disabled="busy || !settings.ai_enabled" @click="retryArticle(r)">{{ ['proposed','succeeded'].includes(r.status) ? '重新提取' : '重试提取' }}</button></td></tr><tr v-if="!articles.length"><td colspan="4" class="py-8 text-center opacity-60">暂无文章。</td></tr></tbody></table>
+      <table v-else-if="tab === 'articles'" class="table table-sm"><thead><tr><th>文章</th><th>来源</th><th>提取状态</th><th>操作</th></tr></thead><tbody><tr v-for="r in articles" :key="r.id"><td><a v-if="safeReference(r.url)" :href="safeReference(r.url)" target="_blank" rel="noopener noreferrer" class="link">{{ r.title || r.url }}</a><p class="text-xs opacity-60">{{ formatDateTime(r.created_at) }}</p></td><td>{{ r.source_name }}<p v-if="r.source_enabled === false" class="mt-1 text-xs text-warning">来源已停用，启用后可提取。<button type="button" class="link ml-1" @click="changeTab('sources')">管理来源</button></p><p class="text-xs opacity-60">{{ articleIntakeLabel(r.extraction_metadata) }}</p></td><td><IntelStatusText :text="articleStatusLabel(r)" /><p v-if="r.extraction_metadata?.result" class="mt-1 text-xs opacity-65">本次有效 IOC {{ r.extraction_metadata.result.parsed }} 条，新增提议 {{ r.extraction_metadata.result.inserted }} 条<span v-if="r.extraction_metadata.result.validation?.rejected">；{{ r.extraction_metadata.result.validation.rejected }} 条因原文证据不符未保留</span>。</p><IntelArticleValidation :report="r.extraction_metadata?.result?.validation || r.extraction_metadata?.last_error?.validation" /><IntelArticleDiagnostics v-if="r.extraction_metadata?.ai_usage" kind="usage" :diagnostic="r.extraction_metadata.ai_usage" :article-id="r.id" /><p v-if="r.error_code" class="text-xs text-error">{{ intelError(r.error_code) }}</p><IntelArticleDiagnostics v-if="r.error_code" :diagnostic="r.extraction_metadata?.last_error" :article-id="r.id" /></td><td><IntelArticleSnapshot :article="r" /><button type="button" class="btn btn-ghost btn-xs" :disabled="busy" @click="editArticle(r)">编辑</button><button type="button" class="btn btn-ghost btn-xs text-error" :disabled="busy" @click="confirmDelete('articles', r)">删除</button><button v-if="['failed','cancelled','proposed','succeeded'].includes(r.status)" class="btn btn-xs" :disabled="busy || !settings.ai_enabled || r.source_enabled === false" @click="retryArticle(r)">{{ ['proposed','succeeded'].includes(r.status) ? '重新提取' : '重试提取' }}</button><router-link v-if="r.pending_count > 0" :to="{ name: 'intel-report-review', params: { articleId: r.id }, query: { from: 'articles' } }" class="btn btn-neutral btn-xs ml-1">审核报告</router-link></td></tr><tr v-if="!articles.length"><td colspan="4" class="py-8 text-center opacity-60">暂无文章。</td></tr></tbody></table>
       <table v-else-if="tab === 'entities'" class="table table-sm"><thead><tr><th>ATT&amp;CK ID</th><th>标准名称</th><th>关联名称</th><th>状态</th></tr></thead><tbody><tr v-for="r in entities" :key="r.attack_id"><td><button type="button" class="link font-mono" @click="showEntity(r)">{{ r.attack_id }}</button></td><td>{{ r.name }}</td><td class="max-w-lg">{{ r.aliases.join('、') || '—' }}<p class="text-xs opacity-60">关联名称可能仅部分重叠，不自动作为等价别名。</p></td><td><IntelStatusText :text="r.active ? '有效' : '已撤销 / 弃用'" /></td></tr><tr v-if="!entities.length"><td colspan="4" class="py-8 text-center opacity-60">暂无结果；首次使用请先同步 MITRE 来源。</td></tr></tbody></table>
       <div v-else-if="tab === 'mappings'" class="p-4 space-y-5"><div><h2 class="font-semibold">未映射组织与软件名称</h2><p class="mt-1 text-sm opacity-65">组织可对应到有效 MITRE 或人工创建的本地条目；软件仍使用 MITRE 基准库。未映射名称不会自动创建实体。</p><div v-for="r in mappings.unmapped" :key="`${r.source_id}:${r.kind}:${r.name}`" class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 py-3"><span>{{ r.kind === 'software' ? '软件 / 家族' : '组织' }} · {{ r.name }} · {{ r.source_name }} · {{ r.count }} 条</span><button class="btn btn-outline btn-xs" @click="openMapping(r)">核对对应关系</button></div><p v-if="!mappings.unmapped.length" class="py-4 text-sm opacity-60">暂无未映射名称。</p></div><div><h2 class="font-semibold">已确认的来源名称映射</h2><div v-for="r in mappings.mappings" :key="r.id" class="flex items-center justify-between gap-3 py-2 text-sm"><span>{{ r.name }} → {{ r.canonical_name }}（{{ r.attack_id }}）</span><button type="button" class="btn btn-ghost btn-xs" :disabled="busy" @click="deleteMapping(r)">撤销映射</button></div></div></div>
       <table v-else-if="tab === 'jobs'" class="table table-sm"><thead><tr><th>来源</th><th>时间</th><th>状态</th><th>结果</th></tr></thead><tbody><tr v-for="r in jobs" :key="r.id"><td>{{ r.source_name }}</td><td>{{ formatDateTime(r.created_at) }}</td><td><IntelStatusText :text="states[r.status]" /></td><td><p v-if="r.error_code" class="text-error">{{ intelError(r.error_code) }}</p><code class="text-xs break-all">{{ JSON.stringify(r.summary) }}</code><IntelValidation :report="r.summary?.validation" /></td></tr><tr v-if="!jobs.length"><td colspan="4" class="py-8 text-center opacity-60">暂无作业。</td></tr></tbody></table>
     </div>
     <div v-if="['records','review'].includes(tab) && (total > 50 || offset)" class="flex justify-end items-center gap-3 text-sm"><span>共 {{ total }} 条</span><button class="btn btn-sm" :disabled="loading || offset === 0" @click="offset = Math.max(0, offset - 50); refresh()">上一页</button><button class="btn btn-sm" :disabled="loading || offset + 50 >= total" @click="offset += 50; refresh()">下一页</button></div>
 
+    <dialog ref="deleteDialog" class="modal" @cancel="busy && $event.preventDefault()">
+      <div class="modal-box">
+        <h3 class="text-lg font-semibold">删除{{ deleteTarget?.kind === 'sources' ? '来源' : '文章' }}</h3>
+        <p class="mt-4 break-words">确认删除“{{ deleteTarget?.name }}”？</p>
+        <p class="mt-3 text-sm opacity-70">{{ deleteTarget?.kind === 'sources' ? '此来源将停止同步，关联文章将从列表移除，关联情报不再参与资产标记。' : '此文章将停止提取，仅由此文章支持的情报不再参与资产标记。' }}历史证据和审核记录保留供追溯。</p>
+        <p v-if="managementError" role="alert" class="mt-3 text-error">{{ managementError }}</p>
+        <div class="modal-action"><button type="button" class="btn btn-ghost" :disabled="busy" @click="deleteDialog?.close()">取消</button><button type="button" class="btn btn-error" :disabled="busy" @click="deleteItem">{{ busy ? '正在删除…' : '确认删除' }}</button></div>
+      </div>
+    </dialog>
+    <dialog ref="articleEditDialog" class="modal" @cancel="busy && $event.preventDefault()">
+      <div class="modal-box max-w-3xl">
+        <h3 class="text-lg font-semibold">编辑文章</h3>
+        <p class="my-3 text-sm opacity-65">保存后生成新快照并重新提取，结果须人工审核。原快照保留供追溯，其独有情报将停止参与标记。</p>
+        <p v-if="managementError" role="alert" class="my-3 text-error">{{ managementError }}</p>
+        <p v-if="articleEditLoading" role="status" class="py-8 text-center opacity-60">正在加载文章…</p>
+        <form v-if="articleEditForm" class="space-y-3" @submit.prevent="saveArticle">
+          <p class="text-sm">来源：{{ articleEditForm.source_name }}</p>
+          <label class="form-control block text-sm">标题<input v-model="articleEditForm.title" class="input input-bordered mt-1 w-full" maxlength="500" required :disabled="busy" /></label>
+          <label class="form-control block text-sm">原文 HTTPS 地址<input v-model="articleEditForm.url" type="url" class="input input-bordered mt-1 w-full" maxlength="4096" required :disabled="busy" /></label>
+          <label class="form-control block text-sm">正文快照（纯文本；留空重新抓取）<textarea v-model="articleEditForm.body" class="textarea textarea-bordered mt-1 w-full" rows="10" maxlength="100000" :disabled="busy"></textarea></label>
+          <div class="modal-action"><button type="button" class="btn btn-ghost" :disabled="busy" @click="articleEditDialog?.close()">取消</button><button class="btn btn-neutral" :disabled="busy">{{ busy ? '正在保存…' : '保存并重新提取' }}</button></div>
+        </form>
+        <div v-else class="modal-action"><button type="button" class="btn btn-ghost" @click="articleEditDialog?.close()">关闭</button></div>
+      </div>
+    </dialog>
     <dialog ref="importDialog" class="modal" @cancel="busy && $event.preventDefault()" @close="importFile = null">
       <form class="modal-box space-y-4" @submit.prevent="uploadImport">
         <h2 class="text-lg font-semibold">上传离线历史文件</h2>
@@ -285,8 +315,12 @@ onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; a
           <div><dt class="opacity-60">数据格式</dt><dd class="mt-1">{{ sourceKinds[sourceDetails.kind] }}</dd></div>
           <div><dt class="opacity-60">获取方式</dt><dd class="mt-1">{{ sourceDetails.transport === 'manual' ? '手动文章' : sourceDetails.transport === 'upload' ? '离线上传' : sourceDetails.transport === 'local' ? '本地文件' : '远程 HTTPS' }}</dd></div>
           <div class="col-span-full min-w-0"><dt class="opacity-60">来源位置</dt><dd class="mt-1 break-all">{{ sourceDetails.location || '—' }}</dd></div>
-          <div class="col-span-full min-w-0"><dt class="opacity-60">允许的完整域名</dt><dd class="mt-1 whitespace-pre-wrap break-all">{{ sourceDetails.allowed_hosts?.join('\n') || '—' }}</dd></div>
-          <div v-if="['rss','article'].includes(sourceDetails.kind)" class="min-w-0"><dt class="opacity-60">微信发布账号 __biz</dt><dd class="mt-1 break-all">{{ sourceDetails.publisher_id || '—' }}</dd></div>
+          <div class="col-span-full min-w-0"><dt class="opacity-60">允许的域名</dt><dd class="mt-1 whitespace-pre-wrap break-all">{{ sourceDetails.allowed_hosts?.join('\n') || '—' }}</dd></div>
+          <template v-if="sourceDetails.transport === 'https' || ['rss','article'].includes(sourceDetails.kind)">
+            <div><dt class="opacity-60">代理方式</dt><dd class="mt-1">{{ { system: '系统代理', direct: '直连', custom: '指定代理' }[sourceDetails.request_config?.proxy_mode || 'system'] }}</dd></div>
+            <div v-if="sourceDetails.request_config?.proxy_mode === 'custom'" class="col-span-full min-w-0"><dt class="opacity-60">代理地址</dt><dd class="mt-1 break-all">{{ sourceDetails.request_config.proxy_url || '—' }}</dd></div>
+            <div class="min-w-0"><dt class="opacity-60">自定义请求头</dt><dd class="mt-1 break-all">{{ sourceDetails.request_config?.headers?.map(header => header.name).join('、') || '—' }}</dd></div>
+          </template>
           <div><dt class="opacity-60">检查周期</dt><dd class="mt-1">{{ sourceDetails.transport === 'manual' ? '手动提交，不周期抓取' : sourceDetails.transport === 'upload' || sourceDetails.kind === 'threatfox_export' ? '手动导入，不定时拉取' : `${sourceDetails.interval_seconds} 秒` }}</dd></div>
           <div><dt class="opacity-60">情报有效期</dt><dd class="mt-1">{{ sourceDetails.expiry_months ? `${sourceDetails.expiry_months} 个月` : '不设置本地期限' }}</dd></div>
           <div><dt class="opacity-60">接纳策略</dt><dd class="mt-1">{{ ['rss','article'].includes(sourceDetails.kind) ? 'AI 固定人工审核' : sourceDetails.kind === 'mitre_stix' ? '规范化基准库' : sourceDetails.require_review ? '人工审核后接纳' : '可信 IOC 直接接纳' }}</dd></div>
@@ -302,12 +336,23 @@ onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; a
       </div>
     </dialog>
 
-    <dialog ref="sourceDialog" class="modal" @close="clearSourceCredential"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="saveSource"><h2 class="text-lg font-semibold">{{ sourceForm.id ? '编辑来源' : '添加来源' }}</h2>
+    <dialog ref="sourceDialog" class="modal" @close="clearSourceCredential"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="saveSource"><h2 class="text-lg font-semibold">{{ sourceForm.id ? '编辑来源' : '添加来源' }}</h2><div v-if="error" class="alert alert-error text-sm" role="alert">{{ error }}</div>
       <label class="form-control min-w-0 text-sm">来源名称<input v-model="sourceForm.name" class="input input-bordered mt-1 w-full" required maxlength="100" /></label>
       <div class="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3"><label class="form-control min-w-0 text-sm">数据格式<select v-model="sourceForm.kind" class="select select-bordered mt-1 w-full" @change="kindChanged"><option v-for="(label, kind) in sourceKinds" :key="kind" :value="kind">{{ label }}</option></select></label><label class="form-control min-w-0 text-sm">获取方式<select v-model="sourceForm.transport" class="select select-bordered mt-1 w-full"><option v-if="sourceForm.kind === 'article'" value="manual">手动提交文章</option><option value="https" :disabled="['threatfox_export','article'].includes(sourceForm.kind)">远程 HTTPS 拉取</option><option value="local" :disabled="sourceForm.kind === 'article'">本地文件</option><option v-if="['json','lines','threatfox_export'].includes(sourceForm.kind)" value="upload">离线上传文件</option></select></label></div>
       <label v-if="!['upload','manual'].includes(sourceForm.transport)" class="form-control min-w-0 text-sm">{{ sourceForm.transport === 'local' ? '相对 IOC 根目录的文件路径' : '远程地址' }}<input v-model="sourceForm.location" class="input input-bordered mt-1 w-full" required maxlength="2048" :placeholder="sourceForm.transport === 'local' ? 'vendor/feed.json' : 'https://…'" /></label>
-      <label v-if="sourceForm.transport === 'https' || ['rss','article'].includes(sourceForm.kind)" class="form-control min-w-0 text-sm">允许的完整域名（每行一个）<textarea v-model="hostsText" class="textarea textarea-bordered mt-1 w-full" rows="3" required placeholder="raw.githubusercontent.com"></textarea></label>
-      <label v-if="['rss','article'].includes(sourceForm.kind)" class="form-control min-w-0 text-sm">微信发布账号 __biz（远程抓取微信正文时必填）<input v-model="sourceForm.publisher_id" class="input input-bordered mt-1 w-full" maxlength="128" /><span class="mt-1 text-xs opacity-60">绑定具体账号标识，不能用昵称代替。可从该账号文章的完整链接获取；账号不明或无法抓取时，可手动粘贴正文，所有 AI 提议仍须审核。</span></label>
+      <label v-if="sourceForm.transport === 'https' || ['rss','article'].includes(sourceForm.kind)" class="form-control min-w-0 text-sm">允许的域名（每行一个）<textarea v-model="hostsText" class="textarea textarea-bordered mt-1 w-full" rows="3" required placeholder="raw.githubusercontent.com&#10;*.example.com"></textarea><span class="mt-1 text-xs opacity-60">支持完整域名、*.example.com（仅子域名）和 *（全部域名）；主域名需单独添加。</span></label>
+      <fieldset v-if="sourceForm.transport === 'https' || ['rss','article'].includes(sourceForm.kind)" class="min-w-0 space-y-3 rounded-box border border-base-300 p-3">
+        <legend class="px-1 text-sm font-medium">远程请求设置</legend>
+        <label class="form-control min-w-0 text-sm">代理方式<select v-model="sourceForm.request_config.proxy_mode" class="select select-bordered mt-1 w-full"><option value="system">系统代理</option><option value="direct">直连</option><option value="custom">指定代理</option></select></label>
+        <label v-if="sourceForm.request_config.proxy_mode === 'custom'" class="form-control min-w-0 text-sm">代理地址<input v-model="sourceForm.request_config.proxy_url" type="text" autocomplete="off" maxlength="2048" class="input input-bordered mt-1 w-full" required placeholder="http://127.0.0.1:7890 或 socks5h://127.0.0.1:1080" /><span class="mt-1 text-xs opacity-60">支持 HTTP、HTTPS、SOCKS5 和 SOCKS5H，切换为系统代理或直连可清除已保存地址。</span></label>
+        <div class="flex items-center justify-between gap-2"><span class="text-sm">自定义请求头</span><button type="button" class="btn btn-ghost btn-sm" :disabled="sourceForm.request_config.headers.length >= 64" @click="sourceForm.request_config.headers.push({ name: '', value: '', configured: false })">添加请求头</button></div>
+        <div v-for="(header, index) in sourceForm.request_config.headers" :key="index" class="flex min-w-0 flex-wrap items-end gap-2">
+          <label class="form-control min-w-0 flex-1 basis-40 text-sm">名称<input v-model="header.name" required maxlength="256" class="input input-bordered mt-1 w-full" placeholder="User-Agent" @input="header.configured = false" /></label>
+          <label class="form-control min-w-0 flex-1 basis-48 text-sm">值<input v-model="header.value" type="password" autocomplete="new-password" :required="!header.configured" maxlength="8192" class="input input-bordered mt-1 w-full" :placeholder="header.configured ? '已保存，留空保留' : '请求头值'" /></label>
+          <button type="button" class="btn btn-ghost btn-sm" :aria-label="`删除请求头 ${index + 1}`" @click="sourceForm.request_config.headers.splice(index, 1)">删除</button>
+        </div>
+        <p class="text-xs opacity-65">应用于来源同步和文章正文抓取。代理地址明文显示，可直接修改；请求头值加密保存，留空保留，删除后保存即可清除。跨站跳转不会转发自定义请求头。</p>
+      </fieldset>
       <div class="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3"><label class="form-control min-w-0 text-sm" v-if="!['upload','manual'].includes(sourceForm.transport) && sourceForm.kind !== 'threatfox_export'">检查周期（秒）<input v-model="sourceForm.interval_seconds" type="number" min="60" max="2592000" class="input input-bordered mt-1 w-full" required /><span class="mt-1 text-xs opacity-60">该格式默认 {{ defaultIntervals[sourceForm.kind] }} 秒，可自行调整。</span></label><label v-if="sourceForm.transport === 'https'" class="form-control min-w-0 text-sm">凭据环境变量（可选）<input v-model="sourceForm.auth_env" class="input input-bordered mt-1 w-full" placeholder="NM_INTEL_…" /></label></div>
       <template v-if="sourceForm.transport === 'https'"><label class="form-control min-w-0 text-sm">数据库加密凭据（留空保留）<input v-model="sourceForm.credential" type="password" autocomplete="new-password" maxlength="8192" class="input input-bordered mt-1 w-full" :disabled="sourceForm.clear_credential" placeholder="Auth-Key 或完整 Authorization 值" /></label><label v-if="sourceForm.database_credential_configured" class="flex items-center gap-2 text-sm"><input v-model="sourceForm.clear_credential" type="checkbox" class="checkbox checkbox-sm" />清除已保存的数据库凭据</label><p class="text-xs opacity-65">{{ sourceForm.database_credential_configured ? '已保存数据库加密凭据。' : '尚未保存数据库凭据。' }}优先使用数据库凭据，留空保留，清除后使用环境变量备用来源。ThreatFox 填写原始 Auth-Key；其他格式填写完整 Authorization 值。</p></template>
       <label class="flex items-center gap-2 text-sm"><input v-model="sourceForm.enabled" type="checkbox" class="checkbox checkbox-sm" />启用{{ sourceForm.transport === 'manual' ? '文章提交' : sourceForm.transport === 'upload' || sourceForm.kind === 'threatfox_export' ? '该离线来源' : '自动检查' }}</label>
@@ -317,7 +362,6 @@ onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; a
       <div class="modal-action"><button type="button" class="btn btn-ghost" @click="sourceDialog?.close()">取消</button><button class="btn btn-neutral" :disabled="busy">保存来源</button></div>
     </form><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
 
-    <IntelReportReview ref="reportReview" @complete="reportReviewComplete" />
     <dialog ref="reviewDialog" class="modal"><form class="modal-box max-w-4xl space-y-4" @submit.prevent="submitReview"><h2 class="text-lg font-semibold">{{ selected?.status === 'pending' ? '审核 IOC 提议' : '证据与撤销' }}</h2>
       <template v-if="selected"><button type="button" class="link link-hover break-all text-left font-mono" @click="locateSelectedIoc">{{ selected.type }} · {{ selected.value }}</button><p v-if="selected.origin === 'ai' && article?.body && !selectedIocLocation" role="alert" class="alert alert-warning text-sm">该 IOC 未在原文中找到，请核对后再决定。</p><p class="text-sm">{{ selected.source_name }} · {{ originLabel(selected) }}</p><div class="grid gap-4 md:grid-cols-2"><div class="space-y-3"><h3 class="font-semibold">提议与支持证据</h3><p v-if="selected.payload.actor_name">组织原名：{{ selected.payload.actor_name }}；标准 ID：{{ selected.actor_id || '未映射' }}</p><p v-if="selected.payload.malware">软件：{{ selected.payload.malware }}</p><p v-if="selected.payload.attack_types?.length">攻击行为：{{ selected.payload.attack_types.map(attackLabel).join('、') }}</p><p v-if="selected.payload.role">指标角色：{{ roleLabel(selected.payload.role) }}</p><p v-if="selected.payload.resource_owner">资源登记方：{{ selected.payload.resource_owner }}（不作为攻击者归因）</p><p v-if="selected.payload.techniques?.length">报告技术：{{ selected.payload.techniques.join('、') }}</p><p v-if="selected.payload.victim_industries?.length">受害行业：{{ selected.payload.victim_industries.join('、') }}</p><p v-if="selected.payload.victim_countries?.length">受害地区：{{ selected.payload.victim_countries.join('、') }}</p><IntelEvidenceQuote :payload="selected.payload" :locatable="Boolean(article?.body)" @locate="locateEvidence" /><a v-if="safeReference(selected.payload.reference)" :href="safeReference(selected.payload.reference)" class="link text-sm" target="_blank" rel="noopener noreferrer">查看来源</a><p class="text-xs opacity-60 break-all">提议版本 {{ selected.content_hash }}</p></div><div><h3 class="font-semibold">文章快照</h3><p v-if="article?.extraction_metadata?.intake" class="text-xs opacity-65">{{ articleIntakeLabel(article.extraction_metadata) }}<span v-if="article.extraction_metadata.intake.publisher_id"> · {{ article.extraction_metadata.intake.publisher_id }}</span></p><span v-if="articleLoading" class="loading loading-spinner loading-sm"></span><p v-else-if="article?.body" class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-base-200 p-3 text-sm"><template v-if="focusedExcerpt">{{ focusedExcerpt.before }}<mark ref="evidenceMark" class="bg-warning text-warning-content">{{ focusedExcerpt.quote }}</mark>{{ focusedExcerpt.after }}</template><template v-else>{{ article.body }}</template></p><div v-else-if="selected.origin === 'ai'" class="mt-2 space-y-2"><p role="alert" class="text-sm text-error">{{ articleError || '请先加载原文快照，才能接纳 AI 提议。' }}</p><button v-if="selected.article_id" type="button" class="btn btn-outline btn-sm" :disabled="busy" @click="loadReviewArticle">重试加载原文</button></div><p v-else class="mt-2 text-sm opacity-65">该记录来自结构化 IOC，无 AI 文章快照。</p></div></div>
         <IntelActorReview v-if="selected.status === 'pending' && reviewDecision === 'approved'" :record="selected" :disabled="busy" @change="actorDecision = $event" />
@@ -332,23 +376,3 @@ onBeforeUnmount(() => { disposed = true; stopAiExpansionWatch(); tabVersion++; a
     <dialog ref="mappingDialog" class="modal"><form class="modal-box max-w-2xl space-y-4" @submit.prevent="saveMapping"><h2 class="text-lg font-semibold">核对来源名称与 MITRE 实体</h2><p>原名：{{ mappingForm.name }}</p><div class="flex min-w-0 flex-wrap justify-end gap-2"><input v-model="candidateQuery" class="input input-bordered min-w-0 max-w-full flex-1 basis-56" aria-label="搜索 MITRE 候选组织" /><button type="button" class="btn" @click="searchCandidates">搜索候选</button></div><label class="form-control min-w-0 text-sm">确认对应实体<select v-model="mappingForm.attack_id" class="select select-bordered mt-1 w-full" required><option disabled value="">请选择已核实的 MITRE 实体</option><option v-for="r in candidates" :key="r.attack_id" :value="r.attack_id">{{ r.attack_id }} · {{ r.name }}</option></select></label><p class="text-sm opacity-65">MITRE 关联名称可能仅部分重叠。此操作表示你已核实该来源的这个名称与所选实体对应，不会创建新实体；软件映射不产生组织归因。</p><div class="modal-action"><button type="button" class="btn btn-ghost" @click="mappingDialog?.close()">取消</button><button class="btn btn-neutral" :disabled="busy || !mappingForm.attack_id">保存已核实映射</button></div></form><form method="dialog" class="modal-backdrop"><button>关闭</button></form></dialog>
   </main>
 </template>
-
-<style scoped>
-.ai-settings-collapse {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition: grid-template-rows 300ms ease, opacity 200ms ease;
-}
-
-.ai-settings-collapse.is-expanded {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ai-settings-collapse {
-    transition: none;
-  }
-}
-</style>

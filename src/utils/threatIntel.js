@@ -1,7 +1,7 @@
 export const sourceKinds = {
   mitre_stix: 'MITRE STIX 2.1', eset_github: 'ESET / GitHub IOC 仓库',
   threatfox: 'ThreatFox API（增量更新）', threatfox_export: 'ThreatFox 离线 JSON / CSV / ZIP',
-  article: '手动文章 / 微信正文（AI 补充）', rss: 'RSS 文章（AI 补充）', json: '结构化 JSON IOC', lines: '文本 / CSV IOC',
+  article: '手动文章', rss: 'RSS 文章（AI 补充）', json: '结构化 JSON IOC', lines: '文本 / CSV IOC',
 }
 export const defaultIntervals = { mitre_stix: 86400, eset_github: 3600, threatfox: 1800, threatfox_export: 3600, rss: 1800, article: 1800, json: 1800, lines: 1800 }
 export const states = { queued: '等待处理', running: '处理中', succeeded: '成功', partial: '分批继续', failed: '失败', cancelled: '已取消', proposed: '已生成待审提议', pending: '待审核', approved: '已接纳', expired: '已过期', revoked: '已撤销', rejected: '已拒绝', superseded: '已被新版本替代', downloaded: '已上传，等待校验', ready: '分批入库', paused: '已暂停，可继续导入', complete: '导入完成' }
@@ -29,9 +29,7 @@ const errors = {
   intel_article_submission_required: '该来源通过文章页手动提交，不执行周期同步。',
   intel_invalid_article: '请填写文章标题和有效正文；正文可留空远程抓取，手动正文须为 40～100,000 UTF-8 字节。',
   intel_invalid_article_url: '请提供有效的微信公众号文章地址或白名单内的 HTTPS 文章。',
-  intel_article_publisher_required: '远程抓取微信文章前，请在来源中绑定账号 __biz；也可手动粘贴正文，随后由人工审核 AI 提议。',
   intel_article_publisher_mismatch: '文章发布账号与来源绑定账号不一致或无法核对，未进行 AI 提取；请检查账号或手动提交正文。',
-  intel_invalid_publisher: '微信账号 __biz 格式无效，请填写账号标识，不是公众号昵称。',
   intel_article_body_missing: '没有取得有效文章正文，可能是验证页面或不支持的结构；可在文章页手动提交正文快照。',
   intel_admin_required: '只有管理员可以管理情报来源和审核。',
   intel_revision_conflict: '数据已有变化，请刷新后重新操作。',
@@ -50,7 +48,10 @@ const errors = {
   intel_invalid_ai_settings: '请填写模型名称，并检查凭据环境变量名称。',
   intel_invalid_ai_timeout: 'AI 请求超时须为 1～1800 秒的整数。',
   intel_invalid_source: '请检查来源名称、格式和检查周期。',
-  intel_invalid_hosts: '允许的域名须逐项填写完整小写域名，不支持通配符。',
+  intel_invalid_proxy: '请填写有效的 HTTP、HTTPS、SOCKS5 或 SOCKS5H 代理地址。',
+  intel_invalid_headers: '请求头名称和值无效或重复；最多 64 项、合计 32 KiB，不支持 Host、Content-Length 等传输控制头。',
+  intel_source_redirect_limit: '远程来源跳转次数过多，请检查来源地址。',
+  intel_invalid_hosts: '允许的域名须逐项填写小写域名、*.example.com 或 *（全部域名）。',
   intel_url_not_allowed: '远程来源必须使用 HTTPS，且域名须在允许列表中。',
   intel_source_timeout: '远程原文请求超时，请检查服务器网络与代理。',
   intel_ai_transport: 'AI 接口连接失败，文章正文已保留；请检查 AI 接口与后端代理配置，并展开错误详情。',
@@ -94,7 +95,7 @@ const errors = {
   intel_invalid_hash: '哈希长度或十六进制格式不符合声明的类型。',
   intel_invalid_indicator: '记录的字段类型、长度、置信度或必填内容无效。',
   intel_unsupported_indicator_type: '当前不支持该 IOC 类型，原始类型已保留在异常摘要中。',
-  intel_ai_evidence_not_found: 'AI 输出缺少可定位的 IOC 原文证据，未纳入有效库。',
+  intel_ai_evidence_not_found: 'AI 提议未通过原文证据校验，请查看具体原因；未纳入有效库。',
   intel_unknown_actor: '请选择基准库中类型匹配的有效 MITRE 实体。',
   intel_private_address_forbidden: '远程抓取不能访问私网或本机地址。',
   intel_ai_protocol_mismatch: '接口地址与所选协议不匹配，请核对 Chat Completions 或 Responses 路径。',
@@ -111,11 +112,14 @@ export function intelError(error) {
   return code ? `操作未完成（${code}）。` : '情报请求失败，请检查网络与服务器状态后重试。'
 }
 export function originLabel(record) { return record?.origin === 'ai' ? (record.status === 'pending' ? 'AI · 待审' : 'AI · 人工审核') : record?.status === 'pending' ? '结构化来源 · 待审' : record?.review_id ? '结构化来源 · 人工审核' : '可信结构化来源' }
-export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], publisher_id: '', auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800, expiry_months: 6 } }
+export function newSource() { return { name: '', kind: 'json', transport: 'https', location: '', allowed_hosts: [], request_config: { proxy_mode: 'system', proxy_url: '', proxy_configured: false, headers: [] }, auth_env: '', credential: '', clear_credential: false, enabled: true, require_review: false, interval_seconds: 1800, expiry_months: 6 } }
 export function sourcePayload(form, hostsText) {
   const { name, kind, transport, location, auth_env, enabled, require_review, interval_seconds, revision } = form
   const value = { name: name.trim(), kind, transport, location: ['upload', 'manual'].includes(transport) ? '' : location.trim(), auth_env: transport !== 'https' ? '' : auth_env.trim(), enabled, require_review, interval_seconds: Number(interval_seconds), expiry_months: Number(form.expiry_months ?? 6), allowed_hosts: transport !== 'https' && !['rss','article'].includes(kind) ? [] : hostsText.split(/[\s,]+/).filter(Boolean) }
-  if (form.publisher_id || ['rss', 'article'].includes(kind)) value.publisher_id = (form.publisher_id || '').trim()
+  if (transport === 'https' || ['rss', 'article'].includes(kind)) {
+    const config = form.request_config || newSource().request_config
+    value.request_config = { proxy_mode: config.proxy_mode, proxy_url: config.proxy_mode === 'custom' ? config.proxy_url.trim() : '', proxy_configured: config.proxy_mode === 'custom' && Boolean(config.proxy_configured), headers: config.headers.map(h => ({ name: h.name.trim(), value: h.value, configured: Boolean(h.configured) })) }
+  }
   if (revision != null) value.expected_revision = revision
   if (transport === 'https') writeCredential(value, form)
   return value
@@ -141,6 +145,8 @@ const extractionStages = {
   indicator_store: '保存 IOC 提议',
 }
 const diagnosticFields = {
+  prompt_source: '提示词来源', prompt_hash: '提示词 SHA-256',
+  expected_context_block_id: '预期上下文标题块', correction_method: '证据纠正方式',
   context_block_id: '上下文正文块', ioc_block_id: 'IOC 正文块', ioc_scope_block_id: 'IOC 所属标题块', context_block_kind: '上下文块类型', ioc_block_kind: 'IOC 块类型',
   provider_error_category: '提供方错误分类', provider_error_code: '提供方错误代码', provider_error_type: '提供方错误类型', provider_trace_id: '提供方跟踪 ID', error_body_sample_bytes: '错误响应采样字节数', error_body_complete: '错误响应是否完整读取', error_body_read_failed: '错误响应读取失败',
   endpoint_format: '接口地址格式', ai_protocol: 'AI 协议', max_output_tokens: '输出预算（token）', reasoning_effort: '推理强度', prompt_version: '提示词版本', request_bytes: '请求 JSON 字节数', system_prompt_bytes: '系统提示词字节数', report_blocks_bytes: '正文块 JSON 字节数', report_block_count: '正文块数', actor_candidate_count: '发送的组织候选数', input_tokens: '输入 token', output_tokens: '输出 token（含推理）', reasoning_tokens: '推理 token', cached_input_tokens: '缓存输入 token', total_tokens: '总 token',
@@ -160,12 +166,18 @@ const diagnosticFields = {
 const evidenceReasons = {
   evidence_not_in_body: '引用不是正文中的连续原文',
   evidence_block_not_found: '引用的正文块不存在',
+  evidence_unit_not_found: '所选原文证据单元不存在或不适用于该 IOC 类型',
   ioc_not_in_evidence: '引用未包含该 IOC 的完整值',
   evidence_context_scope_mismatch: '上下文与 IOC 不属于同一列表范围',
+  evidence_context_record_field_unsupported: '上下文字段不能支持该 IOC 的恶意结论',
+  evidence_context_record_heading_required: '应引用该 IOC 所属记录的标题',
+  evidence_context_record_mismatch: '上下文属于另一条资产记录',
   evidence_context_missing: '只有 IOC 值，缺少支持其角色的上下文',
   evidence_too_short: '历史规则判定引用过短',
 }
 const diagnosticValueLabels = {
+  prompt_source: { default: '系统默认', custom: '用户自定义' },
+  correction_method: { record_heading: '根据所属记录标题重新定位' },
   context_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },
   ioc_block_kind: { heading: '标题', table_header: '表头', list_item: '列表项', paragraph: '普通段落', record_heading: '编号记录标题', record_field: '编号记录的关联字段', record_metadata: '编号记录的其他字段' },
   provider_error_category: { model_unavailable: '模型或上游模型路由不可用', endpoint_not_found: '提供方报告接口路由不存在', authentication: '认证失败', quota: '额度不足', permission: '账号权限不足', unsupported_parameter: '请求参数不受支持', json_mode_prompt_missing: 'JSON 模式要求提示词明确包含 JSON 字样', unclassified: '无法从安全分类确定原因' },

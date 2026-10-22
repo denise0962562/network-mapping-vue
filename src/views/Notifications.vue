@@ -156,10 +156,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="space-y-6 p-4 md:p-6">
+  <div class="page-shell space-y-6">
     <AppAlert v-for="item in alerts" :key="item.id" v-bind="item" @close="alerts = alerts.filter(value => value.id !== item.id)" />
     <div class="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 class="text-2xl font-semibold">通知渠道</h1><p class="mt-2 text-sm opacity-60">统一管理邮件、飞书和 Telegram。各渠道独立启停、订阅通知，同一事件可同时发送到多个渠道。</p></div>
+      <div><h1 class="page-title">通知渠道</h1><p class="mt-2 text-sm opacity-60">统一管理邮件、飞书和 Telegram。各渠道独立启停、订阅通知，同一事件可同时发送到多个渠道。</p></div>
       <div v-if="!forbidden" class="flex gap-2"><button class="btn btn-sm" :disabled="loading || historyLoading" @click="refresh">刷新</button><button class="btn btn-neutral btn-sm" :disabled="busy || loadFailed" @click="openEditor()">添加通知渠道</button></div>
     </div>
     <div v-if="forbidden" class="alert alert-warning" role="alert">仅管理员可以管理通知渠道和查看投递记录。</div>
@@ -188,7 +188,7 @@ onBeforeUnmount(() => {
       </section>
       <section class="rounded-xl bg-base-100 p-4 md:p-6">
         <div class="flex flex-wrap items-end justify-between gap-3"><div><h2 class="text-lg font-semibold">投递记录</h2><p class="mt-1 text-xs opacity-60">{{ browsingHistory ? '正在查看历史，已暂停自动刷新。' : '自动刷新最新 50 条；点击加载更多查看历史。' }}{{ lastRefresh ? `最近刷新：${formatDateTime(lastRefresh)}` : '' }}</p></div>
-          <div class="flex flex-wrap gap-2"><select v-model="filterChannel" aria-label="筛选通知渠道" class="select select-bordered select-sm" @change="loadHistory()"><option value="">全部渠道</option><option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option></select><select v-model="filterStatus" aria-label="筛选投递状态" class="select select-bordered select-sm" @change="loadHistory()"><option value="">全部状态</option><option v-for="(label, value) in deliveryStatuses" :key="value" :value="value">{{ label }}</option></select></div>
+          <div class="flex min-w-0 max-w-full items-center gap-2"><select v-model="filterChannel" aria-label="筛选通知渠道" class="select select-bordered select-sm min-w-0 w-auto flex-1" @change="loadHistory()"><option value="">全部渠道</option><option v-for="channel in channels" :key="channel.id" :value="channel.id">{{ channel.name }}</option></select><select v-model="filterStatus" aria-label="筛选投递状态" class="select select-bordered select-sm min-w-0 w-auto flex-1" @change="loadHistory()"><option value="">全部状态</option><option v-for="(label, value) in deliveryStatuses" :key="value" :value="value">{{ label }}</option></select></div>
         </div>
         <div v-if="historyFailed" class="alert alert-warning mt-4" role="alert"><span>投递记录刷新失败，当前显示上次结果。</span><button class="btn btn-sm" @click="loadHistory()">重试</button></div>
         <div class="mt-4 overflow-x-auto"><table class="table table-sm"><thead><tr><th>时间 / 渠道</th><th>事件</th><th>状态 / 尝试</th><th>结果</th><th /></tr></thead><tbody>

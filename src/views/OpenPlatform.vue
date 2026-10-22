@@ -238,8 +238,8 @@ onBeforeUnmount(() => { ++sectionSequence; ++applicationSequence; ++subscription
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-[1600px] space-y-5 p-4 sm:p-6">
-    <div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="text-2xl font-semibold">开放平台</h1><p class="mt-1 text-sm opacity-60">管理应用接入、授权范围和业务自动化。</p></div><div class="flex items-center gap-2"><span class="badge badge-outline">{{ { admin: '平台管理员', operator: '运营人员', auditor: '审计人员', developer: '开发者' }[role] }}</span><button class="btn btn-sm btn-ghost" :disabled="loading" @click="loadSection()">刷新</button></div></div>
+  <main class="page-shell space-y-5">
+    <div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="page-title">开放平台</h1><p class="mt-1 text-sm opacity-60">管理应用接入、授权范围和业务自动化。</p></div><div class="flex items-center gap-2"><span class="badge badge-outline">{{ { admin: '平台管理员', operator: '运营人员', auditor: '审计人员', developer: '开发者' }[role] }}</span><button class="btn btn-sm btn-ghost" :disabled="loading" @click="loadSection()">刷新</button></div></div>
     <div v-if="message" role="alert" class="alert" :class="message.kind === 'error' ? 'alert-error' : 'alert-success'"><div><p>{{ message.text }}</p><p v-if="message.requestId" class="mt-1 font-mono text-xs">请求 ID：{{ message.requestId }}</p></div><button class="btn btn-ghost btn-xs" aria-label="关闭提示" @click="message = null">关闭</button></div>
     <nav class="flex flex-wrap gap-1 rounded-xl bg-base-100 p-2"><router-link v-for="[id, label] in nav" :key="id" :to="{ path: id === 'overview' ? '/open-platform' : `/open-platform/${id}`, query: selected ? { app: selected } : {} }" class="btn btn-sm" :class="section === id ? 'btn-neutral' : 'btn-ghost'">{{ label }}</router-link></nav>
     <div v-if="loading" class="flex items-center gap-2 text-sm opacity-60"><span class="loading loading-spinner loading-xs" />正在加载…</div>

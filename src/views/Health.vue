@@ -149,10 +149,10 @@ onBeforeUnmount(() => { requestSequence += 1; controller?.abort() })
     <AppAlert v-for="alert in alerts" :key="alert.id" class="pointer-events-auto" v-bind="alert" @close="closeAlert(alert.id)" />
   </div>
 
-  <main class="space-y-4 p-4 md:p-6">
+  <main class="page-shell space-y-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">健康告警</h1>
+        <h1 class="page-title">健康告警</h1>
         <p class="mt-1 text-sm text-base-content/60">查看 Web 请求、PostgreSQL 与 Elasticsearch 的异常记录、诊断数据和触发规则。</p>
       </div>
       <div class="flex flex-wrap gap-2">

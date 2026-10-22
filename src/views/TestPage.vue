@@ -41,12 +41,12 @@ function closeAlert(id) {
 </script>
 
 <template>
-  <div class="p-5">
-    <div class="big_card max-w-4xl">
-      <div class="mb-5">
-        <h2 class="text-lg font-semibold">Alert 测试</h2>
-        <p class="mt-1 text-sm opacity-60">点击按钮触发不同类型的通用提示组件。</p>
-      </div>
+  <div class="page-shell">
+    <div class="mb-5">
+      <h1 class="page-title">Alert 测试</h1>
+      <p class="mt-1 text-sm opacity-60">点击按钮触发不同类型的通用提示组件。</p>
+    </div>
+    <div class="big_card">
 
       <div class="flex flex-wrap gap-3">
         <button type="button" class="btn btn-info btn-soft" @click="triggerAlert('info')">信息</button>

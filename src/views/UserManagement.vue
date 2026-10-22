@@ -342,10 +342,10 @@ onMounted(() => loadUsers({ page: 1 }))
     />
   </div>
 
-  <div class="p-5">
+  <div class="page-shell">
     <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h2 class="text-lg font-semibold">用户管理</h2>
+        <h1 class="page-title">用户管理</h1>
         <p class="mt-1 text-xs opacity-60">创建账号、控制登录权限，并管理当前有效会话。</p>
       </div>
       <button class="btn btn-neutral btn-sm" @click="openCreateDialog">创建用户</button>

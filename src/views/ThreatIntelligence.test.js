@@ -11,15 +11,34 @@ const compiled = compileScript(descriptor, { id: 'intel-lifecycle' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 function readyResponse() { return { data: { data: { ready: true } } } }
-function page(http) {
+function page(http, routeQuery = {}) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({aiExpanded,loadSettings,tab,records,articles,total,query,settings,settingsRevision,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSettings,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark})`, {
-    ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v,
-    document: { visibilityState: 'visible' }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
+  const p = vm.runInNewContext(`${source}\n;({editSource,loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog,confirmDelete,deleteItem,deleteTarget,deleteDialog,managementError,editArticle,saveArticle,articleEditForm,articleEditDialog,articleEditLoading,busy})`, {
+    ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v, useRoute: () => ({ query: routeQuery }),
+    document: { visibilityState: 'visible' }, navigator: { clipboard: { writeText: async () => {} } }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
   })
   return { ...p, dispose: () => dispose(), timers }
 }
+test('returning from report review restores its list tab and ignores unknown tabs', () => {
+  for (const tab of ['articles', 'review']) assert.equal(page({}, { tab }).tab.value, tab)
+  assert.equal(page({}, { tab: 'unknown' }).tab.value, 'sources')
+})
+test('source details opens with the selected source and resets the copy status on reselection', async () => {
+  const p = page({})
+  let opened = 0
+  p.sourceDetailsDialog.value = { showModal() { opened++ } }
+  p.showSourceDetails({ id: 'first', name: 'First source' })
+  assert.equal(opened, 1)
+  assert.equal(p.sourceDetails.value.id, 'first')
+  await p.copySourceId()
+  assert.equal(p.sourceCopyMessage.value, '来源 ID 已复制。')
+  p.showSourceDetails({ id: 'second', name: 'Second source' })
+  assert.equal(opened, 2)
+  assert.equal(p.sourceDetails.value.name, 'Second source')
+  assert.equal(p.sourceCopyMessage.value, '')
+  p.dispose()
+})
 test('late responses cannot overwrite the selected tab results', async () => {
   const pending = deferred()
   const p = page({ get: url => url.endsWith('/records') ? pending.promise : Promise.resolve({ data: { data: { items: [{ id: 'article' }] } } }) })
@@ -131,27 +150,8 @@ test('offline import sends the file body and source revision without scheduling 
   assert.equal(sent[0].options.signal.aborted, false)
   p.dispose()
 })
-test('AI switch changes only extraction settings and carries the revision', async () => {
-  const sent = []
-  const p = page({ put: async (url, body) => { sent.push({ url, body }); return {} }, get: async () => ({ data: { data: { settings: { ai_enabled: false }, revision: 3, credential_configured: false } } }) })
-  p.settingsRevision.value = 2; p.settings.value.ai_enabled = false
-  await p.saveSettings()
-  assert.equal(sent[0].url, '/api/intel/settings'); assert.equal(sent[0].body.expected_revision, 2)
-  assert.equal(sent[0].body.settings.ai_enabled, false)
-  assert.equal('ai_review_required' in sent[0].body.settings, false)
-  p.dispose()
-})
-test('saved AI credential is cleared locally and is not resent by a later settings edit', async () => {
-  const sent = []
-  const p = page({ put: async (url, body) => { sent.push(body) }, get: async () => ({ data: { data: { settings: { ai_enabled: false, ai_endpoint: 'https://api.example/chat', ai_model: '', ai_key_env: '' }, revision: 3, credential_configured: true, database_credential_configured: true, credential_source: 'database' } } }) })
-  p.settingsRevision.value = 2; p.settings.value.credential = 'test-only-key'
-  await p.saveSettings()
-  assert.equal(sent[0].settings.credential, 'test-only-key')
-  assert.equal(p.settings.value.credential, '')
-  await p.saveSettings()
-  assert.equal('credential' in sent[1].settings, false)
-  p.dispose()
-})
+
+
 test('review request approves exactly the displayed record version', async () => {
   const sent = []
   const p = page({ post: async (url, body) => { sent.push({ url, body }); return {} }, get: async url => ({ data: { data: url.includes('/articles/') ? { body: 'The saved report identifies this IOC as malicious.' } : { items: [], total: 0 } } }) })
@@ -250,55 +250,11 @@ test('unmount aborts requests and prevents new polling timers', async () => {
   assert.equal(p.records.value.length, 0); assert.equal(p.timers.size, 0)
 })
 
-test('AI settings automatically collapse when disabled and expand when enabled', () => {
-  const p = page({})
-  assert.equal(p.aiExpanded.value, false)
-  p.settings.value.ai_enabled = true
-  assert.equal(p.aiExpanded.value, true)
-  p.aiExpanded.value = false
-  assert.equal(p.settings.value.ai_enabled, true)
-  p.aiExpanded.value = true
-  p.settings.value.ai_model = 'preserved-model'
-  p.settings.value.ai_enabled = false
-  assert.equal(p.aiExpanded.value, false)
-  assert.equal(p.settings.value.ai_model, 'preserved-model')
-  p.settings.value.ai_enabled = true
-  assert.equal(p.aiExpanded.value, true)
-  p.dispose()
-})
 
-test('loaded AI settings expand only when enabled and preserve manual collapse on unchanged reload', async () => {
-  let enabled = true
-  const p = page({ get: async () => ({ data: { data: { settings: { ai_enabled: enabled }, revision: 1 } } }) })
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, true)
-  p.aiExpanded.value = false
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, false)
-  enabled = false
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, false)
-  enabled = true
-  await p.loadSettings()
-  assert.equal(p.aiExpanded.value, true)
-  p.dispose()
-})
 
-test('AI timeout defaults for old responses and a manual value survives save and reload', async () => {
-  let saved = { ai_enabled: true, ai_model: 'fixture' }, submitted
-  const p = page({
-    get: async () => ({ data: { data: { settings: saved, revision: 2 } } }),
-    put: async (url, body) => { submitted = body; saved = body.settings },
-  })
-  assert.equal(p.settings.value.ai_timeout_seconds, 180)
-  await p.loadSettings()
-  assert.equal(p.settings.value.ai_timeout_seconds, 180)
-  p.settings.value.ai_timeout_seconds = 600
-  await p.saveSettings()
-  assert.equal(submitted.settings.ai_timeout_seconds, 600)
-  assert.equal(p.settings.value.ai_timeout_seconds, 600)
-  p.dispose()
-})
+
+
+
 
 test('source location clears across records and ignores mismatched ranges', async () => {
   const p = page({ get: async () => ({ data: { data: { body: '恶意 DNS\n192[.]0[.]2[.]1' } } }) })
@@ -330,6 +286,17 @@ test('accepted retry immediately marks queue state and duplicate clicks cannot s
   assert.match(p.notice.value, /已入队/)
   p.dispose()
 })
+test('disabled source blocks retry without submitting or changing article state', async () => {
+  let calls = 0
+  const p = page({ post: async () => { calls++ }, get: async () => { calls++ } })
+  const row = { id: 'article', source_enabled: false, status: 'proposed' }
+  await p.retryArticle(row)
+  assert.equal(calls, 0)
+  assert.equal(row.status, 'proposed')
+  assert.match(p.error.value, /来源已停用.*启用后再提取/)
+  assert.equal(p.busy.value, false)
+  p.dispose()
+})
 test('failed retry refreshes actual state and keeps its error visible', async () => {
   let refreshed = false
   const p = page({ post: async () => { throw { response: { data: { code: 'intel_source_disabled' } } } }, get: async () => { refreshed = true; return { data: { data: { items: [{ id: 'article', status: 'cancelled' }] } } } } })
@@ -347,5 +314,77 @@ test('only approval submits a human attribution operation', async () => {
   await p.submitReview(); assert.equal(submitted.attribution.action, 'create')
   p.reviewDecision.value = 'rejected'; await p.submitReview()
   assert.equal(submitted.attribution, undefined)
+  p.dispose()
+})
+
+ test('AI configuration is read-only here and links to the LLM page', async () => {
+  const p = page({ get: async () => ({ data: { data: { settings: { ai_enabled: true, ai_model: 'current-model' } } } }) })
+  await p.loadSettings()
+  assert.equal(p.settings.value.ai_enabled, true)
+  assert.equal(p.settings.value.ai_model, 'current-model')
+  assert.match(descriptor.template.content, /to="\/llm\/basic"/)
+  assert.doesNotMatch(descriptor.template.content, /v-model="settings\.ai_/)
+  p.dispose()
+})
+
+
+test('delete requires deliberate confirmation and sends the displayed revision only once', async () => {
+  const pending = deferred(), sent = []
+  const p = page({ delete: (url, options) => { sent.push({ url, options }); return pending.promise }, get: async () => ({ data: { data: { items: [] } } }) })
+  let opened = 0, closed = 0
+  p.deleteDialog.value = { showModal() { opened++ }, close() { closed++ } }
+  p.confirmDelete('sources', { id: 'source', name: '测试来源', revision: 7 })
+  assert.equal(sent.length, 0); assert.equal(opened, 1)
+  const first = p.deleteItem(); await p.deleteItem()
+  assert.equal(sent.length, 1); assert.equal(sent[0].url, '/api/intel/sources/source')
+  assert.equal(sent[0].options.data.expected_revision, 7)
+  pending.resolve({}); await first
+  assert.equal(closed, 1); assert.equal(p.deleteTarget.value, null)
+  assert.match(p.notice.value, /来源已删除/)
+  p.dispose()
+})
+test('delete conflicts keep the confirmation visible with an actionable error', async () => {
+  const p = page({ delete: async () => { throw { response: { data: { code: 'intel_revision_conflict' } } } } })
+  p.confirmDelete('articles', { id: 'article', title: '报告', revision: 3 })
+  await p.deleteItem()
+  assert.equal(p.deleteTarget.value.id, 'article'); assert.match(p.managementError.value, /刷新/)
+  assert.equal(p.busy.value, false)
+  p.dispose()
+})
+test('article edit loads the snapshot and submits both revisions without display-only fields', async () => {
+  const calls = []
+  const p = page({ get: async url => ({ data: { data: url.endsWith('/article') ? { revision: 4, title: ' 原标题 ', url: 'https://research.example/report', body: 'Saved evidence body' } : { items: [] } } }), put: async (url, body) => { calls.push({ url, body }) } })
+  await p.editArticle({ id: 'article', source_id: 'source', source_name: '来源', current_source_revision: 8 })
+  assert.equal(p.articleEditForm.value.body, 'Saved evidence body')
+  p.articleEditForm.value.title = ' 修改标题 '
+  await p.saveArticle()
+  assert.equal(calls[0].url, '/api/intel/articles/article')
+  assert.equal(calls[0].body.expected_article_revision, 4); assert.equal(calls[0].body.expected_revision, 8)
+  assert.equal(calls[0].body.title, '修改标题'); assert.equal(calls[0].body.source_name, undefined)
+  assert.equal(p.articleEditForm.value, null); assert.match(p.notice.value, /新快照/)
+  p.dispose()
+})
+test('failed article saves preserve the draft and late loads cannot replace a newer selection', async () => {
+  const pending = deferred()
+  const p = page({ get: url => url.endsWith('/old') ? pending.promise : Promise.resolve({ data: { data: { revision: 1, title: 'new', url: 'https://research.example/new', body: 'new body' } } }), put: async () => { throw { response: { data: { code: 'intel_revision_conflict' } } } } })
+  const first = p.editArticle({ id: 'old' }); await p.editArticle({ id: 'new' })
+  pending.resolve({ data: { data: { title: 'old' } } }); await first
+  assert.equal(p.articleEditForm.value.id, 'new')
+  await p.saveArticle()
+  assert.equal(p.articleEditForm.value.title, 'new'); assert.match(p.managementError.value, /刷新/)
+  p.dispose()
+})
+
+test('source editing isolates request headers until save and opens old sources with system defaults', () => {
+  const p = page({})
+  const original = { id: 'source', request_config: { proxy_mode: 'custom', proxy_url: 'http://127.0.0.1:7890', proxy_configured: true, headers: [{ name: 'Cookie', value: '', configured: true }] } }
+  p.editSource(original)
+  assert.equal(p.sourceForm.value.request_config.proxy_url, 'http://127.0.0.1:7890')
+  p.sourceForm.value.request_config.headers[0].name = 'User-Agent'
+  p.sourceForm.value.request_config.headers.splice(0, 1)
+  assert.equal(original.request_config.headers[0].name, 'Cookie')
+  p.editSource({ id: 'legacy' })
+  assert.equal(p.sourceForm.value.request_config.proxy_mode, 'system')
+  assert.equal(p.sourceForm.value.request_config.headers.length, 0)
   p.dispose()
 })

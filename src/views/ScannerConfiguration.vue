@@ -159,14 +159,14 @@ onMounted(loadConfiguration)
 </script>
 
 <template>
-  <div class="p-3 sm:p-5">
+  <div class="page-shell">
     <div class="pointer-events-none fixed right-4 top-20 z-50 flex w-[calc(100vw-2rem)] flex-col items-end gap-2 sm:w-auto">
       <AppAlert v-for="alert in alerts" :key="alert.id" class="pointer-events-auto" v-bind="alert" @close="closeAlert(alert.id)" />
     </div>
 
     <div class="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
       <div>
-        <h2 class="text-lg font-semibold">{{ scannerName || '扫描器' }} · 扫描配置</h2>
+        <h1 class="page-title">{{ scannerName || '扫描器' }} · 扫描配置</h1>
         <p class="mt-1 break-all text-sm opacity-70">ID：{{ scannerId }}</p>
       </div>
       <router-link :to="{ name: 'scanner-detail', params: { id: scannerId } }" class="btn btn-ghost btn-sm">返回扫描器详情</router-link>

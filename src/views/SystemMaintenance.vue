@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="p-4 md:p-6">
+  <main class="page-shell">
     <div class="fixed right-4 top-20 z-50 flex w-[min(28rem,calc(100vw-2rem))] flex-col gap-2">
       <AppAlert
         v-for="alert in alerts"
@@ -220,7 +220,7 @@ onBeforeUnmount(() => {
 
     <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">系统维护</h1>
+        <h1 class="page-title">系统维护</h1>
         <p class="mt-1 text-sm text-base-content/60">进入系统维护后暂停 Scanner 任务流，活动扫描在本地完成并于维护结束后补传。</p>
       </div>
       <button class="btn btn-ghost btn-sm" :disabled="loading || historyLoading" @click="refreshMaintenance()">

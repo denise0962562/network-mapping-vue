@@ -110,10 +110,10 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
 </script>
 
 <template>
-  <div class="min-w-0 space-y-6 p-4 md:p-6">
+  <div class="page-shell space-y-6">
     <AppAlert v-for="item in alerts" :key="item.id" v-bind="item" @close="alerts = alerts.filter((a) => a.id !== item.id)" />
     <div class="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 class="text-2xl font-semibold">报告中心</h1><p class="mt-1 text-sm text-base-content/60">管理员平台周报与月报 · {{ timeSettings.timezone }} · 归档后保留统计快照</p></div>
+      <div><h1 class="page-title">报告中心</h1><p class="mt-1 text-sm text-base-content/60">管理员平台周报与月报 · {{ timeSettings.timezone }} · 归档后保留统计快照</p></div>
       <button class="btn btn-sm btn-ghost" :disabled="loading" @click="loadReports(); loadSettings()">刷新</button>
     </div>
     <EmptyState v-if="forbidden" type="error" title="仅管理员可以访问平台报告" />

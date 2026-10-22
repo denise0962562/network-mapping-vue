@@ -170,26 +170,15 @@ function backToLogin() {
 
 <template>
   <div class="flex min-h-screen flex-col bg-base-200 font-sans">
-    <div class="fixed right-4 top-20 z-50 flex w-[calc(100vw-2rem)] flex-col items-end sm:w-auto">
-      <transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0 translate-y-[-8px]"
-        enter-to-class="opacity-100 translate-y-0"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100 translate-y-0"
-        leave-to-class="opacity-0 translate-y-[-8px]"
-      >
-        <AppAlert
-          v-if="showLoginError"
-          :key="loginErrorId"
-          type="error"
-          :title="loginErrorMessage"
-          :description="loginErrorDescription"
-          :timeout="loginErrorTimeout"
-          @close="closeLoginError"
-        />
-      </transition>
-    </div>
+    <AppAlert
+      v-if="showLoginError"
+      :key="loginErrorId"
+      type="error"
+      :title="loginErrorMessage"
+      :description="loginErrorDescription"
+      :timeout="loginErrorTimeout"
+      @close="closeLoginError"
+    />
 
     <div class="flex justify-end px-4 pt-4 sm:px-8">
       <ThemeToggle />
