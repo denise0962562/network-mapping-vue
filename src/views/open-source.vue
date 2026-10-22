@@ -28,6 +28,7 @@ const licenseOptions = computed(() => [
   'all',
   ...new Set(projects.value.map((project) => project.license).filter(Boolean).sort())
 ])
+const hasCustomLicenses = computed(() => projects.value.some(project => project.license?.startsWith('LicenseRef-ApexCharts')))
 
 const filteredProjects = computed(() => {
   const keyword = searchText.value.trim().toLocaleLowerCase()
@@ -90,7 +91,7 @@ onMounted(fetchProjects)
     <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h1 class="page-title">开源项目</h1>
-        <p class="text-xs opacity-60">本系统直接使用的主要开源软件与许可证信息</p>
+        <p class="text-xs opacity-60">本系统直接使用的第三方软件、开发工具与许可证信息</p>
       </div>
       <p v-if="lastReviewed" class="text-xs opacity-60">清单复核日期：{{ lastReviewed }}</p>
     </div>
@@ -204,7 +205,7 @@ onMounted(fetchProjects)
                   </span>
                 </td>
                 <td class="font-mono text-xs whitespace-nowrap">{{ project.version }}</td>
-                <td><span class="badge badge-outline whitespace-nowrap">{{ project.license }}</span></td>
+                <td><span class="badge badge-outline h-auto max-w-64 whitespace-normal py-1">{{ project.license }}</span></td>
                 <td class="min-w-52 text-sm">{{ project.usage }}</td>
                 <td>
                   <div class="flex justify-end gap-3 whitespace-nowrap">
@@ -233,7 +234,8 @@ onMounted(fetchProjects)
           </table>
         </div>
 
-        <p class="mt-3 text-xs opacity-50">此页面展示主要直接依赖，不代替完整的软件物料清单（SBOM）。</p>
+        <p class="mt-3 text-xs opacity-60">清单覆盖三个应用的直接包依赖（含构建与开发依赖）。版本为依赖声明的范围，多个声明以 / 分隔，不代表部署版本；外部引擎、系统软件、第三方数据和传递依赖未在此列出。本页不代替完整的软件物料清单（SBOM）。</p>
+        <p v-if="hasCustomLicenses" class="mt-2 text-xs opacity-60">ApexCharts、ApexMaps 及其 Vue 组件采用自定义授权，源码可见不代表采用开源许可证；具体条款见 <a href="https://apexcharts.com/license/" target="_blank" rel="noopener noreferrer" class="link">ApexCharts 授权说明</a>。</p>
       </div>
     </template>
   </div>
