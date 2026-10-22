@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import LlmHistoryDialog from '@/components/LlmHistoryDialog.vue'
+import LlmInkText from '@/components/LlmInkText.vue'
 import { readDraft, writeDraft, historyParameters } from '@/utils/llmDraft'
 import { ChevronDown } from '@lucide/vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
@@ -119,6 +120,11 @@ function newSession({ clearDraft = false } = {}) { chatVersion++; chatController
 function chooseChatProvider() { chatModel.value = debugProvider.value?.default_model || availableModels(debugProvider.value)[0]?.id || ''; newSession() }
 function stop() { chatController?.abort() }
 async function scroll() { await nextTick(); if (transcript.value) transcript.value.scrollTop = transcript.value.scrollHeight }
+function messageKeydown(event) {
+  if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing || event.keyCode === 229) return
+  event.preventDefault()
+  if (!event.repeat && !generating.value) event.currentTarget.form?.requestSubmit()
+}
 async function send() {
   const text = input.value.trim()
   if (!text || generating.value || !chatProvider.value || !chatModel.value) return
@@ -142,7 +148,7 @@ async function send() {
       const answer = messages.value[index]
       if (event.history_id) historyId.value = event.history_id
       if (event.history_saved === false) error.value = '本次对话未能保存，请复制所需内容后重试。'
-      if (event.type === 'started') { answer.thinking = !answer.content; answer.status = event.stream ? '正在生成…' : '等待完整响应…'; answer.parameters = event.parameters }
+      if (event.type === 'started') { answer.stream = Boolean(event.stream); answer.thinking = !answer.content; answer.status = event.stream ? '正在生成…' : '等待完整响应…'; answer.parameters = event.parameters }
       if (event.type === 'reasoning' && event.text) { answer.reasoning += event.text; answer.thinking = !answer.content; if (answer.thinking) answer.status = '正在思考…' }
       if (event.type === 'delta' && event.text) { if (!answer.content) answer.reasoningExpanded = false; answer.thinking = false; answer.content += event.text; answer.status = '正在生成…' }
       if (event.type === 'done') { if (!answer.content) answer.reasoningExpanded = false; if (event.reasoning) answer.reasoning = event.reasoning; answer.thinking = false; answer.content = event.text; answer.complete = true; answer.status = `完成 · ${(event.elapsed_ms / 1000).toFixed(1)} 秒`; answer.usage = event.usage; answer.outputRate = debugOutputRate(event.usage, event.elapsed_ms); answer.cacheUsage = debugCacheUsage(event.usage); answer.firstDeltaMs = event.first_delta_ms }
@@ -200,13 +206,13 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
         <router-link to="/llm/providers" class="link text-sm">管理供应商与全局配置</router-link>
       </form>
       <form class="card border border-base-300 bg-base-100 p-4 space-y-4" @submit.prevent="savePrompt">
-        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">IOC 提取提示词</h2><div class="flex flex-wrap gap-2"><button v-if="!promptEditing" type="button" class="btn btn-outline btn-sm" :disabled="busy || loading" @click="editPrompt">编辑提示词</button><template v-else><button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="cancelPrompt">取消编辑</button><button type="button" class="btn btn-outline btn-sm" :disabled="busy || loading || !state.default_ioc_prompt" @click="restorePrompt">恢复系统默认</button><button class="btn btn-neutral btn-sm" :disabled="busy || loading || !promptDirty">保存提示词</button></template></div></div>
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">IOC 提取提示词</h2><div class="flex flex-wrap gap-2"><button v-if="!promptEditing" type="button" class="btn btn-neutral btn-sm" :disabled="busy || loading" @click="editPrompt">编辑提示词</button><template v-else><button type="button" class="btn btn-ghost btn-sm" :disabled="busy" @click="cancelPrompt">取消编辑</button><button type="button" class="btn btn-outline btn-sm" :disabled="busy || loading || !state.default_ioc_prompt" @click="restorePrompt">恢复系统默认</button><button class="btn btn-neutral btn-sm" :disabled="busy || loading || !promptDirty">保存提示词</button></template></div></div>
         <p class="text-sm opacity-65">当前使用{{ state.ioc_prompt ? '自定义提示词' : '系统默认提示词' }}。{{ promptEditing ? '修改或恢复默认后，点击保存才会生效。' : '点击编辑提示词后可修改。' }} 保存后用于后续文章提取；系统默认内容随系统更新。</p>
         <label class="form-control text-sm" for="ioc-system-prompt">系统提示词<textarea id="ioc-system-prompt" v-model="promptDraft" required rows="14" class="textarea textarea-bordered mt-1 w-full font-mono text-sm" :readonly="!promptEditing" :disabled="busy || loading" spellcheck="false" /></label>
         <p class="text-xs opacity-60">支持多行文本，最多 {{ state.prompt_max_bytes || 65536 }} 字节。请保留 IOC JSON 输出和原文证据要求；所有提议仍须校验及人工审核。</p>
       </form>
       <section class="card border border-base-300 bg-base-100 p-4 space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">在线调试</h2><button type="button" class="btn btn-outline btn-sm" :disabled="generating" @click="historyDialog?.open()">加载历史对话</button><div class="flex flex-wrap items-center gap-3"><label class="flex items-center gap-2 text-sm"><input v-model="useSystemPrompt" type="checkbox" class="toggle toggle-sm" :disabled="generating" @change="newSession" />启用系统提示词</label><button type="button" class="btn btn-ghost btn-sm" @click="newSession({ clearDraft: true })">新建会话／清空</button></div></div>
+        <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">在线调试</h2><div class="flex flex-wrap items-center gap-3"><label class="flex items-center gap-2 text-sm"><input v-model="useSystemPrompt" type="checkbox" class="toggle toggle-sm" :disabled="generating" @change="newSession" />启用系统提示词</label><button type="button" class="btn btn-outline btn-sm" :disabled="generating" @click="historyDialog?.open()">加载历史对话</button><button type="button" class="btn btn-neutral btn-sm" @click="newSession({ clearDraft: true })">新建会话／清空</button></div></div>
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3">
           <label class="form-control text-sm">调试供应商<select v-model="chatProvider" class="select select-bordered mt-1 w-full" :disabled="generating" @change="chooseChatProvider"><option disabled selected value="">请选择</option><option v-for="p in state.providers" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
           <label class="form-control text-sm">调试模型<select v-model="chatModel" class="select select-bordered mt-1 w-full" :disabled="generating || !chatProvider" @change="newSession"><option disabled selected value="">请选择</option><option v-for="m in availableModels(debugProvider)" :key="m.id" :value="m.id">{{ m.name || m.id }}</option></select></label>
@@ -228,17 +234,17 @@ onBeforeUnmount(() => { disposed = true; requests.abort(); chatController?.abort
                         <ChevronDown class="size-4 transition-transform" :class="{ '-rotate-90': !m.reasoningExpanded }" aria-hidden="true" />
                       </button>
                     </div>
-                    <div v-show="m.reasoningExpanded" :id="`debug-reasoning-${index}`" class="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-base-300 pl-3 text-base-content/65">{{ m.reasoning || '等待模型返回思考数据…' }}</div>
+                    <div v-show="m.reasoningExpanded" :id="`debug-reasoning-${index}`" class="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-base-300 pl-3 text-base-content/65"><LlmInkText v-if="m.reasoning" :text="m.reasoning" :animate="m.stream && m.reasoningExpanded" /><template v-else>等待模型返回思考数据…</template></div>
                   </div>
-                  <div v-if="m.content || (!m.thinking && !m.reasoning)" class="chat-bubble max-w-full whitespace-pre-wrap break-words" :class="m.role === 'user' ? 'chat-bubble-neutral' : 'bg-base-200 text-base-content'">{{ m.content || '…' }}</div>
+                  <div v-if="m.content || (!m.thinking && !m.reasoning)" class="chat-bubble max-w-prose whitespace-pre-wrap break-words" :class="m.role === 'user' ? 'chat-bubble-neutral' : 'bg-base-200 text-base-content'"><LlmInkText v-if="m.role === 'assistant'" :text="m.content" :animate="m.stream" /><template v-else>{{ m.content }}</template><template v-if="!m.content">…</template></div>
                 </div>
                 <div v-if="m.role === 'assistant'" class="chat-footer mt-1 max-w-full flex-wrap break-words text-xs opacity-65">{{ m.status }}<span v-if="m.firstDeltaMs != null"> · 首段 {{ (m.firstDeltaMs / 1000).toFixed(1) }} 秒</span><span v-if="m.usage?.input_tokens != null"> · 输入 {{ m.usage.input_tokens }} token</span><span v-if="m.usage?.output_tokens != null"> · 输出 {{ m.usage.output_tokens }} token</span><span v-if="m.usage?.reasoning_tokens != null"> · 思考 {{ m.usage.reasoning_tokens }} token</span><p v-if="m.parameters" class="mt-1 basis-full">{{ debugParameterSummary(m.parameters) }}<span title="平均输出速率 = 供应商返回的输出 token 数 ÷ 总耗时（包含等待与思考）；未提供用量或耗时无效时显示 —"> · 输出速率 {{ generating && index === messages.length - 1 && !m.complete ? '统计中…' : m.outputRate || '—' }}</span><span title="供应商返回的缓存命中输入 token 数"> · 缓存命中 {{ m.cacheUsage?.tokens || '—' }}</span><span title="命中率 = 缓存命中 token 数 ÷ 输入 token 总数；缺少用量、输入为 0 或数据无效时显示 —"> · 命中率 {{ m.cacheUsage?.hitRate || '—' }}</span></p></div>
               </div>
             </div>
             <form class="space-y-3" @submit.prevent="send">
               <p v-if="draftError" class="text-sm text-warning" role="status">{{ draftError }}</p>
-              <label class="form-control text-sm">消息<textarea v-model="input" required maxlength="32000" rows="3" class="textarea textarea-bordered mt-1 mb-5 w-full" :disabled="generating" placeholder="输入调试消息" />
-              </label><p class="text-xs opacity-60">未发送草稿在此浏览器保留 7 天，发送或清空后立即移除。</p><div class="flex flex-wrap justify-end gap-2"><button type="button" class="btn btn-ghost btn-sm" :disabled="generating || !messages.some(m => m.role === 'user')" @click="replayLast">重放最后一轮</button><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
+              <label class="form-control text-sm">消息<textarea v-model="input" required maxlength="32000" rows="3" class="textarea textarea-bordered mt-1 mb-5 w-full" :disabled="generating" placeholder="输入调试消息，Enter 发送，Shift+Enter 换行" @keydown="messageKeydown" />
+              </label><p class="text-xs opacity-60 ">未发送草稿在此浏览器保留 7 天，发送或清空后立即移除。</p><div class="flex flex-wrap justify-end gap-2"><button type="button" class="btn btn-ghost btn-sm" :disabled="generating || !messages.some(m => m.role === 'user')" @click="replayLast">重放最后一轮</button><button v-if="generating" type="button" class="btn btn-outline btn-sm" @click="stop">停止生成</button><button class="btn btn-neutral btn-sm" :disabled="generating || !input.trim() || !chatModel">{{ generating ? '正在生成…' : '发送' }}</button></div></form>
           </div>
           <aside aria-label="调试参数" class="min-w-0 border-t border-base-300 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
             <fieldset :disabled="generating" class="space-y-3">
