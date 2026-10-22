@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, provide, readonly, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
+import { BookOpenText } from '@lucide/vue'
 import { expireCookie } from './utils/csrf'
 import http from './utils/http'
 import ReLoginModal from './components/ReLoginModal.vue'
@@ -415,7 +416,7 @@ async function handleLogout() {
 
           <li>
             <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="开源项目" to="/open-source">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M16 18 22 12 16 6"/><path d="M8 6 2 12l6 6"/><path d="m14.5 4-5 16"/></svg>
+              <BookOpenText class="my-1.5 inline-block size-4" aria-hidden="true" />
               <span class="is-drawer-close:hidden whitespace-nowrap">开源项目</span>
             </router-link>
           </li>
