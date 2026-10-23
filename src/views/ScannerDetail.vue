@@ -1,4 +1,5 @@
 <script setup>
+import { nativeServices, udpServices, passiveServices } from '@/utils/serviceDetection'
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -290,6 +291,13 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   </div>
                   <div class="mt-2 break-all text-xs opacity-70">公网地址：{{ scannerDetail.public_ipv6 || '-' }}</div>
                   <div v-if="scannerDetail.network_status_reason?.ipv6" class="mt-1 break-all text-xs text-warning">{{ scannerDetail.network_status_reason.ipv6 }}</div>
+                </div>
+                <div class="rounded-lg bg-base-200/60 p-3">
+                  <p class="font-medium">原生服务探测</p>
+                  <p class="mt-1 text-xs opacity-60">每端点协议预算：{{ scannerDetail.scan_capabilities?.max_service_probes ?? '未声明' }}</p>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span v-for="service in [...nativeServices, ...udpServices, ...passiveServices]" :key="service.value" class="badge badge-outline badge-sm" :class="scannerDetail.scan_capabilities?.service_protocols?.includes(service.value) ? 'badge-success' : 'badge-ghost'">{{ service.label }} · {{ scannerDetail.scan_capabilities?.service_protocols?.includes(service.value) ? '已支持' : '未声明' }}</span>
+                  </div>
                 </div>
                 <div class="text-xs opacity-60">检测时间：{{ formatDate(scannerDetail.network_capabilities_updated_at) }}</div>
               </div>

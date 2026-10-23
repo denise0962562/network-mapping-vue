@@ -2,6 +2,37 @@
 
 [文档中心](README.md) · [服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)
 
+## 未发布：自动服务识别与表单统一（2026-10-23）
+
+- 移除任务创建中的定向协议复选框。TCP 默认自动识别全部已实现服务；UDP 主动/被动任务自动采用各自支持的协议，节点筛选仍校验所需能力和预算。
+- TLS 服务名、CA、DoH 路径、Modbus Unit ID、S7 TSAP 与 MQTT 版本收拢到现有 daisyUI 折叠高级参数，无需选择协议；预览与创建使用相同参数。
+- LLM 全局/供应商及通知渠道的代理地址输入改为明文，便于核对；LLM 请求头模式 select 与同级 select 统一尺寸和样式。
+- 增加自动 TCP/UDP 参数、预览和创建请求回归。
+
+## 未发布：PR review 与 CI 核验修复（2026-10-23）
+
+- 核对 PR #27 的 CodeQL 告警：命中测试中的大小写敏感 HTML 正则断言，业务组件仍使用 Vue 转义插值，未发现该告警所述的生产 HTML 过滤路径。
+- 测试改为直接验证已转义文本和原始载荷未输出，增加大写/混合大小写 SCRIPT、属性及 IMG 事件载荷，避免将测试断言误识别为业务过滤器；不屏蔽 CodeQL 规则。
+
+## 未发布：加密 DNS、工业与 UDP 服务识别（2026-10-23）
+
+- 创建任务新增 DoH/DoT 和工业协议选择，以及 TLS/SNI/路径/公开 CA、Unit ID、TSAP、MQTT 版本字段，统一采用现有 daisyUI 风格。
+- 新增独立 UDP 主动/被动模式；被动模式明确接收节点地址、端口和观察窗口，显示来源证据而非“端口开放”。
+- 节点筛选校验协议和单端点预算，服务徽标展示转义证据及 MQTT 认证拒绝；资产历史和列表键区分 TCP/UDP 同端口。
+- 配套版本与精确支持范围见[服务协议识别与部署](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_PROTOCOLS.md)；需 IPC 3 Worker 及服务端投影迁移。
+
+## 未发布：DNS TCP / VNC 定向探测（2026-10-23）
+
+- IP/CIDR 的服务识别及全部扫描模式增加可选 DNS TCP、VNC 定向探测，复用 daisyUI 表单与现有布局；选中后对开放 TCP 端点仅尝试所选协议，节点选择及分配预览核对实际能力。域名解析任务暂不提供该选项。
+- 搜索、任务详情、资产详情和历史复用服务徽标；历史接口提供原始证据时可展开 DNS 响应码或 RFB 协议版本，返回文本保持转义，沿用明暗主题。
+- 节点详情展示 DNS/VNC 原生探测能力；未声明能力的旧节点不显示为已支持。需配套服务端任务 API 与新版扫描器。
+
+## 未发布：服务识别扩展规划（2026-10-23）
+
+- 补充 [DNS、DoH、DoT 与 VNC 的前端适配规划](https://github.com/wshijiang/network-mapping/blob/main/docs/DNS_DOH_DOT_VNC_PLAN.md)：复用现有 daisyUI 表单、服务徽标、结果表格、证据详情及明暗主题，明确节点能力校验与 TCP/UDP 同端口展示。
+- 本条仅记录规划文档，未新增协议配置入口或修改当前页面行为。
+- 追加[工业与物联网前端适配规划](https://github.com/wshijiang/network-mapping/blob/main/docs/INDUSTRIAL_SERVICE_DETECTION_PLAN.md)：工业协议选择、节点能力校验、共享服务/证据展示，沿用现有 daisyUI、明暗主题和历史弹窗；区分主动握手、UDP 发现、被动 PubSub/I/O 与已有 MQTT/MQTTS，不提前开放未实现入口。
+
 ## 未发布：服务探测第一批（2026-10-22）
 
 - 搜索、任务详情及资产详情共用的 Web 技术标签支持 database 类别：沿用现有字号与布局，使用 Lucide 通用数据库符号和 daisyUI outline 徽标，兼容明暗主题。

@@ -1,4 +1,5 @@
 <script setup>
+import ServiceLabel from '@/components/ServiceLabel.vue'
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -80,6 +81,8 @@ const scanTypeLabel = computed(() => {
   return {
     vulnerability_scan: 'Nuclei 漏洞扫描',
     service_inventory: '服务识别',
+    udp_inventory: 'UDP 服务识别',
+    udp_passive: 'UDP 被动识别',
     port_only: '仅端口',
     legacy: '兼容模式'
   }[profile] || '端口扫描'
@@ -98,7 +101,7 @@ const taskMeta = computed(() => ({
 const summaryStats = computed(() => {
   const stats = [
     { title: isDnsTask.value ? '目标域名数' : '发现 IP 数', value: isDnsTask.value ? task.value?.task_target?.length ?? 0 : task.value?.summary?.ip_count ?? 0, desc: '' },
-    { title: isDnsTask.value ? '查询内容' : '开放端口数', value: isDnsTask.value ? 'DNS 记录' : task.value?.summary?.port_count ?? 0, desc: '' }
+    { title: isDnsTask.value ? '查询内容' : '已观察端点数', value: isDnsTask.value ? 'DNS 记录' : task.value?.summary?.port_count ?? 0, desc: '' }
   ]
   if (isVulnerabilityTask.value) stats.push({ title: '漏洞数', value: vulnerabilitiesAvailable.value ? task.value?.summary?.vulnerability_count ?? 0 : '-', desc: 'Nuclei 有效匹配' })
   stats.push(
@@ -485,10 +488,10 @@ onBeforeUnmount(() => {
                 <table class="table table-sm">
                   <thead><tr><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>系统线索</th><th>Web 技术栈</th><th>扫描时间</th></tr></thead>
                   <tbody>
-                    <tr v-for="port in row.ports" :key="port.port">
+                    <tr v-for="port in row.ports" :key="`${port.protocol || 'unknown'}:${port.port}`">
                       <td>{{ port.port }}</td>
                       <td>{{ port.protocol || '-' }}</td>
-                      <td>{{ port.service || '-' }}</td>
+                      <td><ServiceLabel :service="port.service" :data="port.data" /></td>
                       <td class="max-w-72 truncate" :title="port.banner || ''">{{ port.banner || '-' }}</td>
                       <td><OsFingerprint :value="port.os" /></td>
                       <td><WebTechnologies :value="port.web" /></td>

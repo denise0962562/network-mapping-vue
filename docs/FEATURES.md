@@ -97,3 +97,13 @@ CSV 导出同步包含系统字段、状态、置信度、判断对象、证据�
 ## DNS 域名排除
 
 设置 → 运行策略 → DNS 排除与解析后扫描：每行一个精确域名或 `*.example.com`（各级子域，不包含根域），最多 256 条。搜索、手工创建、OpenAPI 和后续发现任务共用排除。解析后 IP 扫描继续使用独立 CIDR 策略。旧域名白名单升级后关闭域名搜索生成，设置排除规则后可重新开启。
+
+## 扩展服务协议识别
+
+IP/CIDR 的“服务识别”与“全部”可选 DNS TCP、DoT、DoH、VNC、Modbus TCP、EtherNet/IP、经典 S7comm、OPC UA、MQTT/MQTTS。按协议展示 TLS 服务名/DoH 路径/公开 CA、Unit ID、TSAP 或 MQTT 版本；沿用现有 daisyUI 控件和样式。
+
+新增独立“UDP 服务识别”和“UDP 被动识别”模式，必选协议、显式端口并限制地址/端口预算。被动接收需填写扫描节点本机 IPv4、唯一接收端口和窗口，可选组播；不发送实时 I/O 探测，也不代表全网抓包。目标填写获授权发送源，结果按实际来源展示，不能据此判断源端口开放。
+
+节点筛选、预览和服务端领取同时校验协议及 `max_service_probes`。搜索/任务/资产共享 daisyUI 服务徽标和转义证据，显示 MQTT 认证拒绝及被动来源；资产历史请求带传输协议，表格键区分 TCP/UDP 同端口。服务版本不是产品版本，识别不等同于漏洞或授权访问判断。
+
+配套升级要求 IPC 3 Worker 和新的服务端协议端点投影；旧部署须停服重建。准确协议子集、任务 JSON、限制和回滚步骤见[服务协议识别与部署](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_PROTOCOLS.md)。当前未完成真实设备或线上发布验收。
