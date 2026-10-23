@@ -11,9 +11,9 @@ Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。�
 
 [更新日志](CHANGELOG.md)记录已实现的变更；[服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)区分当前交付和后续 UDP/Transport 入口。
 
-[DNS、DoH、DoT 与 VNC 服务识别扩展计划](https://github.com/wshijiang/network-mapping/blob/main/docs/DNS_DOH_DOT_VNC_PLAN.md)说明创建页、节点能力、共享服务展示和证据详情；DNS TCP/VNC 首批已接入，前端沿用现有 daisyUI、明暗主题及布局，DoH/DoT/UDP 入口仍待实现。
+[服务协议识别与部署](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_PROTOCOLS.md)列出当前已实现协议、证据及边界。创建页默认自动识别全部已实现 TCP 服务，UDP 主动/被动任务自动识别各自支持的协议，无需逐项选择；非标准端口覆盖仍受扫描器策略和预算限制。TLS、DoH 与工业参数集中在 daisyUI 折叠高级设置，沿用明暗主题和现有布局。
 
-后续[工业与物联网服务识别计划](https://github.com/wshijiang/network-mapping/blob/main/docs/INDUSTRIAL_SERVICE_DETECTION_PLAN.md)补充 Modbus TCP、EtherNet/IP、S7、OPC UA、MQTT/MQTTS 和 BACnet/IP，继续复用上述 daisyUI 样式，分别展示传输协议、主动确认、被动观察和受限状态；新入口均待实现。
+[DNS 扩展计划](https://github.com/wshijiang/network-mapping/blob/main/docs/DNS_DOH_DOT_VNC_PLAN.md)与[工业协议计划](https://github.com/wshijiang/network-mapping/blob/main/docs/INDUSTRIAL_SERVICE_DETECTION_PLAN.md)保留设计记录；实际交付范围以当前支持矩阵为准。
 
 ## 从这里开始
 

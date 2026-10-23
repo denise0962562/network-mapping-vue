@@ -2,6 +2,13 @@
 
 [文档中心](README.md) · [服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)
 
+## 未发布：自动服务识别与表单统一（2026-10-23）
+
+- 移除任务创建中的定向协议复选框。TCP 默认自动识别全部已实现服务；UDP 主动/被动任务自动采用各自支持的协议，节点筛选仍校验所需能力和预算。
+- TLS 服务名、CA、DoH 路径、Modbus Unit ID、S7 TSAP 与 MQTT 版本收拢到现有 daisyUI 折叠高级参数，无需选择协议；预览与创建使用相同参数。
+- LLM 全局/供应商及通知渠道的代理地址输入改为明文，便于核对；LLM 请求头模式 select 与同级 select 统一尺寸和样式。
+- 增加自动 TCP/UDP 参数、预览和创建请求回归。
+
 ## 未发布：PR review 与 CI 核验修复（2026-10-23）
 
 - 核对 PR #27 的 CodeQL 告警：命中测试中的大小写敏感 HTML 正则断言，业务组件仍使用 Vue 转义插值，未发现该告警所述的生产 HTML 过滤路径。

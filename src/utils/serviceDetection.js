@@ -20,6 +20,35 @@ export const passiveServices = [
   { value: 'enip_io', label: 'EtherNet/IP I/O' }
 ]
 const protocols = [...nativeServices, ...udpServices, ...passiveServices]
+export function automaticServiceRequirements(profile) {
+  if (profile === 'udp_inventory') return udpServices.map(service => service.value)
+  if (profile === 'udp_passive') return passiveServices.map(service => service.value)
+  return []
+}
+
+export function automaticProbeOptions(profile, values = {}) {
+  if (profile === 'udp_passive') {
+    const options = {
+      passive_bind: (values.passiveBind || '').trim(),
+      passive_window_seconds: Number(values.passiveWindow ?? 10)
+    }
+    if (values.passiveGroup?.trim()) {
+      options.passive_group = values.passiveGroup.trim()
+      options.passive_interface = options.passive_bind
+    }
+    return options
+  }
+  if (!['service_inventory', 'vulnerability_scan'].includes(profile)) return {}
+  const options = {}
+  if (values.serverName?.trim()) options.server_name = values.serverName.trim()
+  if (values.caPem?.trim()) options.tls_ca_pem = values.caPem.trim()
+  if (values.dohPath?.trim() && values.dohPath.trim() !== '/dns-query') options.doh_path = values.dohPath.trim()
+  if (Number(values.modbusUnitId ?? 1) !== 1) options.modbus_unit_id = Number(values.modbusUnitId)
+  if (Number(values.s7Tsap ?? 258) !== 258) options.s7_tsap = Number(values.s7Tsap)
+  if (Number(values.mqttVersion ?? 4) !== 4) options.mqtt_version = Number(values.mqttVersion)
+  return options
+}
+
 export function supportsRequiredServices(scanner, required = []) {
   const capabilities = scanner?.scan_capabilities
   if (required.length && (!Number.isInteger(capabilities?.max_service_probes)
