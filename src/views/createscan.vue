@@ -4,12 +4,14 @@ import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 import { parseScanTargets, targetTypeLabel } from '@/utils/scanTargets'
-import { nativeServices, supportsRequiredServices } from '@/utils/serviceDetection'
+import { nativeServices, udpServices, passiveServices, supportsRequiredServices } from '@/utils/serviceDetection'
 import { routingLocation, routingReason } from '@/utils/scanRouting'
 
 const formFieldId = useId()
 const LEGACY_DRAFT_KEY = 'createscan_draft'
 const scanProfiles = [
+  {value: 'udp_passive', title: 'UDP 被动识别', description: '在扫描节点本机接收获授权来源的实时流量。需明确接收地址、端口与窗口；不发送探测，不判断源端口开放。', ipOnly: true},
+  {value: 'udp_inventory', title: 'UDP 服务识别', description: '仅向明确的 UDP 端口发送最小发现请求；最多 256 个地址、32 个端口，超时不判定端口状态。', ipOnly: true},
   {
     value: 'vulnerability_scan',
     title: '全部',
@@ -51,6 +53,26 @@ const placement = ref(null)
 const placementLoading = ref(false)
 let placementRequest = 0
 const requiredServices = ref([])
+const selectedServiceChoices=computed(()=>scanProfile.value==='udp_passive'?passiveServices:scanProfile.value==='udp_inventory'?udpServices:nativeServices)
+const probeServerName=ref('')
+const dohPath=ref('/dns-query')
+const probeCaPem=ref('')
+const modbusUnitId=ref(1)
+const s7Tsap=ref(258)
+const mqttVersion=ref(4)
+const passiveBind=ref('')
+const passiveGroup=ref('')
+const passiveWindow=ref(10)
+const serviceProbeOptions=computed(()=>{
+  const out={}
+  if(scanProfile.value==='udp_passive') {out.passive_bind=passiveBind.value.trim();out.passive_window_seconds=Number(passiveWindow.value);if(passiveGroup.value.trim()){out.passive_group=passiveGroup.value.trim();out.passive_interface=passiveBind.value.trim()}}
+  if(requiredServices.value.some(s=>['dot','doh','mqtts'].includes(s))) {out.server_name=probeServerName.value.trim()||null;out.tls_ca_pem=probeCaPem.value.trim()||null}
+  if(requiredServices.value.includes('doh')) out.doh_path=dohPath.value.trim()
+  if(requiredServices.value.includes('modbus')) out.modbus_unit_id=Number(modbusUnitId.value)
+  if(requiredServices.value.includes('s7')) out.s7_tsap=Number(s7Tsap.value)
+  if(requiredServices.value.some(s=>['mqtt','mqtts'].includes(s))) out.mqtt_version=Number(mqttVersion.value)
+  return out
+})
 const scanProfile = ref('vulnerability_scan')
 const dnsResolverMode = ref('system')
 const dnsResolvers = ref([])
@@ -126,13 +148,13 @@ function scannerSupportsTarget(scanner) {
   return targetAddressFamily.value !== 'mixed'
 }
 
-watch([targetAddressFamily, scanProfile, dnsResolverMode, selectedDnsResolvers, requiredServices], () => {
+watch([targetAddressFamily, scanProfile, dnsResolverMode, selectedDnsResolvers, requiredServices, serviceProbeOptions], () => {
   const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
   scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
 })
 
 watch(targetType, (value) => {
-  if (value === 'domain') requiredServices.value = []
+  if (value === 'domain') { requiredServices.value = []; if(['udp_inventory','udp_passive'].includes(scanProfile.value)) scanProfile.value=defaultScanProfile.value }
   if (value !== 'domain' && scanProfile.value === 'dns_records') {
     scanProfile.value = defaultScanProfile.value
   }
@@ -140,7 +162,9 @@ watch(targetType, (value) => {
 
 watch(scanProfile, (value) => {
   if (value === 'dns_records') port.value = ''
-  if (!['service_inventory', 'vulnerability_scan'].includes(value)) requiredServices.value = []
+  requiredServices.value = []
+  if(['udp_inventory','udp_passive'].includes(value)) port.value=''
+  if(value==='udp_passive') {dispatchMode.value='selected';scannerIds.value=[]}
 })
 
 const targetInputRef = ref(null)
@@ -178,6 +202,15 @@ function resetForm() {
   dispatchMode.value = 'automatic'
   scannerIds.value = []
   requiredServices.value = []
+  probeServerName.value=''
+  dohPath.value='/dns-query'
+  probeCaPem.value=''
+  modbusUnitId.value=1
+  s7Tsap.value=258
+  mqttVersion.value=4
+  passiveBind.value=''
+  passiveGroup.value=''
+  passiveWindow.value=10
   scanProfile.value = defaultScanProfile.value
   dnsResolverMode.value = 'system'
   dnsResolvers.value = []
@@ -188,7 +221,7 @@ async function loadScanSettings() {
   try {
     const response = await http.get('/api/config/scan')
     const profile = response.data?.data?.defaultScanProfile
-    if (scanProfiles.some((item) => item.value === profile && item.domainOnly !== true)) {
+    if (scanProfiles.some((item) => item.value === profile && item.domainOnly !== true && item.ipOnly !== true)) {
       defaultScanProfile.value = profile
       scanProfile.value = profile
     }
@@ -248,8 +281,9 @@ function showAlert(type, title, description = '', timeout = 5000) {
   })
 }
 
-watch([targetInput, port, scanProfile, dnsResolverMode, selectedDnsResolvers, requiredServices], () => { placement.value = null; placementRequest++ })
+watch([targetInput, port, scanProfile, dnsResolverMode, selectedDnsResolvers, requiredServices, serviceProbeOptions], () => { placement.value = null; placementRequest++ })
 async function previewPlacement() {
+  if(scanProfile.value==='udp_inventory' && (!port.value.trim() || !requiredServices.value.length)) {showAlert('warning','请填写 UDP 端口并选择协议');return}
   const targets = targetValidation.value
   if (!targets.valid || targets.targets.length > 100) { showAlert('warning', '请先填写有效目标', '分配预览支持最多 100 个明确目标。'); return }
   const request = ++placementRequest
@@ -257,7 +291,7 @@ async function previewPlacement() {
   try {
     const response = await http.post('/api/task/placement-preview', {
       targets: targets.targets, scan_profile: isDnsTask.value ? 'dns_records' : scanProfile.value,
-      port: port.value.trim() || (isDnsTask.value ? '53' : '1-65535'), required_services: requiredServices.value, dns_resolvers: isDnsTask.value ? selectedDnsResolvers.value : []
+      port: port.value.trim() || (isDnsTask.value ? '53' : ['udp_inventory','udp_passive'].includes(scanProfile.value) ? '' : '1-65535'), required_services: requiredServices.value, service_probe_options:serviceProbeOptions.value, dns_resolvers: isDnsTask.value ? selectedDnsResolvers.value : []
     })
     if (request === placementRequest) placement.value = response.data?.data || null
   } catch (error) { if (request === placementRequest) showAlert('warning', '分配预览暂不可用', error.response?.data?.message || '请稍后重试。') }
@@ -277,6 +311,7 @@ async function submitTask() {
     showAlert('warning', '仅 DNS 模式不可用', '仅 DNS 模式只能用于域名目标。')
     return false
   }
+  if (['udp_inventory','udp_passive'].includes(scanProfile.value) && (!port.value.trim() || !requiredServices.value.length)) {showAlert('warning','请填写端口并选择识别协议');return false}
   if (scanRequiresPort.value && port.value && !portInputRef.value?.reportValidity()) return false
   if (dispatchMode.value === 'selected' && scannerIds.value.length === 0) {
     showAlert('warning', '请选择扫描器', '指定扫描器模式至少需要选择一台扫描器。')
@@ -329,6 +364,7 @@ async function submitTask() {
         }
       : {
           required_services: requiredServices.value,
+          service_probe_options:serviceProbeOptions.value,
           ip: validatedTargets.targets.join(','),
           port: port.value.trim(),
           level: Number(level.value),
@@ -428,7 +464,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
               <fieldset class="pt-1" :disabled="scanSettingsLoading">
                 <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                   <label
-                    v-for="profile in scanProfiles"
+                    v-for="profile in scanProfiles.filter(p=>!isDnsTask || !p.ipOnly)"
                     :key="profile.value"
                     class="flex items-start gap-2 rounded-lg border border-transparent bg-base-200/50 p-3"
                     :class="[
@@ -456,14 +492,32 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                   {{ scanSettingsLoading ? '正在读取系统默认模式...' : selectedScanProfileDescription }}
                 </p>
               </fieldset>
-              <fieldset v-if="!isDnsTask && ['service_inventory', 'vulnerability_scan'].includes(scanProfile)" class="fieldset mt-3 rounded-lg bg-base-200/50 p-3">
-                <legend class="fieldset-legend">定向服务探测（可选）</legend>
+              <fieldset v-if="!isDnsTask && ['service_inventory', 'vulnerability_scan','udp_inventory','udp_passive'].includes(scanProfile)" class="fieldset mt-3 rounded-lg bg-base-200/50 p-3">
+                <legend class="fieldset-legend">{{ ['udp_inventory','udp_passive'].includes(scanProfile) ? '识别协议（必选）' : '定向服务探测（可选）' }}</legend>
                 <div class="flex flex-wrap gap-4">
-                  <label v-for="service in nativeServices" :key="service.value" class="label cursor-pointer gap-2">
+                  <label v-for="service in selectedServiceChoices" :key="service.value" class="label cursor-pointer gap-2">
                     <input v-model="requiredServices" type="checkbox" class="checkbox checkbox-sm" :value="service.value" />{{ service.label }}
                   </label>
                 </div>
-                <p class="text-xs opacity-60">留空时使用默认识别策略。选中后对开放 TCP 端点仅尝试所选协议，支持非标准端口；仅分配给具备对应能力的节点。DNS TCP 服务探测与域名解析任务分别配置。</p>
+                <div v-if="scanProfile==='udp_passive'" class="grid gap-3 sm:grid-cols-3">
+                  <label class="fieldset"><span class="label">扫描节点接收 IPv4</span><input v-model="passiveBind" class="input input-sm w-full" placeholder="192.0.2.10" required /><span class="text-xs opacity-60">必须是实际扫描节点的本机接口地址。</span></label>
+                  <label class="fieldset"><span class="label">组播地址（可选）</span><input v-model="passiveGroup" class="input input-sm w-full" placeholder="239.0.0.1" /></label>
+                  <label class="fieldset"><span class="label">观察窗口（秒）</span><input v-model.number="passiveWindow" type="number" min="1" max="60" class="input input-sm w-full" required /></label>
+                </div>
+                <div v-if="requiredServices.some(s => ['dot','doh','mqtts'].includes(s))" class="grid gap-3 sm:grid-cols-2">
+                  <label class="fieldset"><span class="label">TLS 服务名 / SNI（可选）</span><input v-model="probeServerName" class="input input-sm w-full" maxlength="253" placeholder="dns.example.com" /><span class="text-xs opacity-60">连接仍固定到扫描目标 IP；用于虚拟主机和证书校验。</span></label>
+                  <label v-if="requiredServices.includes('doh')" class="fieldset"><span class="label">DoH 路径</span><input v-model="dohPath" class="input input-sm w-full" maxlength="256" placeholder="/dns-query" /></label>
+                  <label class="fieldset sm:col-span-2"><span class="label">额外受信 CA（PEM，可选）</span><textarea v-model="probeCaPem" class="textarea w-full font-mono text-xs" maxlength="65536" placeholder="-----BEGIN CERTIFICATE-----"></textarea><span class="text-xs opacity-60">仅接受公开 CA 证书；默认验证证书，不读取或提交客户端私钥。</span></label>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                  <label v-if="requiredServices.includes('modbus')" class="fieldset"><span class="label">Modbus Unit ID</span><input v-model.number="modbusUnitId" type="number" min="0" max="255" class="input input-sm w-full" /></label>
+                  <label v-if="requiredServices.includes('s7')" class="fieldset"><span class="label">S7 TSAP（十进制）</span><input v-model.number="s7Tsap" type="number" min="0" max="65535" class="input input-sm w-full" /><span class="text-xs opacity-60">默认 258（0x0102），不枚举机架或插槽。</span></label>
+                  <label v-if="requiredServices.some(s=>['mqtt','mqtts'].includes(s))" class="fieldset"><span class="label">MQTT 协议版本</span><select v-model.number="mqttVersion" class="select select-sm w-full"><option :value="4">3.1.1</option><option :value="5">5.0</option></select></label>
+                </div>
+                <p v-if="requiredServices.some(s=>['modbus','enip','s7','opcua'].includes(s))" class="text-xs opacity-60">工业协议仅在显式选择后发送最小识别请求，不读取过程数据或执行控制写入。</p>
+                <p v-if="scanProfile==='udp_passive'" class="text-xs opacity-60">目标填写获授权的发送源 IPv4（最多 256 个）；端口填写本机唯一接收端口。只接收发往本机或指定组播组的流量，不是全网监听；加密或不支持的数据帧保持未确认。</p>
+                <p v-else-if="scanProfile==='udp_inventory'" class="text-xs opacity-60">需选择协议并填写最多 32 个明确端口。仅确认匹配响应；超时不标记端口开放或关闭。</p>
+                <p v-else class="text-xs opacity-60">留空时使用默认识别策略。选中后对开放 TCP 端点仅尝试所选协议，支持非标准端口；仅分配给具备对应能力的节点。DNS TCP 服务探测与域名解析任务分别配置。</p>
               </fieldset>
               <div v-if="isDnsTask" class="mt-3 rounded-lg bg-base-200/50 p-3 text-sm">
                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -501,7 +555,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
           <details name="create-task-options" class="create-task-accordion collapse collapse-arrow border border-base-300 bg-base-100">
             <summary class="collapse-title min-h-0 py-3 pr-12">
               <span class="block font-medium">执行扫描器</span>
-              <span class="mt-0.5 block text-xs text-base-content/60">当前：{{ dispatchModeSummary }}</span>
+              <span class="mt-0.5 block text-xs text-base-content/60">当前：{{ dispatchModeSummary }}<span v-if="scanProfile==='udp_passive'"> · 需指定一台接收节点</span></span>
             </summary>
             <div class="collapse-content">
               <fieldset class="pt-1">
@@ -510,7 +564,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                 </p>
                 <div class="grid gap-2 md:grid-cols-3">
                   <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
-                    <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="automatic" />
+                    <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="automatic" :disabled="scanProfile==='udp_passive'" />
                     <span><span class="block font-medium">自动分配</span><span class="text-xs opacity-60">按地域、能力和历史反馈分配</span></span>
                   </label>
                   <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
@@ -518,7 +572,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                     <span><span class="block font-medium">指定扫描器</span><span class="text-xs opacity-60">选择一台或多台分别执行</span></span>
                   </label>
                   <label class="flex cursor-pointer items-start gap-2 rounded-lg bg-base-200/50 p-3">
-                    <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="all" />
+                    <input v-model="dispatchMode" class="radio radio-sm mt-0.5" type="radio" value="all" :disabled="scanProfile==='udp_passive'" />
                     <span><span class="block font-medium">全部扫描器</span><span class="text-xs opacity-60">所有已启用扫描器各执行一次，离线设备上线后执行</span></span>
                   </label>
                 </div>
@@ -540,7 +594,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                   <div v-else-if="scanners.length === 0" class="text-sm opacity-70">暂无已启用扫描器</div>
                   <div v-else class="grid gap-2 md:grid-cols-2">
                     <label v-for="scanner in scanners" :key="scanner.scanner_id" class="flex items-center gap-3 rounded-lg bg-base-200/50 px-3 py-2" :class="scannerSupportsTarget(scanner) ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'">
-                      <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" :disabled="!scannerSupportsTarget(scanner)" />
+                      <input v-model="scannerIds" class="checkbox checkbox-sm" type="checkbox" :value="scanner.scanner_id" :disabled="!scannerSupportsTarget(scanner) || (scanProfile==='udp_passive' && scannerIds.length>=1 && !scannerIds.includes(scanner.scanner_id))" />
                       <span class="min-w-0">
                         <span class="block truncate text-sm font-medium">{{ scanner.name || '未命名扫描器' }}</span>
                         <span class="block truncate text-xs opacity-60">{{ scanner.location || '未设置位置' }} · {{ scanner.is_online ? '在线' : '离线' }} · IPv4 {{ scanner.ipv4_ready ? '可用' : '不可用' }} / IPv6 {{ scanner.ipv6_ready ? '可用' : '不可用' }} · {{ scannerSupportsProfile(scanner) ? (isDnsTask ? '支持 DNS 阶段' : '支持当前模式') : (isDnsTask ? '不支持 DNS 阶段' : '不支持当前模式') }}</span>
@@ -562,7 +616,7 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
             v-model="port"
             class="task_input_items peer w-full"
             type="text"
-            :placeholder="isDnsTask ? '请输入解析 IP 的目标端口，留空默认全端口' : '请输入目标端口，留空默认全端口'"
+            :placeholder="['udp_inventory','udp_passive'].includes(scanProfile) ? (scanProfile==='udp_passive' ? '请输入本机唯一接收端口，如 2222 或 4840' : '请填写明确的 UDP 端口，如 53,44818,47808') : isDnsTask ? '请输入解析 IP 的目标端口，留空默认全端口' : '请输入目标端口，留空默认全端口'"
             pattern="^((6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})(-(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3}))?)(,((6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})(-(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3}))?))*$"
           />
           <div class="max-h-0 overflow-hidden opacity-0 transition-all duration-200 ease-in-out peer-[&:not(:placeholder-shown):invalid]:mt-1 peer-[&:not(:placeholder-shown):invalid]:max-h-10 peer-[&:not(:placeholder-shown):invalid]:opacity-100 text-error text-xs">

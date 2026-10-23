@@ -2,6 +2,13 @@
 
 [文档中心](README.md) · [服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)
 
+## 未发布：加密 DNS、工业与 UDP 服务识别（2026-10-23）
+
+- 创建任务新增 DoH/DoT 和工业协议选择，以及 TLS/SNI/路径/公开 CA、Unit ID、TSAP、MQTT 版本字段，统一采用现有 daisyUI 风格。
+- 新增独立 UDP 主动/被动模式；被动模式明确接收节点地址、端口和观察窗口，显示来源证据而非“端口开放”。
+- 节点筛选校验协议和单端点预算，服务徽标展示转义证据及 MQTT 认证拒绝；资产历史和列表键区分 TCP/UDP 同端口。
+- 配套版本与精确支持范围见[服务协议识别与部署](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_PROTOCOLS.md)；需 IPC 3 Worker 及服务端投影迁移。
+
 ## 未发布：DNS TCP / VNC 定向探测（2026-10-23）
 
 - IP/CIDR 的服务识别及全部扫描模式增加可选 DNS TCP、VNC 定向探测，复用 daisyUI 表单与现有布局；选中后对开放 TCP 端点仅尝试所选协议，节点选择及分配预览核对实际能力。域名解析任务暂不提供该选项。

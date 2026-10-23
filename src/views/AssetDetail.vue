@@ -374,6 +374,7 @@ async function loadHistory(offset = 0) {
       params: {
         ip: assetIp.value,
         port: selectedPort.value.port,
+        protocol: selectedPort.value.protocol || 'unknown',
         limit: HISTORY_PAGE_SIZE,
         offset,
       },
@@ -579,7 +580,7 @@ onMounted(() => {
         </section>
 
         <div role="alert" class="alert alert-info alert-dash text-sm">
-          <span>扫描器当前仅上报开放端口，端口详情展示每个端口最近一次扫描结果。</span>
+          <span>端点按 IP、端口和传输协议区分；被动识别只证明观察到协议流量，不代表源端口开放。</span>
         </div>
 
         <section class="rounded-xl border border-base-300 bg-base-100 shadow-sm">
@@ -595,7 +596,7 @@ onMounted(() => {
                 <tr><th>端口</th><th>协议 / 服务</th><th>Banner</th><th>系统线索</th><th>Web 技术栈</th><th>首次发现</th><th>最近发现</th><th>来源</th><th></th></tr>
               </thead>
               <tbody>
-                <tr v-for="port in ports" :key="port.port">
+                <tr v-for="port in ports" :key="`${port.protocol || 'unknown'}:${port.port}`">
                   <td><span class="font-mono font-semibold">{{ port.port }}</span><IntelEvidence :intel="port.intel" label="端点情报" /></td>
                   <td>
                     <div>{{ port.protocol || '-' }}<span v-if="port.service"> · <ServiceLabel :service="port.service" :data="port.data" /></span></div>
@@ -630,7 +631,7 @@ onMounted(() => {
       <div class="flex items-center justify-between gap-3">
         <div>
           <h3 class="text-lg font-bold">端口观察历史</h3>
-          <p class="font-mono text-sm opacity-65">{{ assetIp }}:{{ selectedPort?.port }}</p>
+          <p class="font-mono text-sm opacity-65">{{ assetIp }}:{{ selectedPort?.port }} / {{ selectedPort?.protocol || 'unknown' }}</p>
         </div>
         <button class="btn btn-ghost btn-sm" @click="closeHistory">关闭</button>
       </div>
