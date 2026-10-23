@@ -2,6 +2,11 @@
 
 [文档中心](README.md) · [服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)
 
+## 未发布：PR review 与 CI 核验修复（2026-10-23）
+
+- 核对 PR #27 的 CodeQL 告警：命中测试中的大小写敏感 HTML 正则断言，业务组件仍使用 Vue 转义插值，未发现该告警所述的生产 HTML 过滤路径。
+- 测试改为直接验证已转义文本和原始载荷未输出，增加大写/混合大小写 SCRIPT、属性及 IMG 事件载荷，避免将测试断言误识别为业务过滤器；不屏蔽 CodeQL 规则。
+
 ## 未发布：加密 DNS、工业与 UDP 服务识别（2026-10-23）
 
 - 创建任务新增 DoH/DoT 和工业协议选择，以及 TLS/SNI/路径/公开 CA、Unit ID、TSAP、MQTT 版本字段，统一采用现有 daisyUI 风格。
