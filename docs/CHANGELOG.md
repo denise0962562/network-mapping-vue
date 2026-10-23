@@ -2,6 +2,18 @@
 
 [文档中心](README.md) · [服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)
 
+## 未发布：DNS TCP / VNC 定向探测（2026-10-23）
+
+- IP/CIDR 的服务识别及全部扫描模式增加可选 DNS TCP、VNC 定向探测，复用 daisyUI 表单与现有布局；选中后对开放 TCP 端点仅尝试所选协议，节点选择及分配预览核对实际能力。域名解析任务暂不提供该选项。
+- 搜索、任务详情、资产详情和历史复用服务徽标；历史接口提供原始证据时可展开 DNS 响应码或 RFB 协议版本，返回文本保持转义，沿用明暗主题。
+- 节点详情展示 DNS/VNC 原生探测能力；未声明能力的旧节点不显示为已支持。需配套服务端任务 API 与新版扫描器。
+
+## 未发布：服务识别扩展规划（2026-10-23）
+
+- 补充 [DNS、DoH、DoT 与 VNC 的前端适配规划](https://github.com/wshijiang/network-mapping/blob/main/docs/DNS_DOH_DOT_VNC_PLAN.md)：复用现有 daisyUI 表单、服务徽标、结果表格、证据详情及明暗主题，明确节点能力校验与 TCP/UDP 同端口展示。
+- 本条仅记录规划文档，未新增协议配置入口或修改当前页面行为。
+- 追加[工业与物联网前端适配规划](https://github.com/wshijiang/network-mapping/blob/main/docs/INDUSTRIAL_SERVICE_DETECTION_PLAN.md)：工业协议选择、节点能力校验、共享服务/证据展示，沿用现有 daisyUI、明暗主题和历史弹窗；区分主动握手、UDP 发现、被动 PubSub/I/O 与已有 MQTT/MQTTS，不提前开放未实现入口。
+
 ## 未发布：服务探测第一批（2026-10-22）
 
 - 搜索、任务详情及资产详情共用的 Web 技术标签支持 database 类别：沿用现有字号与布局，使用 Lucide 通用数据库符号和 daisyUI outline 徽标，兼容明暗主题。

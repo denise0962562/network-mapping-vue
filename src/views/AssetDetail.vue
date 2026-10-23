@@ -1,4 +1,5 @@
 <script setup>
+import ServiceLabel from '@/components/ServiceLabel.vue'
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, markRaw, onMounted, ref } from 'vue'
 import ApexMaps from 'vue-apexmaps'
@@ -597,7 +598,7 @@ onMounted(() => {
                 <tr v-for="port in ports" :key="port.port">
                   <td><span class="font-mono font-semibold">{{ port.port }}</span><IntelEvidence :intel="port.intel" label="端点情报" /></td>
                   <td>
-                    <div>{{ port.protocol || '-' }}<span v-if="port.service"> · {{ port.service }}</span></div>
+                    <div>{{ port.protocol || '-' }}<span v-if="port.service"> · <ServiceLabel :service="port.service" :data="port.data" /></span></div>
                     <div v-if="port.service_stale" class="mt-1 text-xs text-warning">服务信息早于最近端口观察</div>
                   </td>
                   <td class="max-w-xs truncate" :title="port.banner">{{ port.banner || '-' }}</td>
@@ -646,7 +647,7 @@ onMounted(() => {
                 <td class="whitespace-nowrap">{{ formatTime(item.observed_at) }}</td>
                 <td><span class="badge badge-outline">{{ item.kind === 'service' ? '服务' : '端口' }}</span></td>
                 <td>{{ item.state }}</td>
-                <td>{{ item.protocol || '-' }}<span v-if="item.service"> · {{ item.service }}</span></td>
+                <td>{{ item.protocol || '-' }}<span v-if="item.service"> · <ServiceLabel :service="item.service" :data="item.data" /></span></td>
                 <td>{{ item.source }}</td>
                 <td>{{ item.scanner_name || '-' }}</td>
                 <td><a class="link font-mono text-xs" :href="`/task/${item.task_id}`">{{ item.task_id.slice(0, 8) }}</a></td>

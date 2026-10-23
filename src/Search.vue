@@ -1,4 +1,5 @@
 <script setup>
+import ServiceLabel from '@/components/ServiceLabel.vue'
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AssetTags from './components/AssetTags.vue'
@@ -369,7 +370,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
                 <td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /><IntelEvidence :intel="item.intel" label="端点情报" /></div></td>
                 <td>{{ item.port ?? '-' }}</td>
                 <td>{{ item.protocol ?? '-' }}</td>
-                <td>{{ item.service ?? '-' }}</td>
+                <td><ServiceLabel :service="item.service" :data="item.data" /></td>
                 <td class="max-w-xs truncate" :title="item.banner">{{ item.banner ?? '-' }}</td>
                 <td><OsFingerprint :value="item.os" /></td>
                 <td><WebTechnologies :value="item.web" /></td>

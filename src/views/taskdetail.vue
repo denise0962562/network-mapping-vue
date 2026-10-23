@@ -1,4 +1,5 @@
 <script setup>
+import ServiceLabel from '@/components/ServiceLabel.vue'
 import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -488,7 +489,7 @@ onBeforeUnmount(() => {
                     <tr v-for="port in row.ports" :key="port.port">
                       <td>{{ port.port }}</td>
                       <td>{{ port.protocol || '-' }}</td>
-                      <td>{{ port.service || '-' }}</td>
+                      <td><ServiceLabel :service="port.service" :data="port.data" /></td>
                       <td class="max-w-72 truncate" :title="port.banner || ''">{{ port.banner || '-' }}</td>
                       <td><OsFingerprint :value="port.os" /></td>
                       <td><WebTechnologies :value="port.web" /></td>

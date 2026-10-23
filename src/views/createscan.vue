@@ -4,6 +4,7 @@ import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import http from '@/utils/http'
 import { parseScanTargets, targetTypeLabel } from '@/utils/scanTargets'
+import { nativeServices, supportsRequiredServices } from '@/utils/serviceDetection'
 import { routingLocation, routingReason } from '@/utils/scanRouting'
 
 const formFieldId = useId()
@@ -49,6 +50,7 @@ const scannersLoading = ref(false)
 const placement = ref(null)
 const placementLoading = ref(false)
 let placementRequest = 0
+const requiredServices = ref([])
 const scanProfile = ref('vulnerability_scan')
 const dnsResolverMode = ref('system')
 const dnsResolvers = ref([])
@@ -108,7 +110,7 @@ function scannerSupportsProfile(scanner) {
 }
 
 function scannerSupportsTarget(scanner) {
-  if (!scannerSupportsProfile(scanner)) return false
+  if (!scannerSupportsProfile(scanner) || !supportsRequiredServices(scanner, requiredServices.value)) return false
   if (isDnsTask.value
     && dnsResolverMode.value !== 'system'
     && scanner.scan_capabilities?.explicit_dns_resolvers !== true) return false
@@ -124,12 +126,13 @@ function scannerSupportsTarget(scanner) {
   return targetAddressFamily.value !== 'mixed'
 }
 
-watch([targetAddressFamily, scanProfile, dnsResolverMode, selectedDnsResolvers], () => {
+watch([targetAddressFamily, scanProfile, dnsResolverMode, selectedDnsResolvers, requiredServices], () => {
   const compatibleIds = new Set(scanners.value.filter(scannerSupportsTarget).map((item) => item.scanner_id))
   scannerIds.value = scannerIds.value.filter((id) => compatibleIds.has(id))
 })
 
 watch(targetType, (value) => {
+  if (value === 'domain') requiredServices.value = []
   if (value !== 'domain' && scanProfile.value === 'dns_records') {
     scanProfile.value = defaultScanProfile.value
   }
@@ -137,6 +140,7 @@ watch(targetType, (value) => {
 
 watch(scanProfile, (value) => {
   if (value === 'dns_records') port.value = ''
+  if (!['service_inventory', 'vulnerability_scan'].includes(value)) requiredServices.value = []
 })
 
 const targetInputRef = ref(null)
@@ -148,6 +152,7 @@ const hasUnsavedChanges = computed(() => (
   || remark.value.trim() !== ''
   || dispatchMode.value !== 'automatic'
   || scannerIds.value.length > 0
+  || requiredServices.value.length > 0
   || scanProfile.value !== defaultScanProfile.value
   || dnsResolverMode.value !== 'system'
   || dnsResolvers.value.length > 0
@@ -172,6 +177,7 @@ function resetForm() {
   remark.value = ''
   dispatchMode.value = 'automatic'
   scannerIds.value = []
+  requiredServices.value = []
   scanProfile.value = defaultScanProfile.value
   dnsResolverMode.value = 'system'
   dnsResolvers.value = []
@@ -242,7 +248,7 @@ function showAlert(type, title, description = '', timeout = 5000) {
   })
 }
 
-watch([targetInput, port, scanProfile, dnsResolverMode, selectedDnsResolvers], () => { placement.value = null; placementRequest++ })
+watch([targetInput, port, scanProfile, dnsResolverMode, selectedDnsResolvers, requiredServices], () => { placement.value = null; placementRequest++ })
 async function previewPlacement() {
   const targets = targetValidation.value
   if (!targets.valid || targets.targets.length > 100) { showAlert('warning', '请先填写有效目标', '分配预览支持最多 100 个明确目标。'); return }
@@ -251,7 +257,7 @@ async function previewPlacement() {
   try {
     const response = await http.post('/api/task/placement-preview', {
       targets: targets.targets, scan_profile: isDnsTask.value ? 'dns_records' : scanProfile.value,
-      port: port.value.trim() || (isDnsTask.value ? '53' : '1-65535'), dns_resolvers: isDnsTask.value ? selectedDnsResolvers.value : []
+      port: port.value.trim() || (isDnsTask.value ? '53' : '1-65535'), required_services: requiredServices.value, dns_resolvers: isDnsTask.value ? selectedDnsResolvers.value : []
     })
     if (request === placementRequest) placement.value = response.data?.data || null
   } catch (error) { if (request === placementRequest) showAlert('warning', '分配预览暂不可用', error.response?.data?.message || '请稍后重试。') }
@@ -322,6 +328,7 @@ async function submitTask() {
             : []
         }
       : {
+          required_services: requiredServices.value,
           ip: validatedTargets.targets.join(','),
           port: port.value.trim(),
           level: Number(level.value),
@@ -448,6 +455,15 @@ useUnsavedChanges(hasUnsavedChanges, submitTask)
                 <p class="mt-2 text-xs opacity-60">
                   {{ scanSettingsLoading ? '正在读取系统默认模式...' : selectedScanProfileDescription }}
                 </p>
+              </fieldset>
+              <fieldset v-if="!isDnsTask && ['service_inventory', 'vulnerability_scan'].includes(scanProfile)" class="fieldset mt-3 rounded-lg bg-base-200/50 p-3">
+                <legend class="fieldset-legend">定向服务探测（可选）</legend>
+                <div class="flex flex-wrap gap-4">
+                  <label v-for="service in nativeServices" :key="service.value" class="label cursor-pointer gap-2">
+                    <input v-model="requiredServices" type="checkbox" class="checkbox checkbox-sm" :value="service.value" />{{ service.label }}
+                  </label>
+                </div>
+                <p class="text-xs opacity-60">留空时使用默认识别策略。选中后对开放 TCP 端点仅尝试所选协议，支持非标准端口；仅分配给具备对应能力的节点。DNS TCP 服务探测与域名解析任务分别配置。</p>
               </fieldset>
               <div v-if="isDnsTask" class="mt-3 rounded-lg bg-base-200/50 p-3 text-sm">
                 <div class="flex flex-wrap items-center justify-between gap-2">
