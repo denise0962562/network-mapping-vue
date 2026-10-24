@@ -1,5 +1,5 @@
 <script setup>
-import { tr } from '../i18n/index.js'
+import { locale, tr, uiText } from '../i18n/index.js'
 
 import { computed, onBeforeUnmount, onMounted, ref, watch, useId } from 'vue'
 import http from '@/utils/http'
@@ -9,7 +9,7 @@ import StatisticsChart from '@/components/StatisticsChart.vue'
 import StatisticsDetails from '@/components/StatisticsDetails.vue'
 import StatisticsOverview from '@/components/StatisticsOverview.vue'
 import { addCalendarDays, calendarDate, formatDateTime, timeSettings } from '../i18n/time.js'
-import { enrichStatistics, metricDifference, availableCharts, chartLabels, chartRows, defaultFilters, downloadBlob, formatMetric, groupLabels, imageCaption, metrics, queryBody, rowLabel, statisticsCsv } from '@/utils/statistics'
+import { enrichStatistics, metricDifference, availableCharts, chartLabels, chartRows, defaultFilters, downloadBlob, formatMetric, groupLabels, imageCaption, metrics, queryBody, rowLabel, statisticsCsv, statisticsTypeLabel } from '@/utils/statistics'
 
 const formFieldId = useId()
 const types = ref([])
@@ -50,7 +50,7 @@ const charts = computed(() => availableCharts(activeType.value, result.value?.me
 const plottedRows = computed(() => result.value ? chartRows(result.value.data.rows, result.value.meta, display.value.top, display.value.metric) : [])
 const canExport = computed(() => result.value && !error.value && !dirty.value && !loading.value && !exporting.value && hasData.value)
 const hasData = computed(() => !!result.value && Object.entries(result.value.data.summary).some(([key, value]) => !['success_rate', 'avg_duration_ms', 'p95_ms'].includes(key) && Number(value) > 0))
-const title = computed(() => display.value.title.trim() || tr("{0}统计", [activeType.value?.label || '']))
+const title = computed(() => display.value.title.trim() || tr("{0}统计", [statisticsTypeLabel(activeType.value)]))
 const summaryKeys = computed(() => {
   const kind = result.value?.meta.data_type
   if (kind === 'discovery') return ['unique_ips', 'observed_days', 'mean_count', 'peak_count'].filter((key) => key in result.value.data.summary)
@@ -64,7 +64,7 @@ const sortedRows = computed(() => {
   return rows.sort((a, b) => {
     if (a[key] == null) return b[key] == null ? 0 : 1
     if (b[key] == null) return -1
-    const compared = key === 'label' ? String(a[key]).localeCompare(String(b[key]), 'zh-CN') : a[key] - b[key]
+    const compared = key === 'label' ? String(rowLabel(a[key], result.value.meta.group_by)).localeCompare(String(rowLabel(b[key], result.value.meta.group_by)), locale.value) : a[key] - b[key]
     return direction * compared
   })
 })
@@ -159,7 +159,7 @@ async function generate() {
     applied.value = appliedFingerprint
     const definition = types.value.find((t) => t.id === data.meta.data_type)
     const metric = definition.metrics[0]
-    display.value = { ...display.value, metric, chart: availableCharts(definition, data.meta.group_by, metric)[0], title: tr("{0}统计", [definition.label]) }
+    display.value = { ...display.value, metric, chart: availableCharts(definition, data.meta.group_by, metric)[0], title: '' }
     sort.value = { key: 'label', direction: 1 }
     page.value = 1
     search.value = ''
@@ -208,8 +208,8 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
       <div><h1 class="page-title">{{ tr("统计分析") }}</h1><p class="mt-1 text-sm text-base-content/60">{{ tr("选择数据与汇总方式，生成图表并导出图片或数据。") }}</p></div>
       <span v-if="result" class="text-xs text-base-content/50">{{ tr("生成于") }} {{ formatDateTime(result.meta.generated_at, result.meta.timezone) }}</span>
     </div>
-    <AppAlert v-if="error" type="error" :title="tr(&quot;统计未能生成&quot;)" :description="error" :timeout="0" :closable="false" class="mb-4" />
-    <AppAlert v-if="scannerError" type="warning" :title="tr(&quot;扫描器筛选暂时不可用&quot;)" :description="scannerError" :timeout="0" :closable="false" class="mb-4" />
+    <AppAlert v-if="error" type="error" :title="tr(&quot;统计未能生成&quot;)" :description="uiText(error)" :timeout="0" :closable="false" class="mb-4" />
+    <AppAlert v-if="scannerError" type="warning" :title="tr(&quot;扫描器筛选暂时不可用&quot;)" :description="uiText(scannerError)" :timeout="0" :closable="false" class="mb-4" />
     <div v-if="initializing" class="skeleton h-48 w-full"></div>
     <div v-else-if="!types.length" class="card border border-base-300 bg-base-100 p-5"><button class="btn btn-sm btn-neutral self-start" @click="initialize">{{ tr("重新加载统计配置") }}</button></div>
     <template v-else>
@@ -217,7 +217,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
         <div class="card-body gap-4 p-4">
           <div class="flex flex-wrap gap-2" :aria-label="tr(&quot;统计模板&quot;)">
             <button class="btn btn-sm" :class="overview ? 'btn-neutral' : 'btn-ghost'" :disabled="loading || exporting" @click="overview = true; generate()">{{ tr("总览") }}</button>
-            <button v-for="type in types" :key="type.id" class="btn btn-sm" :class="!overview && filters.data_type === type.id ? 'btn-neutral' : 'btn-ghost'" :disabled="loading || exporting" @click="overview = false; filters.data_type = type.id">{{ type.label }}</button>
+            <button v-for="type in types" :key="type.id" class="btn btn-sm" :class="!overview && filters.data_type === type.id ? 'btn-neutral' : 'btn-ghost'" :disabled="loading || exporting" @click="overview = false; filters.data_type = type.id">{{ statisticsTypeLabel(type) }}</button>
           </div>
           <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <fieldset v-if="!overview" class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("汇总方式") }}</label></legend><select :id="`${formFieldId}-1`" v-model="filters.group_by" class="select select-bordered w-full" :disabled="loading || exporting"><option v-for="group in selectedType.groups" :key="group" :value="group">{{ groupLabels[group] }}</option></select></fieldset>
@@ -240,7 +240,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
           <div v-for="key in summaryKeys" :key="key" class="card border border-base-300 bg-base-100 p-4"><p class="text-xs text-base-content/60">{{ metrics[key].label }}</p><p class="mt-2 text-2xl font-semibold">{{ formatMetric(result.data.summary[key], key) }} <span class="text-xs font-normal text-base-content/50">{{ metrics[key].unit }}</span></p></div>
         </div>
         <section v-if="result.comparison" class="mt-5 card border border-base-300 bg-base-100 p-4">
-          <h2 class="font-semibold">{{ tr("上期对比") }}</h2><p class="mt-1 text-xs opacity-60">{{ imageCaption(result.comparison.meta) }} · {{ result.comparison.note }}</p>
+          <h2 class="font-semibold">{{ tr("上期对比") }}</h2><p class="mt-1 text-xs opacity-60">{{ imageCaption(result.comparison.meta) }} · {{ tr(result.comparison.note) }}</p>
           <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>{{ tr("指标") }}</th><th>{{ tr("本期") }}</th><th>{{ tr("上期") }}</th><th>{{ tr("绝对变化") }}</th></tr></thead><tbody><tr v-for="key in summaryKeys" :key="key"><td>{{ metrics[key].label }}</td><td>{{ formatMetric(result.data.summary[key], key) }}</td><td>{{ formatMetric(result.comparison.data.summary[key], key) }}</td><td>{{ metricDifference(result.data.summary[key], result.comparison.data.summary[key], key) }}</td></tr></tbody></table></div>
         </section>
         <section class="mt-5 card border border-base-300 bg-base-100 shadow-sm">
@@ -250,7 +250,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
               <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-7`">{{ tr("统计指标") }}</label></legend><select :id="`${formFieldId}-7`" v-model="display.metric" class="select select-bordered select-sm w-full" :disabled="exporting"><option v-for="key in visibleMetrics" :key="key" :value="key">{{ metrics[key].label }}（{{ metrics[key].unit }}）</option></select></fieldset>
               <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-8`">{{ tr("图表类型") }}</label></legend><select :id="`${formFieldId}-8`" v-model="display.chart" class="select select-bordered select-sm w-full" :disabled="exporting"><option v-for="type in charts" :key="type" :value="type">{{ chartLabels[type] }}</option></select></fieldset>
               <fieldset v-if="!['day', 'week', 'month'].includes(result.meta.group_by)" class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-9`">{{ tr("展示数量") }}</label></legend><select :id="`${formFieldId}-9`" v-model.number="display.top" class="select select-bordered select-sm w-full" :disabled="exporting"><option :value="5">Top 5</option><option :value="10">Top 10</option><option :value="20">Top 20</option></select></fieldset>
-              <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-10`">{{ tr("图表标题") }}</label></legend><input :id="`${formFieldId}-10`" v-model="display.title" maxlength="80" class="input input-bordered input-sm w-full" :disabled="exporting" /></fieldset>
+              <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-10`">{{ tr("图表标题") }}</label></legend><input :id="`${formFieldId}-10`" v-model="display.title" :placeholder="title" maxlength="80" class="input input-bordered input-sm w-full" :disabled="exporting" /></fieldset>
             </div>
             <p v-if="!['day', 'week', 'month'].includes(result.meta.group_by)" class="mt-1 text-xs text-base-content/50">{{ tr("按当前指标从高到低展示；") }}{{ ['port', 'service'].includes(result.meta.data_type) ? tr("剩余类别合并为“其他”。") : tr("完整汇总保留所有分组。") }}</p>
             <div v-if="hasData" class="min-w-0"><StatisticsChart ref="chartRef" :rows="plottedRows" :meta="result.meta" :metric="display.metric" :type="display.chart" :title="title" @select="selectRow" /></div>
@@ -263,7 +263,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
               <button class="btn btn-sm" :disabled="!canExport" @click="exportData('csv', 'chart')">{{ tr("导出图表数据 CSV") }}</button>
               <span class="text-xs text-base-content/50">{{ tr("PNG 按所选宽度的 2 倍像素导出。") }}</span>
             </div>
-            <AppAlert v-if="exportError" type="error" :title="tr(&quot;导出失败&quot;)" :description="exportError" :timeout="0" :closable="false" class="mt-3" />
+            <AppAlert v-if="exportError" type="error" :title="tr(&quot;导出失败&quot;)" :description="uiText(exportError)" :timeout="0" :closable="false" class="mt-3" />
           </div>
         </section>
         <section class="mt-5 card border border-base-300 bg-base-100 shadow-sm">
@@ -275,7 +275,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
           </div>
         </section>
         <StatisticsDetails v-if="detailRow" :key="`${result.meta.generated_at}-${detailRow.label}`" :result="result" :row="detailRow" @close="detailRow = null" />
-        <section class="mt-5 card border border-base-300 bg-base-100 p-4"><h2 class="font-semibold">{{ tr("统计口径与数据状态") }}</h2><p class="mt-2 text-xs text-base-content/60">{{ result.meta.mode === 'snapshot' ? tr("分析快照") : result.meta.mode === 'realtime' ? tr("实时索引") : tr("任务历史") }}<span v-if="result.meta.data_as_of"> {{ tr("· 处理水位") }} {{ formatDateTime(result.meta.data_as_of, result.meta.timezone) }}</span> {{ tr("· 基于保留数据") }}</p><p v-for="note in result.meta.notes" :key="note" class="mt-2 text-xs text-base-content/60">{{ note }}</p></section>
+        <section class="mt-5 card border border-base-300 bg-base-100 p-4"><h2 class="font-semibold">{{ tr("统计口径与数据状态") }}</h2><p class="mt-2 text-xs text-base-content/60">{{ result.meta.mode === 'snapshot' ? tr("分析快照") : result.meta.mode === 'realtime' ? tr("实时索引") : tr("任务历史") }}<span v-if="result.meta.data_as_of"> {{ tr("· 处理水位") }} {{ formatDateTime(result.meta.data_as_of, result.meta.timezone) }}</span> {{ tr("· 基于保留数据") }}</p><p v-for="note in result.meta.notes" :key="note" class="mt-2 text-xs text-base-content/60">{{ tr(note) }}</p></section>
       </template>
     </template>
   </main>

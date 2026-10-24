@@ -1,11 +1,10 @@
 <script setup>
-import { tr } from '../i18n/index.js'
+import { locale, tr } from '../i18n/index.js'
 
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useChartTheme } from '@/composables/useChartTheme'
-import { chartLabels, chartSeries, downloadBlob, imageCaption, metrics, rowLabel } from '@/utils/statistics'
+import { statisticsFooter, chartSeries, downloadBlob, imageCaption, metrics, rowLabel } from '@/utils/statistics'
 import { renderChartTooltip } from '@/utils/chartTooltip'
-import { formatDateTime } from '../i18n/time.js'
 
 const emit = defineEmits(['select'])
 const props = defineProps({
@@ -37,7 +36,7 @@ function buildOptions() {
     colors: props.type === 'stacked' ? ['#22c55e', '#ef4444', '#f59e0b', '#94a3b8'] : ['#3b82f6', '#14b8a6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'],
     labels,
     xaxis: { categories: props.type === 'heatmap' ? [] : labels, labels: { rotate: -35, hideOverlappingLabels: true }, tickAmount: 12, title: { text: horizontal ? metrics[props.metric].unit : '' } },
-    yaxis: { min: 0, title: { text: props.type === 'heatmap' || horizontal ? '' : metrics[props.metric].unit }, labels: { formatter: (n) => horizontal || props.type === 'heatmap' ? String(n) : Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 1 }) } },
+    yaxis: { min: 0, title: { text: props.type === 'heatmap' || horizontal ? '' : metrics[props.metric].unit }, labels: { formatter: (n) => horizontal || props.type === 'heatmap' ? String(n) : Number(n).toLocaleString(locale.value, { maximumFractionDigits: 1 }) } },
     plotOptions: { bar: { horizontal }, heatmap: { shadeIntensity: 0.5, radius: 2 } },
     dataLabels: { enabled: props.type === 'donut' }, stroke: { width: props.type === 'line' ? 2 : 0, curve: 'straight' },
     legend: { position: 'bottom', show: ['stacked', 'donut'].includes(props.type) },
@@ -54,15 +53,6 @@ function buildOptions() {
   }
 }
 const options = useChartTheme(buildOptions)
-
-function footerLines() {
-  return [
-    tr("生成时间：{0} · {1} · {2}", [formatDateTime(props.meta.generated_at, props.meta.timezone), props.meta.data_as_of ? `处理水位：${formatDateTime(props.meta.data_as_of, props.meta.timezone)}` : '基于查询时保留的数据', chartLabels[props.type]]),
-    tr("扫描器：{0} · 任务来源：{1} · 口径版本：{2}", [props.meta.scanner_id || '全部', rowLabel(props.meta.task_source, 'task_source') || '全部', props.meta.metric_version]),
-    props.meta.notes[0],
-    props.meta.data_type === 'discovery' ? tr("IP 按分组独立去重，周期去重数不能累加分组数量。") : props.meta.notes.at(-1),
-  ].filter(Boolean)
-}
 
 async function exportImage({ format, width, background, filename }) {
   const { default: ApexCharts } = await import('apexcharts')
@@ -81,7 +71,7 @@ async function exportImage({ format, width, background, filename }) {
   try {
     await document.fonts.ready
     await chart.render()
-    const lines = footerLines()
+    const lines = statisticsFooter(props.meta, props.type)
     const footerHeight = lines.length * 22 + 24
     let blob
     if (format === 'svg') {

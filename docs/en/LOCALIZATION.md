@@ -51,3 +51,5 @@ Check language links, missing-translation fallback, search, edit links, anchors 
 The language-script regression checks require Node.js 20.19 or newer and no npm dependencies.
 
 Statistics detail CSV exports retain their existing Chinese headers, status/boolean values and clock formatting in either UI language. Synthetic Top N buckets use an explicit marker to disable drill-down; real categories named “Other” remain selectable.
+
+Statistics type names map stable type IDs to UI translations without changing the API catalog. Default chart titles follow language changes; custom titles retain user input. Known statistical, comparison and detail notes use local catalog translations; unknown notes retain their original text. Image exports use the current UI language. CSV exports retain their established fields and values, including the fixed Chinese label for synthetic “Other” buckets.

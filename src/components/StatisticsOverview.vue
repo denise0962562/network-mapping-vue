@@ -1,5 +1,5 @@
 <script setup>
-import { tr } from '../i18n/index.js'
+import { tr, uiText } from '../i18n/index.js'
 
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 import http from '@/utils/http'
@@ -48,7 +48,7 @@ onBeforeUnmount(() => { disposed = true; controller.abort() })
       <section v-for="section in sections" :key="section.id" class="card border border-base-300 bg-base-100 p-4">
         <p class="text-xs opacity-60">{{ section.label }}</p>
         <div v-if="pending[section.id]" class="mt-3 skeleton h-8"></div>
-        <template v-else-if="errors[section.id]"><p class="mt-2 text-xs text-error">{{ errors[section.id] }}</p><button class="btn btn-xs btn-ghost mt-2" @click="retry(section.id)">{{ tr("重试") }}</button></template>
+        <template v-else-if="errors[section.id]"><p class="mt-2 text-xs text-error">{{ uiText(errors[section.id]) }}</p><button class="btn btn-xs btn-ghost mt-2" @click="retry(section.id)">{{ tr("重试") }}</button></template>
         <p v-else class="mt-2 text-2xl font-semibold">{{ formatMetric(panels[section.id]?.data.summary[section.metric], section.metric) }}</p>
         <p v-if="panels[section.id]" class="mt-2 text-xs opacity-60">{{ formatDateTime(panels[section.id].meta.generated_at) }}</p>
         <button class="btn btn-xs btn-ghost mt-3 self-start" @click="$emit('open', section.id)">{{ section.title }} →</button>
@@ -58,13 +58,13 @@ onBeforeUnmount(() => { disposed = true; controller.abort() })
       <section v-for="kind in ['discovery', 'tasks']" :key="kind" class="card min-w-0 border border-base-300 bg-base-100 p-4">
         <h2 class="font-semibold">{{ kind === 'discovery' ? tr("每日 IP 发现") : tr("每日任务结果") }}</h2>
         <StatisticsChart v-if="panels[kind]" :rows="panels[kind].data.rows" :meta="panels[kind].meta" :metric="kind === 'discovery' ? 'count' : 'completed'" :type="kind === 'discovery' ? 'line' : 'stacked'" :title="kind === &#39;discovery&#39; ? tr(&quot;每日 IP 发现&quot;) : tr(&quot;每日任务结果&quot;)" @select="$emit('open', kind)" />
-        <p v-else class="py-12 text-center text-sm opacity-60">{{ errors[kind] || tr("等待统计结果…") }}</p>
+        <p v-else class="py-12 text-center text-sm opacity-60">{{ uiText(errors[kind] || '') || tr("等待统计结果…") }}</p>
       </section>
     </div>
     <div class="grid gap-5 xl:grid-cols-2">
       <section v-for="kind in ['port', 'service']" :key="kind" class="card border border-base-300 bg-base-100 p-4">
         <div class="flex items-center justify-between"><h2 class="font-semibold">{{ kind === 'port' ? tr("端口 Top 5") : tr("服务 Top 5") }}</h2><button class="btn btn-xs btn-ghost" @click="$emit('open', kind)">{{ tr("查看全部") }}</button></div>
-        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>{{ tr("类别") }}</th><th>{{ tr("观测数") }}</th><th>{{ tr("占比") }}</th></tr></thead><tbody><tr v-for="row in (panels[kind]?.data.rows || []).slice(0, 5)" :key="row.label"><td>{{ row.label }}</td><td>{{ formatMetric(row.count, 'count') }}</td><td>{{ formatMetric(row.percentage, 'percentage') }}%</td></tr><tr v-if="!panels[kind]?.data.rows.length"><td colspan="3" class="py-6 text-center opacity-60">{{ errors[kind] || (panels[kind] ? tr("暂无数据") : tr("等待统计结果…")) }}</td></tr></tbody></table></div>
+        <div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>{{ tr("类别") }}</th><th>{{ tr("观测数") }}</th><th>{{ tr("占比") }}</th></tr></thead><tbody><tr v-for="row in (panels[kind]?.data.rows || []).slice(0, 5)" :key="row.label"><td>{{ row.label }}</td><td>{{ formatMetric(row.count, 'count') }}</td><td>{{ formatMetric(row.percentage, 'percentage') }}%</td></tr><tr v-if="!panels[kind]?.data.rows.length"><td colspan="3" class="py-6 text-center opacity-60">{{ uiText(errors[kind] || '') || (panels[kind] ? tr("暂无数据") : tr("等待统计结果…")) }}</td></tr></tbody></table></div>
       </section>
     </div>
   </div>

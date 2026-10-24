@@ -7,9 +7,22 @@ const csvMetrics = {
   observed_days: { label: '有观测天数', unit: '天' }, peak_count: { label: '单日峰值', unit: '个' }, mean_count: { label: '每日去重 IP 均值', unit: '个' }, top5_share: { label: 'Top 5 集中度', unit: '%' }, failure_rate: { label: '失败率', unit: '%' }, partial_rate: { label: '部分完成率', unit: '%' },
 }
 const csvSourceLabels = { manual: '手动任务', automatic: '自动任务', search: '搜索生成' }
-import { tr } from '../i18n/index.js'
+import { locale, tr } from '../i18n/index.js'
 import { chartCsv } from './chartCsv.js'
-import { addCalendarDays, calendarDate, calendarMidnight, formatDateTime } from './systemTime.js'
+import { addCalendarDays, calendarDate, calendarMidnight } from './systemTime.js'
+import { formatDateTime as displayDateTime } from '../i18n/time.js'
+
+const typeLabels = {
+  get discovery() { return tr('IP 发现') },
+  get port() { return tr('端口分布') },
+  get service() { return tr('服务分布') },
+  get tasks() { return tr('任务执行') },
+  get scanners() { return tr('扫描器表现') },
+}
+
+export function statisticsTypeLabel(definition) {
+  return Object.hasOwn(typeLabels, definition?.id) ? typeLabels[definition.id] : definition?.label || ''
+}
 
 export const groupLabels = { get day() { return tr("按日") }, get week() { return tr("按周") }, get month() { return tr("按月") }, get scanner() { return tr("按扫描器") }, get task_source() { return tr("按任务来源") }, get port() { return tr("按端口") }, get service() { return tr("按服务") } }
 export const chartLabels = { get line() { return tr("折线图") }, get bar() { return tr("柱状图") }, get donut() { return tr("环形图") }, get stacked() { return tr("堆叠柱状图") }, get heatmap() { return tr("热力图") } }
@@ -95,7 +108,7 @@ export function chartSeries(rows, meta, metric, type) {
 
 export function formatMetric(value, key) {
   if (value === null || value === undefined) return '--'
-  return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: ['percentage', 'success_rate', 'failure_rate', 'partial_rate', 'top5_share'].includes(key) ? 1 : 2 })
+  return Number(value).toLocaleString(locale.value, { maximumFractionDigits: ['percentage', 'success_rate', 'failure_rate', 'partial_rate', 'top5_share'].includes(key) ? 1 : 2 })
 }
 
 export function statisticsCsv(result, definition, rows = result.data.rows, metricKeys = definition.metrics) {
@@ -108,13 +121,22 @@ export function statisticsCsv(result, definition, rows = result.data.rows, metri
     ...(result.comparison ? [['对比开始时间', result.comparison.meta.start_at], ['对比结束时间', result.comparison.meta.end_at], ['对比说明', result.comparison.note], ...Object.entries(result.comparison.data.summary).filter(([key]) => csvMetrics[key]).map(([key, value]) => [`上期：${csvMetrics[key].label}`, value])] : []),
     ...(meta.notes || []).map((note) => ['统计说明', note]), [],
     [csvGroupLabels[meta.group_by], ...metricKeys.map((key) => `${csvMetrics[key].label}（${csvMetrics[key].unit}）`)],
-    ...rows.map((row) => [(meta.group_by === 'task_source' ? (csvSourceLabels[row.label] || row.label) : row.label), ...metricKeys.map((key) => row[key] ?? null)]),
+    ...rows.map((row) => [row.synthetic ? '其他' : (meta.group_by === 'task_source' ? (csvSourceLabels[row.label] || row.label) : row.label), ...metricKeys.map((key) => row[key] ?? null)]),
   ]
   return chartCsv({ headers: ['统计分析', '值'], rows: context })
 }
 
 export function imageCaption(meta) {
-  return tr("{0} 至 {1}（结束不含） · {2}", [formatDateTime(meta.start_at, meta.timezone), formatDateTime(meta.end_at, meta.timezone), meta.timezone])
+  return tr("{0} 至 {1}（结束不含） · {2}", [displayDateTime(meta.start_at, meta.timezone), displayDateTime(meta.end_at, meta.timezone), meta.timezone])
+}
+
+export function statisticsFooter(meta, type) {
+  return [
+    tr('生成时间：{0} · {1} · {2}', [displayDateTime(meta.generated_at, meta.timezone), meta.data_as_of ? tr('处理水位：{0}', [displayDateTime(meta.data_as_of, meta.timezone)]) : tr('基于查询时保留的数据'), chartLabels[type]]),
+    tr('扫描器：{0} · 任务来源：{1} · 口径版本：{2}', [meta.scanner_id || tr('全部'), rowLabel(meta.task_source, 'task_source') || tr('全部'), meta.metric_version]),
+    meta.notes?.[0] ? tr(meta.notes[0]) : '',
+    meta.data_type === 'discovery' ? tr('IP 按分组独立去重，周期去重数不能累加分组数量。') : meta.notes?.at(-1) ? tr(meta.notes.at(-1)) : '',
+  ].filter(Boolean)
 }
 
 export function downloadBlob(blob, filename) {

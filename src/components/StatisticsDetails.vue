@@ -1,10 +1,10 @@
 <script setup>
-import { tr } from '../i18n/index.js'
+import { tr, uiText } from '../i18n/index.js'
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import http from '@/utils/http'
 import { addCalendarDays, calendarMidnight, formatDateTime } from '../i18n/time.js'
-import { downloadBlob } from '@/utils/statistics'
+import { downloadBlob, rowLabel } from '@/utils/statistics'
 import { chartCsv } from '@/utils/chartCsv'
 import { formatDateTime as exportDateTime } from '../utils/systemTime.js'
 
@@ -70,9 +70,9 @@ onBeforeUnmount(() => { disposed = true; controller?.abort() })
 
 <template>
   <section class="mt-5 card border border-base-300 bg-base-100 p-4" :aria-label="tr(&quot;统计明细&quot;)">
-    <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-semibold">{{ row.label }} {{ tr("· 统计明细") }}</h2><p class="mt-1 text-xs opacity-60">{{ tr("每页最多 50 条，按需加载。") }}</p></div><div class="flex gap-2"><button class="btn btn-sm" :disabled="loading || !!error || !rows.length" @click="exportPage">{{ tr("导出当前页") }}</button><button class="btn btn-sm btn-ghost" @click="$emit('close')">{{ tr("关闭明细") }}</button></div></div>
-    <p v-if="note" class="mt-3 text-xs opacity-60">{{ note }}</p>
-    <p v-if="error" role="alert" class="mt-3 text-sm text-error">{{ error }} <button class="btn btn-xs btn-ghost" @click="load(page)">{{ tr("重试") }}</button></p>
+    <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="font-semibold">{{ rowLabel(row.label, result.meta.group_by) }} {{ tr("· 统计明细") }}</h2><p class="mt-1 text-xs opacity-60">{{ tr("每页最多 50 条，按需加载。") }}</p></div><div class="flex gap-2"><button class="btn btn-sm" :disabled="loading || !!error || !rows.length" @click="exportPage">{{ tr("导出当前页") }}</button><button class="btn btn-sm btn-ghost" @click="$emit('close')">{{ tr("关闭明细") }}</button></div></div>
+    <p v-if="note" class="mt-3 text-xs opacity-60">{{ tr(note) }}</p>
+    <p v-if="error" role="alert" class="mt-3 text-sm text-error">{{ uiText(error) }} <button class="btn btn-xs btn-ghost" @click="load(page)">{{ tr("重试") }}</button></p>
     <div v-if="loading" class="mt-3 skeleton h-32"></div>
     <div v-else-if="!error" class="mt-3 overflow-x-auto"><table class="table table-sm"><thead><tr><th v-for="key in columns" :key="key">{{ labels[key] }}</th></tr></thead><tbody><tr v-for="(item, index) in rows" :key="index"><td v-for="key in columns" :key="key" class="max-w-64 break-words"><RouterLink v-if="key === 'task_id' && taskLink(item[key])" class="link link-hover" :to="`/task/${item[key]}`">{{ item[key] }}</RouterLink><span v-else>{{ value(item, key) }}</span></td></tr><tr v-if="!rows.length"><td :colspan="columns.length" class="py-6 text-center opacity-60">{{ tr("暂无保留明细；历史清理或索引更新可能影响可见记录。") }}</td></tr></tbody></table></div>
     <div class="mt-3 flex items-center justify-end gap-3"><span class="text-xs opacity-60">{{ tr("第") }} {{ page }} {{ tr("页") }}</span><button class="btn btn-sm" :disabled="loading || page <= 1" @click="load(page - 1)">{{ tr("上一页明细") }}</button><button class="btn btn-sm" :disabled="loading || !!error || cursor == null" @click="next">{{ tr("下一页明细") }}</button></div>

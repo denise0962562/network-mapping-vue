@@ -57,6 +57,8 @@ python -m mkdocs serve -f mkdocs/mkdocs.yml
 
 UI 时间显示通过 `src/i18n/time.js` 使用当前语言；日期计算和既有导出的默认 formatter 继续位于 `utils/systemTime.js`。图表可显示翻译后的系列名，`rawName` 为兼容导出保留原列名。统计明细 CSV 也使用独立的固定列名、状态、布尔值与时间 formatter；Top N 合并行使用 `synthetic` 标记禁止下钻，不比较翻译后的标签。修改界面时同时检查 CSV、协议值和请求体，不按翻译文案判断业务状态。
 
+Statistics 的类型名称按稳定类型 ID 映射到界面词库；默认图表标题随语言更新，自定义标题保持用户输入。统计口径、对比和明细说明仅对已有词条进行本地翻译，未知说明保留原文。图片导出使用当前界面语言；CSV 保留原有字段和值，Top N 合并行也固定使用中文“其他”。不要把翻译后的类型名称写回接口目录数据。
+
 ```sh
 pnpm test:i18n
 node --test src/utils/*.test.js src/components/*.test.js src/views/*.test.js
