@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { onBeforeUnmount, ref } from 'vue'
 import http from '../utils/http'
 import { articleIntakeLabel, intelError } from '../utils/threatIntel'
@@ -16,15 +18,15 @@ onBeforeUnmount(() => { version++; controller?.abort() })
 </script>
 
 <template>
-  <button type="button" class="btn btn-ghost btn-xs" @click="open">查看快照</button>
+  <button type="button" class="btn btn-ghost btn-xs" @click="open">{{ tr("查看快照") }}</button>
   <dialog ref="dialog" class="modal">
     <div class="modal-box max-w-3xl space-y-3 text-left whitespace-normal">
-      <h2 class="text-lg font-semibold">{{ article.title || '文章快照' }}</h2>
+      <h2 class="text-lg font-semibold">{{ article.title || tr("文章快照") }}</h2>
       <span v-if="loading" class="loading loading-spinner loading-sm"></span>
       <p v-if="error" role="alert" class="text-error">{{ error }}</p>
-      <template v-if="snapshot"><p class="text-xs opacity-65">{{ articleIntakeLabel(snapshot.extraction_metadata) }}</p><p v-if="snapshot.body" class="max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded bg-base-200 p-3 text-sm">{{ snapshot.body }}</p><p v-else class="text-sm opacity-65">尚未保存正文快照。</p></template>
-      <div class="modal-action"><button type="button" class="btn" @click="dialog?.close()">关闭</button></div>
+      <template v-if="snapshot"><p class="text-xs opacity-65">{{ articleIntakeLabel(snapshot.extraction_metadata) }}</p><p v-if="snapshot.body" class="max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded bg-base-200 p-3 text-sm">{{ snapshot.body }}</p><p v-else class="text-sm opacity-65">{{ tr("尚未保存正文快照。") }}</p></template>
+      <div class="modal-action"><button type="button" class="btn" @click="dialog?.close()">{{ tr("关闭") }}</button></div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>关闭</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{{ tr("关闭") }}</button></form>
   </dialog>
 </template>

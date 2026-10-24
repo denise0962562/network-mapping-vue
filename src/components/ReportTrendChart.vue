@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { useChartTheme } from '@/composables/useChartTheme'
 import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { computed, defineAsyncComponent } from 'vue'
@@ -8,10 +10,10 @@ const props = defineProps({
 })
 const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const series = computed(() => [
-  { name: '成功', data: props.items.map((d) => d.succeeded || 0) },
-  { name: '失败', data: props.items.map((d) => d.failed || 0) },
-  { name: '部分完成', data: props.items.map((d) => d.partial || 0) },
-  { name: '取消', data: props.items.map((d) => d.cancelled || 0) },
+  { rawName: "成功", get name() { return tr("成功") }, data: props.items.map((d) => d.succeeded || 0) },
+  { rawName: "失败", get name() { return tr("失败") }, data: props.items.map((d) => d.failed || 0) },
+  { rawName: "部分完成", get name() { return tr("部分完成") }, data: props.items.map((d) => d.partial || 0) },
+  { rawName: "取消", get name() { return tr("取消") }, data: props.items.map((d) => d.cancelled || 0) },
 ])
 const options = useChartTheme(() => ({
   chart: { type: 'bar', stacked: true, toolbar: { show: false }, animations: { enabled: false } },

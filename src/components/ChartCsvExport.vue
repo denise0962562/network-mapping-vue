@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed } from 'vue'
 import { Download } from '@lucide/vue'
 import { chartCsvData, downloadChartCsv } from '@/utils/chartCsv'
@@ -21,10 +23,8 @@ const csvData = computed(() => props.data ?? chartCsvData(props))
     type="button"
     class="btn btn-ghost btn-sm shrink-0 print:hidden"
     :disabled="disabled || !csvData.rows.length"
-    title="导出当前图表数据为 CSV"
+    :title="tr(&quot;导出当前图表数据为 CSV&quot;)"
     @click="downloadChartCsv(csvData, filename)"
   >
-    <Download class="size-4" aria-hidden="true" />
-    导出 CSV
-  </button>
+    <Download class="size-4" aria-hidden="true" /> {{ tr("导出 CSV") }} </button>
 </template>

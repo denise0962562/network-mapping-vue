@@ -1,9 +1,10 @@
 <script setup>
+import { locale, tr } from '../i18n/index.js'
+
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useChartTheme } from '@/composables/useChartTheme'
-import { chartLabels, chartSeries, downloadBlob, imageCaption, metrics, rowLabel } from '@/utils/statistics'
+import { statisticsFooter, chartSeries, downloadBlob, imageCaption, metrics, rowLabel } from '@/utils/statistics'
 import { renderChartTooltip } from '@/utils/chartTooltip'
-import { formatDateTime } from '@/utils/systemTime'
 
 const emit = defineEmits(['select'])
 const props = defineProps({
@@ -35,7 +36,7 @@ function buildOptions() {
     colors: props.type === 'stacked' ? ['#22c55e', '#ef4444', '#f59e0b', '#94a3b8'] : ['#3b82f6', '#14b8a6', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'],
     labels,
     xaxis: { categories: props.type === 'heatmap' ? [] : labels, labels: { rotate: -35, hideOverlappingLabels: true }, tickAmount: 12, title: { text: horizontal ? metrics[props.metric].unit : '' } },
-    yaxis: { min: 0, title: { text: props.type === 'heatmap' || horizontal ? '' : metrics[props.metric].unit }, labels: { formatter: (n) => horizontal || props.type === 'heatmap' ? String(n) : Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 1 }) } },
+    yaxis: { min: 0, title: { text: props.type === 'heatmap' || horizontal ? '' : metrics[props.metric].unit }, labels: { formatter: (n) => horizontal || props.type === 'heatmap' ? String(n) : Number(n).toLocaleString(locale.value, { maximumFractionDigits: 1 }) } },
     plotOptions: { bar: { horizontal }, heatmap: { shadeIntensity: 0.5, radius: 2 } },
     dataLabels: { enabled: props.type === 'donut' }, stroke: { width: props.type === 'line' ? 2 : 0, curve: 'straight' },
     legend: { position: 'bottom', show: ['stacked', 'donut'].includes(props.type) },
@@ -52,15 +53,6 @@ function buildOptions() {
   }
 }
 const options = useChartTheme(buildOptions)
-
-function footerLines() {
-  return [
-    `生成时间：${formatDateTime(props.meta.generated_at, props.meta.timezone)} · ${props.meta.data_as_of ? `处理水位：${formatDateTime(props.meta.data_as_of, props.meta.timezone)}` : '基于查询时保留的数据'} · ${chartLabels[props.type]}`,
-    `扫描器：${props.meta.scanner_id || '全部'} · 任务来源：${rowLabel(props.meta.task_source, 'task_source') || '全部'} · 口径版本：${props.meta.metric_version}`,
-    props.meta.notes[0],
-    props.meta.data_type === 'discovery' ? 'IP 按分组独立去重，周期去重数不能累加分组数量。' : props.meta.notes.at(-1),
-  ].filter(Boolean)
-}
 
 async function exportImage({ format, width, background, filename }) {
   const { default: ApexCharts } = await import('apexcharts')
@@ -79,7 +71,7 @@ async function exportImage({ format, width, background, filename }) {
   try {
     await document.fonts.ready
     await chart.render()
-    const lines = footerLines()
+    const lines = statisticsFooter(props.meta, props.type)
     const footerHeight = lines.length * 22 + 24
     let blob
     if (format === 'svg') {
@@ -107,13 +99,13 @@ async function exportImage({ format, width, background, filename }) {
       const canvas = document.createElement('canvas')
       canvas.width = width * 2; canvas.height = (chartHeight + footerHeight) * 2
       const context = canvas.getContext('2d')
-      if (!context) throw new Error('浏览器不支持图片导出')
+      if (!context) throw new Error(tr("浏览器不支持图片导出"))
       if (background === 'white') { context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height) }
       context.drawImage(image, 0, 0)
       context.fillStyle = '#4b5563'; context.font = '24px Arial, "Microsoft YaHei", sans-serif'
       lines.forEach((line, index) => context.fillText(line, 32, (chartHeight + 20 + index * 22) * 2))
       blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
-      if (!blob) throw new Error('图片生成失败')
+      if (!blob) throw new Error(tr("图片生成失败"))
     }
     if (mounted) downloadBlob(blob, `${filename}.${format}`)
   } finally {

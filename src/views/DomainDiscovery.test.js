@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -11,7 +12,7 @@ const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
 function page(get, post = async () => ({ data: { data: { task_ids: ['task'] } } })) {
   let mounted, dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({jobs,activeId,activeJob,evidence,loading,error,selected,openJob,create,verify,cancel,poll})`, {
+  const p = localizedVm(`${source}\n;({jobs,activeId,activeJob,evidence,loading,error,selected,openJob,create,verify,cancel,poll})`, {
     computed, ref, watch, AbortController, discoveryReason, canVerify, selectPage,
     useRoute: () => reactive({ params: {}, query: {} }), useRouter: () => ({ push: () => {} }),
     http: { get, post }, document: { visibilityState: 'visible' },
@@ -145,3 +146,9 @@ test('a transient detail error during polling preserves the pending job for the 
   assert.equal(p.error.value, '')
   p.dispose()
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

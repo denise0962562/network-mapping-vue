@@ -8,6 +8,8 @@ import { renderToString } from 'vue/server-renderer'
 test('ASN context is displayed separately from direct IP risk and safely renders classifications',async () => {
   const server=await createServer({configFile:false,root:fileURLToPath(new URL('../../',import.meta.url)),plugins:[vue()],server:{middlewareMode:true,hmr:false},logLevel:'silent'})
   try {
+    const { i18n } = await server.ssrLoadModule('/src/i18n/index.js')
+    i18n.global.locale.value = 'zh-CN'
     const {default:component}=await server.ssrLoadModule('/src/components/IntelEvidence.vue')
     const render=intel=>renderToString(createSSRApp(component,{intel,label:'IP 情报'}))
     const hit={id:'asn',type:'asn',value:'AS64496',source_name:'Official report',payload:{attack_types:['bgp_hijacking','dns_response_tampering'],role:'route_hijacker',resource_owner:'<img src=x onerror=alert(1)>'}}

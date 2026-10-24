@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { useVersionUpdate } from '@/composables/useVersionUpdate'
 
 const props = defineProps({
@@ -16,7 +18,7 @@ const { hasUpdate, latestVersion, tagUrl } = useVersionUpdate(props.component, (
     target="_blank"
     rel="noopener noreferrer"
     class="badge badge-soft badge-primary whitespace-nowrap"
-    :title="`当前 ${currentVersion}，最新 ${latestVersion}，点击查看新版`"
+    :title="tr(&quot;当前 {0}，最新 {1}，点击查看新版&quot;, [currentVersion, latestVersion])"
   >
     <span class="version-update-text">{{ label }}</span>
   </a>

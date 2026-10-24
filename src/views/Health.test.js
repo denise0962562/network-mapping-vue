@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -13,7 +14,7 @@ const source = compiled.scriptSetupAst.filter((node) => node.type === 'ImportDec
 
 function createPage(get) {
   let dispose
-  const page = vm.runInNewContext(`${source}\n;({ loadItems, retryLoad, filters, appliedFilters, page, items, loadFailed, failedQuery, loading })`, {
+  const page = localizedVm(`${source}\n;({ loadItems, retryLoad, filters, appliedFilters, page, items, loadFailed, failedQuery, loading })`, {
     computed, ref, useId: () => 'health-test-field', http: { get }, AbortController, crypto: globalThis.crypto,
     onMounted: () => {}, onBeforeUnmount: (callback) => { dispose = callback },
   })
@@ -113,3 +114,9 @@ test('superseded failures do not replace the current retry target', async () => 
   page.dispose()
   assert.equal(page.loading.value, false)
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

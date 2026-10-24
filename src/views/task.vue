@@ -1,5 +1,7 @@
-﻿<script setup>
-import { formatDateTime as formatSystemDateTime, localToIso } from '@/utils/systemTime'
+<script setup>
+import { tr } from '../i18n/index.js'
+
+import { formatDateTime as formatSystemDateTime, localToIso } from '../i18n/time.js'
 import { computed, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -37,12 +39,12 @@ const pageCursorHistory = ref([null])
 let latestRequestId = 0
 
 const stateConfig = {
-  pending: { class: 'badge-warning', text: '待扫描' },
-  running: { class: 'badge-info', text: '扫描中' },
-  succeeded: { class: 'badge-success', text: '扫描完成' },
-  failed: { class: 'badge-error', text: '扫描失败' },
-  cancelled: { class: 'badge-ghost', text: '已取消' },
-  partial: { class: 'badge-warning', text: '部分完成' }
+  pending: { class: 'badge-warning', get text() { return tr("待扫描") } },
+  running: { class: 'badge-info', get text() { return tr("扫描中") } },
+  succeeded: { class: 'badge-success', get text() { return tr("扫描完成") } },
+  failed: { class: 'badge-error', get text() { return tr("扫描失败") } },
+  cancelled: { class: 'badge-ghost', get text() { return tr("已取消") } },
+  partial: { class: 'badge-warning', get text() { return tr("部分完成") } }
 }
 
 function formatUnixMs(value) {
@@ -64,7 +66,7 @@ function normalizeTask(item) {
     target: targets,
     taskKind: isDnsTask ? 'dns' : 'ip',
     addressFamily: isDnsTask ? 'DNS' : item.address_family === 'ipv6' ? 'IPv6' : 'IPv4',
-    port: isDnsTask ? 'DNS 记录' : item.task_port || '-',
+    port: isDnsTask ? tr("DNS 记录") : item.task_port || '-',
     operator: item.task_initiator || '-',
     createTimeMs: Number.isFinite(createTimeMs) ? createTimeMs : null,
     statusKey: resolveStatus(item.task_status),
@@ -158,8 +160,8 @@ async function fetchTasks({ cursor = null } = {}) {
     }
     pushAlert(
       'error',
-      '任务数据加载失败',
-      error.response?.data?.message || '请检查网络连接或服务器运行状态。',
+      tr("任务数据加载失败"),
+      error.response?.data?.message || tr("请检查网络连接或服务器运行状态。"),
       7000
     )
     return false
@@ -215,7 +217,7 @@ async function applySearch() {
     if (draftFilters.value.startTime) localToIso(draftFilters.value.startTime)
     if (draftFilters.value.endTime) localToIso(draftFilters.value.endTime)
   } catch (e) {
-    pushAlert('warning', '时间筛选无效', e.message)
+    pushAlert('warning', tr("时间筛选无效"), e.message)
     return
   }
   appliedFilters.value = { ...draftFilters.value }
@@ -260,12 +262,12 @@ onMounted(async () => {
     <div class="space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 class="page-title">任务</h1>
-          <p class="mt-1 text-sm text-base-content/60">查看扫描任务、执行状态及调度信息。</p>
+          <h1 class="page-title">{{ tr("任务") }}</h1>
+          <p class="mt-1 text-sm text-base-content/60">{{ tr("查看扫描任务、执行状态及调度信息。") }}</p>
         </div>
         <button class="btn btn-outline btn-sm" :disabled="isLoadingData" @click="reloadFromFirstPage">
           <span v-if="isLoadingData" class="loading loading-spinner loading-xs"></span>
-          {{ isLoadingData ? '刷新中…' : '刷新' }}
+          {{ isLoadingData ? tr("刷新中…") : tr("刷新") }}
         </button>
       </div>
 
@@ -273,31 +275,31 @@ onMounted(async () => {
         <div class="card-body gap-4 p-4">
           <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">任务 ID</label></legend>
-              <input :id="`${formFieldId}-1`" v-model="draftFilters.taskId" type="text" class="input input-bordered w-full" placeholder="输入任务 ID" :disabled="isLoadingData" @keyup.enter="applySearch" />
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("任务 ID") }}</label></legend>
+              <input :id="`${formFieldId}-1`" v-model="draftFilters.taskId" type="text" class="input input-bordered w-full" :placeholder="tr(&quot;输入任务 ID&quot;)" :disabled="isLoadingData" @keyup.enter="applySearch" />
             </fieldset>
 
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">目标</label></legend>
-              <input :id="`${formFieldId}-2`" v-model="draftFilters.target" type="text" class="input input-bordered w-full" placeholder="IP、网段或域名" :disabled="isLoadingData" @keyup.enter="applySearch" />
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">{{ tr("目标") }}</label></legend>
+              <input :id="`${formFieldId}-2`" v-model="draftFilters.target" type="text" class="input input-bordered w-full" :placeholder="tr(&quot;IP、网段或域名&quot;)" :disabled="isLoadingData" @keyup.enter="applySearch" />
             </fieldset>
 
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">状态</label></legend>
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">{{ tr("状态") }}</label></legend>
               <select :id="`${formFieldId}-3`" v-model="draftFilters.status" class="select select-bordered w-full" :disabled="isLoadingData">
-                <option value="">全部</option>
-                <option value="pending">待扫描</option>
-                <option value="running">扫描中</option>
-                <option value="succeeded">扫描完成</option>
-                <option value="failed">扫描失败</option>
-                <option value="cancelled">已取消</option>
-                <option value="partial">部分完成</option>
+                <option value="">{{ tr("全部") }}</option>
+                <option value="pending">{{ tr("待扫描") }}</option>
+                <option value="running">{{ tr("扫描中") }}</option>
+                <option value="succeeded">{{ tr("扫描完成") }}</option>
+                <option value="failed">{{ tr("扫描失败") }}</option>
+                <option value="cancelled">{{ tr("已取消") }}</option>
+                <option value="partial">{{ tr("部分完成") }}</option>
               </select>
             </fieldset>
 
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">操作者</label></legend>
-              <input :id="`${formFieldId}-4`" v-model="draftFilters.operator" type="text" class="input input-bordered w-full" placeholder="输入操作者" :disabled="isLoadingData" @keyup.enter="applySearch" />
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">{{ tr("操作者") }}</label></legend>
+              <input :id="`${formFieldId}-4`" v-model="draftFilters.operator" type="text" class="input input-bordered w-full" :placeholder="tr(&quot;输入操作者&quot;)" :disabled="isLoadingData" @keyup.enter="applySearch" />
             </fieldset>
           </div>
 
@@ -310,35 +312,35 @@ onMounted(async () => {
                 :disabled="isLoadingData"
                 @change="refreshSystemTaskVisibility"
               />
-              <span class="label-text">显示系统任务</span>
+              <span class="label-text">{{ tr("显示系统任务") }}</span>
             </label>
             <div class="flex gap-2">
-              <button class="btn btn-ghost btn-sm" :disabled="isLoadingData" @click="resetFilters">重置</button>
-              <button class="btn btn-neutral btn-sm" :disabled="isLoadingData" @click="applySearch">查询</button>
+              <button class="btn btn-ghost btn-sm" :disabled="isLoadingData" @click="resetFilters">{{ tr("重置") }}</button>
+              <button class="btn btn-neutral btn-sm" :disabled="isLoadingData" @click="applySearch">{{ tr("查询") }}</button>
             </div>
           </div>
 
           <details class="collapse collapse-arrow border border-base-300 bg-base-100">
-            <summary class="collapse-title min-h-0 py-3 text-sm font-semibold">高级筛选</summary>
+            <summary class="collapse-title min-h-0 py-3 text-sm font-semibold">{{ tr("高级筛选") }}</summary>
             <div class="collapse-content">
               <div class="grid gap-3 pt-1 md:grid-cols-2 xl:grid-cols-4">
                 <fieldset class="fieldset min-w-0 w-full">
-                  <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">开始时间</label></legend>
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">{{ tr("开始时间") }}</label></legend>
                   <SystemDateTimeInput :id="`${formFieldId}-5`" v-model="draftFilters.startTime" class="input input-bordered w-full" :disabled="isLoadingData" />
                 </fieldset>
 
                 <fieldset class="fieldset min-w-0 w-full">
-                  <legend class="fieldset-legend"><label :for="`${formFieldId}-6`">结束时间</label></legend>
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-6`">{{ tr("结束时间") }}</label></legend>
                   <SystemDateTimeInput :id="`${formFieldId}-6`" v-model="draftFilters.endTime" class="input input-bordered w-full" :disabled="isLoadingData" />
                 </fieldset>
 
                 <fieldset class="fieldset min-w-0 w-full">
-                  <legend class="fieldset-legend"><label :for="`${formFieldId}-7`">扫描器 ID</label></legend>
-                  <input :id="`${formFieldId}-7`" v-model="draftFilters.scannerId" class="input input-bordered w-full" placeholder="输入扫描器 ID" :disabled="isLoadingData" @keyup.enter="applySearch" />
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-7`">{{ tr("扫描器 ID") }}</label></legend>
+                  <input :id="`${formFieldId}-7`" v-model="draftFilters.scannerId" class="input input-bordered w-full" :placeholder="tr(&quot;输入扫描器 ID&quot;)" :disabled="isLoadingData" @keyup.enter="applySearch" />
                 </fieldset>
 
                 <fieldset class="fieldset min-w-0 w-full">
-                  <legend class="fieldset-legend"><label :for="`${formFieldId}-8`">每页数量</label></legend>
+                  <legend class="fieldset-legend"><label :for="`${formFieldId}-8`">{{ tr("每页数量") }}</label></legend>
                   <select :id="`${formFieldId}-8`" v-model="selectedCount" class="select select-bordered w-full" :disabled="isLoadingData" @change="refreshWithCount">
                     <option value="10">10</option>
                     <option value="20">20</option>
@@ -346,9 +348,7 @@ onMounted(async () => {
                   </select>
                 </fieldset>
               </div>
-              <p class="mt-3 text-xs text-base-content/60">
-                匹配任务 {{ totalCount }} 条，本页加载 {{ itemCount }} 条
-              </p>
+              <p class="mt-3 text-xs text-base-content/60"> {{ tr("匹配任务") }} {{ totalCount }} {{ tr("条，本页加载") }} {{ itemCount }} {{ tr("条") }} </p>
             </div>
           </details>
         </div>
@@ -357,10 +357,10 @@ onMounted(async () => {
       <section class="overflow-hidden rounded-box border border-base-300 bg-base-100">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 px-4 py-3">
           <div>
-            <h2 class="font-semibold">任务列表</h2>
-            <p class="mt-0.5 text-xs text-base-content/50">点击任务行可展开调度与失败信息</p>
+            <h2 class="font-semibold">{{ tr("任务列表") }}</h2>
+            <p class="mt-0.5 text-xs text-base-content/50">{{ tr("点击任务行可展开调度与失败信息") }}</p>
           </div>
-          <span class="text-sm text-base-content/60">共 {{ totalCount }} 条</span>
+          <span class="text-sm text-base-content/60">{{ tr("共") }} {{ totalCount }} {{ tr("条") }}</span>
         </div>
 
         <div v-if="isLoadingData" class="space-y-3 p-5">
@@ -372,14 +372,14 @@ onMounted(async () => {
           <EmptyState
             v-if="initialLoadFailed"
             type="error"
-            title="加载数据失败"
-            :message="'这通常是由于客户端与服务器的网络不可达或服务器崩溃了\n请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员'"
+            :title="tr(&quot;加载数据失败&quot;)"
+            :message="tr(&quot;这通常是由于客户端与服务器的网络不可达或服务器崩溃了\n请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员&quot;)"
           />
 
           <EmptyState
             v-else-if="isServerEmpty"
-            :title="hasActiveFilters ? '没有匹配的任务' : '暂无任务'"
-            :message="hasActiveFilters ? '请调整筛选条件后重试。' : '当前还没有可显示的扫描任务。'"
+            :title="hasActiveFilters ? tr(&quot;没有匹配的任务&quot;) : tr(&quot;暂无任务&quot;)"
+            :message="hasActiveFilters ? tr(&quot;请调整筛选条件后重试。&quot;) : tr(&quot;当前还没有可显示的扫描任务。&quot;)"
           />
 
           <div v-else class="overflow-x-auto">
@@ -387,13 +387,13 @@ onMounted(async () => {
               <thead>
                 <tr>
                   <th class="w-14">#</th>
-                  <th>任务 ID</th>
-                  <th>扫描器</th>
-                  <th>目标</th>
-                  <th>协议</th>
-                  <th>端口</th>
-                  <th>操作者</th>
-                  <th>状态</th>
+                  <th>{{ tr("任务 ID") }}</th>
+                  <th>{{ tr("扫描器") }}</th>
+                  <th>{{ tr("目标") }}</th>
+                  <th>{{ tr("协议") }}</th>
+                  <th>{{ tr("端口") }}</th>
+                  <th>{{ tr("操作者") }}</th>
+                  <th>{{ tr("状态") }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -404,7 +404,7 @@ onMounted(async () => {
                       <router-link class="link block truncate font-mono text-xs" :to="`/task/${taskItem.taskId}`" :title="taskItem.taskId" @click.stop>
                         {{ taskItem.taskId }}
                       </router-link>
-                      <span v-if="taskItem.source === 'search'" class="badge badge-info badge-soft badge-xs mt-1">搜索生成</span>
+                      <span v-if="taskItem.source === 'search'" class="badge badge-info badge-soft badge-xs mt-1">{{ tr("搜索生成") }}</span>
                     </td>
                     <td class="max-w-32 truncate font-mono text-xs" :title="taskItem.scannerId">{{ taskItem.scannerId }}</td>
                     <td class="max-w-60 truncate" :title="taskItem.target">
@@ -423,11 +423,11 @@ onMounted(async () => {
                     <td></td>
                     <td colspan="7" class="p-4">
                       <dl class="grid gap-4 text-sm md:grid-cols-3">
-                        <div><dt class="text-xs text-base-content/50">创建时间</dt><dd class="mt-1">{{ formatUnixMs(taskItem.createTimeMs) }}</dd></div>
-                        <div><dt class="text-xs text-base-content/50">领取次数</dt><dd class="mt-1">{{ taskItem.attemptCount }}</dd></div>
-                        <div><dt class="text-xs text-base-content/50">备注</dt><dd class="mt-1 break-words">{{ taskItem.remark }}</dd></div>
+                        <div><dt class="text-xs text-base-content/50">{{ tr("创建时间") }}</dt><dd class="mt-1">{{ formatUnixMs(taskItem.createTimeMs) }}</dd></div>
+                        <div><dt class="text-xs text-base-content/50">{{ tr("领取次数") }}</dt><dd class="mt-1">{{ taskItem.attemptCount }}</dd></div>
+                        <div><dt class="text-xs text-base-content/50">{{ tr("备注") }}</dt><dd class="mt-1 break-words">{{ taskItem.remark }}</dd></div>
                         <div v-if="taskItem.failureReason" class="md:col-span-3">
-                          <dt class="text-xs text-error/70">失败原因</dt>
+                          <dt class="text-xs text-error/70">{{ tr("失败原因") }}</dt>
                           <dd class="mt-1 break-words text-error">{{ taskItem.failureReason }}</dd>
                         </div>
                       </dl>
@@ -439,13 +439,11 @@ onMounted(async () => {
           </div>
 
           <div v-if="!initialLoadFailed && !isServerEmpty" class="flex flex-col gap-3 border-t border-base-300 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="text-sm text-base-content/60">
-              本页 {{ itemCount }} 条，共 {{ totalCount }} 条
-            </div>
+            <div class="text-sm text-base-content/60"> {{ tr("本页") }} {{ itemCount }} {{ tr("条，共") }} {{ totalCount }} {{ tr("条") }} </div>
             <div class="join">
-              <button class="join-item btn btn-sm" :disabled="!hasPrevPage || isLoadingData" @click="toPrevPage">上一页</button>
+              <button class="join-item btn btn-sm" :disabled="!hasPrevPage || isLoadingData" @click="toPrevPage">{{ tr("上一页") }}</button>
               <button class="join-item btn btn-sm btn-disabled">{{ currentPage }} / {{ totalPages }}</button>
-              <button class="join-item btn btn-sm" :disabled="!hasNextPage || isLoadingData" @click="toNextPage">下一页</button>
+              <button class="join-item btn btn-sm" :disabled="!hasNextPage || isLoadingData" @click="toNextPage">{{ tr("下一页") }}</button>
             </div>
           </div>
         </template>

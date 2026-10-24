@@ -1,3 +1,6 @@
+import StartupFailure from './components/StartupFailure.vue'
+import { i18n } from './i18n/index.js'
+import LanguageSelect from './components/LanguageSelect.vue'
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
@@ -16,20 +19,14 @@ if (!csrfToken) {
     const root = document.querySelector('#app')
     try {
       await loadSystemPreferences()
-      const app = createApp(App)
+      const app = createApp(App).use(i18n).component('LanguageSelect', LanguageSelect)
       app.component('SystemDateTimeInput', SystemDateTimeInput)
       app.use(router)
       app.mount('#app')
       syncSystemPreferences()
     } catch {
-      root.replaceChildren()
-      const message = document.createElement('p')
-      message.textContent = '系统时间设置加载失败，请重试。'
-      const retry = document.createElement('button')
-      retry.className = 'btn btn-neutral btn-sm'
-      retry.textContent = '重新加载'
-      retry.onclick = start
-      root.append(message, retry)
+      const fallback = createApp(StartupFailure, { retry: () => { fallback.unmount(); start() } }).use(i18n)
+      fallback.mount(root)
     }
   }
   start()

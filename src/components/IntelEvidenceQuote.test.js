@@ -9,6 +9,8 @@ import { renderToString } from 'vue/server-renderer'
 test('verified evidence renders separate quotes and rejection summaries expose only ordinal and reason', async () => {
   const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../../', import.meta.url)), plugins: [vue()], server: { middlewareMode: true, hmr: false }, logLevel: 'silent' })
   try {
+    const { i18n } = await server.ssrLoadModule('/src/i18n/index.js')
+    i18n.global.locale.value = 'zh-CN'
     const { default: quote } = await server.ssrLoadModule('/src/components/IntelEvidenceQuote.vue')
     const html = await renderToString(createSSRApp(quote, { locatable: true, payload: { evidence_spans: [{ block_id: 1, kind: 'context', quote: '恶意 DNS' }, { block_id: 2, kind: 'ioc', quote: '<script>192[.]0[.]2[.]1</script>' }] } }))
     assert.match(html, /上下文原文/)

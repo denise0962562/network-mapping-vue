@@ -1,7 +1,8 @@
+import { tr } from '../i18n/index.js'
 const TARGET_LABELS = {
   ipv4: 'IPv4 / CIDR',
   ipv6: 'IPv6 / CIDR',
-  domain: '域名'
+  get domain() { return tr("域名") }
 }
 
 function splitAddressAndPrefix(value, maxPrefix) {
@@ -89,35 +90,35 @@ function invalid(message) {
 
 export function parseScanTargets(input) {
   const value = String(input ?? '').replace(/\r\n?/g, '\n').trim()
-  if (!value) return invalid('请输入至少一个 IPv4/CIDR、IPv6/CIDR 或域名目标。')
+  if (!value) return invalid(tr("请输入至少一个 IPv4/CIDR、IPv6/CIDR 或域名目标。"))
 
   const hasComma = value.includes(',')
   const hasNewline = value.includes('\n')
   if (hasComma && hasNewline) {
-    return invalid('逗号和换行不能混合使用，请只选择一种分隔方式。')
+    return invalid(tr("逗号和换行不能混合使用，请只选择一种分隔方式。"))
   }
 
   const separator = hasComma ? 'comma' : hasNewline ? 'newline' : 'single'
   const rawTargets = separator === 'comma' ? value.split(',') : separator === 'newline' ? value.split('\n') : [value]
   if (separator === 'comma' && rawTargets.some((target) => !target.trim())) {
-    return invalid('逗号之间不能包含空目标。')
+    return invalid(tr("逗号之间不能包含空目标。"))
   }
   const targets = rawTargets.map((target) => target.trim()).filter(Boolean)
-  if (targets.length === 0) return invalid('请输入至少一个有效目标。')
+  if (targets.length === 0) return invalid(tr("请输入至少一个有效目标。"))
 
   const classified = targets.map(classifyTarget)
   const invalidIndex = classified.findIndex((type) => type === null)
   if (invalidIndex !== -1) {
-    return invalid(`第 ${invalidIndex + 1} 个目标“${targets[invalidIndex]}”格式不合法。`)
+    return invalid(tr("第 {0} 个目标“{1}”格式不合法。", [invalidIndex + 1, targets[invalidIndex]]))
   }
   const types = new Set(classified)
   if (types.size !== 1) {
-    return invalid('一次任务只能包含一种目标类型，不能混合 IPv4、IPv6 和域名。')
+    return invalid(tr("一次任务只能包含一种目标类型，不能混合 IPv4、IPv6 和域名。"))
   }
 
   const type = classified[0]
   if (type === 'domain' && targets.length > 500) {
-    return invalid('一次域名任务最多可包含 500 个目标。')
+    return invalid(tr("一次域名任务最多可包含 500 个目标。"))
   }
   return {
     valid: true,
@@ -131,5 +132,5 @@ export function parseScanTargets(input) {
 }
 
 export function targetTypeLabel(type) {
-  return TARGET_LABELS[type] || '未识别'
+  return TARGET_LABELS[type] || tr("未识别")
 }

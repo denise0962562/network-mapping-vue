@@ -1,4 +1,6 @@
-﻿<script setup>
+<script setup>
+import { tr } from './i18n/index.js'
+
 import { computed, nextTick, onMounted, ref } from 'vue'
 import AppAlert from './components/AppAlert.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
@@ -29,7 +31,7 @@ async function loadVerificationConfig() {
     const response = await http.get('/api/auth/human-verification', { timeout: 10000 })
     verificationConfig.value = parseHumanVerificationConfig(response.data)
   } catch {
-    verificationError.value = '登录验证配置加载失败，请检查网络或联系管理员。'
+    verificationError.value = tr("登录验证配置加载失败，请检查网络或联系管理员。")
   } finally {
     verificationLoading.value = false
   }
@@ -40,8 +42,8 @@ const isLoggingIn = ref(false)
 const isVerifyingTotp = ref(false)
 const isTotpRequired = ref(false)
 const showLoginError = ref(false)
-const loginErrorMessage = ref('登录失败')
-const loginErrorDescription = ref('请检查账号信息后重试。')
+const loginErrorMessage = ref(tr("登录失败"))
+const loginErrorDescription = ref(tr("请检查账号信息后重试。"))
 const loginErrorId = ref(0)
 const loginErrorTimeout = ref(5000)
 
@@ -49,9 +51,9 @@ function closeLoginError() {
   showLoginError.value = false
 }
 
-function openLoginError(message = '登录失败', description = '') {
+function openLoginError(message = tr("登录失败"), description = '') {
   loginErrorMessage.value = message
-  loginErrorDescription.value = description || '请检查账号信息后重试。'
+  loginErrorDescription.value = description || tr("请检查账号信息后重试。")
   loginErrorId.value += 1
   showLoginError.value = true
 }
@@ -115,9 +117,9 @@ async function handleLogin() {
       return
     }
 
-    openLoginError(response.data?.message || '登录失败', response.data?.description)
+    openLoginError(response.data?.message || tr("登录失败"), response.data?.description)
   } catch (error) {
-    openLoginError('登录失败', '请检查网络连接后重试。')
+    openLoginError(tr("登录失败"), tr("请检查网络连接后重试。"))
   } finally {
     isLoggingIn.value = false
     if (!navigating && !isTotpRequired.value) verificationWidget.value?.reset()
@@ -153,9 +155,9 @@ async function handleTotpVerify() {
       expireCookie('csrf_token')
     }
 
-    openLoginError(response.data?.message || '验证码验证失败', response.data?.description)
+    openLoginError(response.data?.message || tr("验证码验证失败"), response.data?.description)
   } catch (error) {
-    openLoginError('验证码验证失败', '请检查网络连接后重试。')
+    openLoginError(tr("验证码验证失败"), tr("请检查网络连接后重试。"))
   } finally {
     isVerifyingTotp.value = false
   }
@@ -180,8 +182,9 @@ function backToLogin() {
       @close="closeLoginError"
     />
 
-    <div class="flex justify-end px-4 pt-4 sm:px-8">
-      <ThemeToggle />
+    <div class="flex items-center justify-end gap-2 px-4 pt-4 sm:px-8">
+      <LanguageSelect />
+          <ThemeToggle />
     </div>
 
     <div class="flex grow items-center justify-center py-10">
@@ -199,30 +202,31 @@ function backToLogin() {
           <div class="border-b border-dashed border-base-300">
             <div class="p-4 text-center">
               <div class="text-xl font-bold tracking-wide">Network Mapping</div>
-              <div class="mt-1 text-sm opacity-60">登录账号</div>
+              <div class="mt-1 text-sm opacity-60">{{ tr("登录账号") }}</div>
             </div>
           </div>
 
           <div class="card-body gap-4">
             <div class="flex flex-col gap-1.5">
-              <span class="text-sm font-semibold opacity-70">用户名</span>
+              <span class="text-sm font-semibold opacity-70">{{ tr("用户名") }}</span>
               <label class="input validator input-border flex max-w-none items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-4 w-4 opacity-70">
                   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12.735 14c.618 0 1.093-.561.872-1.139a6.002 6.002 0 0 0-11.215 0c-.22.578.254 1.139.872 1.139h9.47Z" />
                 </svg>
                 <input
                   ref="usernameInputRef"
+                  :aria-label="tr('用户名')"
                   v-model="username"
                   type="text"
                   required
                   class="grow"
-                  placeholder="请输入用户名"
+                  :placeholder="tr(&quot;请输入用户名&quot;)"
                 >
               </label>
             </div>
 
             <div class="flex flex-col gap-1.5">
-              <span class="text-sm font-semibold opacity-70">密码</span>
+              <span class="text-sm font-semibold opacity-70">{{ tr("密码") }}</span>
               <label class="input validator input-border flex max-w-none items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-4 w-4 opacity-70">
                   <path
@@ -233,20 +237,21 @@ function backToLogin() {
                 </svg>
                 <input
                   v-model="password"
+                  :aria-label="tr('密码')"
                   type="password"
                   required
                   class="grow"
-                  placeholder="请输入密码"
+                  :placeholder="tr(&quot;请输入密码&quot;)"
                   @keyup.enter="handleLogin"
                 >
               </label>
             </div>
 
             <div class="card-actions items-center gap-6">
-              <p v-if="verificationLoading" class="text-sm opacity-70" role="status">正在加载登录验证配置…</p>
+              <p v-if="verificationLoading" class="text-sm opacity-70" role="status">{{ tr("正在加载登录验证配置…") }}</p>
               <div v-else-if="verificationError" class="flex flex-col gap-2">
                 <p class="text-sm text-error" role="alert">{{ verificationError }}</p>
-                <button type="button" class="btn btn-outline btn-sm self-start" @click="loadVerificationConfig">重试</button>
+                <button type="button" class="btn btn-outline btn-sm self-start" @click="loadVerificationConfig">{{ tr("重试") }}</button>
               </div>
               <HumanVerificationWidget
                 v-else-if="verificationRequired"
@@ -262,7 +267,7 @@ function backToLogin() {
                 :disabled="isLoggingIn || !canLogin"
                 @click="handleLogin"
               >
-                {{ isLoggingIn ? '登录中...' : '登录' }}
+                {{ isLoggingIn ? tr("登录中...") : tr("登录") }}
               </button>
             </div>
           </div>
@@ -271,20 +276,20 @@ function backToLogin() {
         <div v-else key="totp-card" class="card card-lg w-96 overflow-hidden border-base-300 bg-base-100 card-border">
           <div class="border-b border-dashed border-base-300">
             <div class="relative p-4 text-center">
-              <button type="button" class="btn btn-ghost btn-xs absolute left-4 top-1/2 -translate-y-1/2 shrink-0" aria-label="返回登录" @click="backToLogin">
+              <button type="button" class="btn btn-ghost btn-xs absolute left-4 top-1/2 -translate-y-1/2 shrink-0" :aria-label="tr(&quot;返回登录&quot;)" @click="backToLogin">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="m12 19-7-7 7-7" />
                   <path d="M19 12H5" />
                 </svg>
               </button>
               <div class="text-xl font-bold tracking-wide">Network Mapping</div>
-              <div class="mt-1 text-sm opacity-60">2FA 验证</div>
+              <div class="mt-1 text-sm opacity-60">{{ tr("2FA 验证") }}</div>
             </div>
           </div>
 
           <div class="card-body gap-4">
             <div class="flex flex-col gap-1.5">
-              <span class="text-sm font-semibold opacity-70">2FA 验证码</span>
+              <span class="text-sm font-semibold opacity-70">{{ tr("2FA 验证码") }}</span>
               <label class="input validator input-border flex max-w-none items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-4 w-4 opacity-70">
                   <path fill-rule="evenodd" d="M8 1a4 4 0 0 0-4 4v2a2 2 0 0 0-1 1.732V13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8.732A2 2 0 0 0 12 7V5a4 4 0 0 0-4-4Zm2.5 6V5a2.5 2.5 0 0 0-5 0v2h5Z" clip-rule="evenodd" />
@@ -297,14 +302,14 @@ function backToLogin() {
                   autocomplete="one-time-code"
                   required
                   class="grow tracking-widest"
-                  placeholder="请输入 6 位验证码"
+                  :placeholder="tr(&quot;请输入 6 位验证码&quot;)"
                   minlength="6"
                   maxlength="6"
                   pattern="[0-9]{6}"
                   @keyup.enter="handleTotpVerify"
                 >
               </label>
-              <p class="validator-hint hidden">请输入 6 位数字验证码</p>
+              <p class="validator-hint hidden">{{ tr("请输入 6 位数字验证码") }}</p>
             </div>
 
             <div class="card-actions items-center gap-2">
@@ -313,7 +318,7 @@ function backToLogin() {
                 :disabled="isVerifyingTotp"
                 @click="handleTotpVerify"
               >
-                {{ isVerifyingTotp ? '验证中...' : '验证' }}
+                {{ isVerifyingTotp ? tr("验证中...") : tr("验证") }}
               </button>
             </div>
           </div>

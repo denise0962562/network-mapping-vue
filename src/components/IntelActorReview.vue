@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import http from '../utils/http'
 import { intelError } from '../utils/threatIntel'
@@ -12,7 +14,7 @@ const selectedActor = computed(() => [...matches.value, ...results.value].find(i
 const retainedActor = ref(null)
 const currentActor = computed(() => selectedActor.value || (retainedActor.value?.attack_id === actorId.value ? retainedActor.value : null) || (actorId.value ? { attack_id: actorId.value, name: '已选组织' } : null))
 const reportName = computed(() => props.record?.payload?.actor_name || '')
-const basis = { exact_name: '名称相同', source_alias: '本来源已确认别名', associated_name: '关联名称候选，需核对' }
+const basis = { get exact_name() { return tr("名称相同") }, get source_alias() { return tr("本来源已确认别名") }, get associated_name() { return tr("关联名称候选，需核对") } }
 function publish() {
   emit('change', action.value === 'create' ? { action: 'create', name: name.value.trim() } : ['select', 'alias'].includes(action.value) ? { action: action.value, actor_id: actorId.value } : { action: action.value })
 }
@@ -51,27 +53,26 @@ onBeforeUnmount(() => { version++; controller?.abort() })
 
 <template>
   <fieldset class="space-y-3 rounded border border-base-300 p-3 text-sm" :disabled="disabled">
-    <legend class="px-1 font-semibold">组织归因审核</legend>
-    <p>报告原名：{{ reportName || '未提供组织归因' }}</p>
-    <p class="text-xs opacity-65">匹配候选由服务端提供。关联名称不自动视为等价别名；新建项为本地组织，不生成 MITRE 编号。</p>
+    <legend class="px-1 font-semibold">{{ tr("组织归因审核") }}</legend>
+    <p>{{ tr("报告原名：") }}{{ reportName || tr("未提供组织归因") }}</p>
+    <p class="text-xs opacity-65">{{ tr("匹配候选由服务端提供。关联名称不自动视为等价别名；新建项为本地组织，不生成 MITRE 编号。") }}</p>
     <p v-for="item in matches" :key="item.attack_id" class="break-words text-xs">{{ item.name }}（{{ item.attack_id }}） · {{ basis[item.basis] }}</p>
     <p v-if="error" role="alert" class="text-error">{{ error }}</p>
-    <label class="form-control block min-w-0">处理方式
-      <select v-model="action" class="select select-bordered mt-1 w-full" @change="publish">
-        <option value="keep">保留当前匹配；未匹配则只保留原名</option>
-        <option value="unassigned">不关联组织</option>
-        <option v-if="reportName" value="select">选择 / 更换当前记录的组织</option>
-        <option v-if="reportName" value="alias">将报告原名补充为本来源别名</option>
-        <option v-if="reportName" value="create">新建本地组织并关联当前记录</option>
+    <label class="form-control block min-w-0">{{ tr("处理方式") }} <select v-model="action" class="select select-bordered mt-1 w-full" @change="publish">
+        <option value="keep">{{ tr("保留当前匹配；未匹配则只保留原名") }}</option>
+        <option value="unassigned">{{ tr("不关联组织") }}</option>
+        <option v-if="reportName" value="select">{{ tr("选择 / 更换当前记录的组织") }}</option>
+        <option v-if="reportName" value="alias">{{ tr("将报告原名补充为本来源别名") }}</option>
+        <option v-if="reportName" value="create">{{ tr("新建本地组织并关联当前记录") }}</option>
       </select>
     </label>
     <template v-if="['select', 'alias'].includes(action)">
-      <div class="flex min-w-0 gap-2"><input v-model="query" class="input input-bordered min-w-0 flex-1" maxlength="200" aria-label="搜索组织名称、编号或别名" placeholder="搜索组织名称、编号或别名" @keydown.enter.prevent="search" /><button type="button" class="btn btn-outline" :disabled="loading" @click="search">{{ searchState === 'loading' ? '搜索中…' : '搜索' }}</button></div>
-      <p v-if="searchState === 'success'" role="status" class="text-xs opacity-65">{{ results.length ? `找到 ${results.length} 个组织，请在下方“目标组织”中选择。` : `未找到${searchedQuery ? `与“${searchedQuery}”匹配的` : '可用的'}组织，请尝试其他名称、编号或别名。` }}</p>
-      <label class="form-control block min-w-0">目标组织<select v-model="actorId" class="select select-bordered mt-1 w-full" required @change="publish"><option value="" disabled>请选择组织</option><option v-if="currentActor && !options.some(item => item.attack_id === actorId)" :value="currentActor.attack_id">{{ currentActor.name }} · {{ currentActor.attack_id }}{{ searchState === 'idle' ? '（当前选择）' : '（当前选择，不在本次搜索结果中）' }}</option><option v-for="item in options" :key="item.attack_id" :value="item.attack_id">{{ item.name }} · {{ item.attack_id }}{{ item.dataset_version === 'local-reviewed' ? '（本地）' : '' }}</option></select></label>
-      <p class="text-xs opacity-65">{{ action === 'alias' ? '接纳时保存本来源的名称对应关系；其他来源不受影响。' : '仅确认当前提议的组织，不修改别名关系。' }}</p>
+      <div class="flex min-w-0 gap-2"><input v-model="query" class="input input-bordered min-w-0 flex-1" maxlength="200" :aria-label="tr(&quot;搜索组织名称、编号或别名&quot;)" :placeholder="tr(&quot;搜索组织名称、编号或别名&quot;)" @keydown.enter.prevent="search" /><button type="button" class="btn btn-outline" :disabled="loading" @click="search">{{ searchState === 'loading' ? tr("搜索中…") : tr("搜索") }}</button></div>
+      <p v-if="searchState === 'success'" role="status" class="text-xs opacity-65">{{ results.length ? tr("找到 {0} 个组织，请在下方“目标组织”中选择。", [results.length]) : tr("未找到{0}组织，请尝试其他名称、编号或别名。", [searchedQuery ? `与“${searchedQuery}”匹配的` : '可用的']) }}</p>
+      <label class="form-control block min-w-0">{{ tr("目标组织") }}<select v-model="actorId" class="select select-bordered mt-1 w-full" required @change="publish"><option value="" disabled>{{ tr("请选择组织") }}</option><option v-if="currentActor && !options.some(item => item.attack_id === actorId)" :value="currentActor.attack_id">{{ currentActor.name }} · {{ currentActor.attack_id }}{{ searchState === 'idle' ? tr("（当前选择）") : tr("（当前选择，不在本次搜索结果中）") }}</option><option v-for="item in options" :key="item.attack_id" :value="item.attack_id">{{ item.name }} · {{ item.attack_id }}{{ item.dataset_version === 'local-reviewed' ? tr("（本地）") : '' }}</option></select></label>
+      <p class="text-xs opacity-65">{{ action === 'alias' ? tr("接纳时保存本来源的名称对应关系；其他来源不受影响。") : tr("仅确认当前提议的组织，不修改别名关系。") }}</p>
     </template>
-    <label v-if="action === 'create'" class="form-control block min-w-0">本地组织名称<input v-model="name" class="input input-bordered mt-1 w-full" maxlength="200" required @input="publish" /></label>
-    <p class="text-xs opacity-65">上述更改在提交“接纳”时一起保存；拒绝提议不会补别名或创建组织。</p>
+    <label v-if="action === 'create'" class="form-control block min-w-0">{{ tr("本地组织名称") }}<input v-model="name" class="input input-bordered mt-1 w-full" maxlength="200" required @input="publish" /></label>
+    <p class="text-xs opacity-65">{{ tr("上述更改在提交“接纳”时一起保存；拒绝提议不会补别名或创建组织。") }}</p>
   </fieldset>
 </template>

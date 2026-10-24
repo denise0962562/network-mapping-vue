@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({ loading: Boolean })
@@ -32,10 +34,8 @@ onBeforeUnmount(() => clearTimeout(timer))
     <span class="refresh-content">
       <Transition name="refresh-fade">
         <span v-if="visible" key="loading" class="inline-flex items-center justify-center gap-2">
-          <span class="loading loading-spinner loading-xs motion-reduce:animate-none" aria-hidden="true"></span>
-          刷新中
-        </span>
-        <span v-else key="ready">刷新</span>
+          <span class="loading loading-spinner loading-xs motion-reduce:animate-none" aria-hidden="true"></span> {{ tr("刷新中") }} </span>
+        <span v-else key="ready">{{ tr("刷新") }}</span>
       </Transition>
     </span>
   </button>

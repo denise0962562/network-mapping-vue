@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useConfigCheck } from '@/composables/useConfigCheck'
 import { deploymentConfigItems } from '@/utils/configCheck'
@@ -19,19 +21,19 @@ const optional = computed(() => items.value.filter((item) => item.kind === 'opti
 const showIndicator = computed(() => Boolean(error.value) || defaults.value > 0 || required.value > 0)
 const tooltipVisible = computed(() => showIndicator.value && (hovering.value || focused.value) && !dismissed.value)
 const label = computed(() => {
-  if (loading.value) return '配置检查中'
-  if (error.value || !snapshot.value) return '配置检查待确认'
-  if (required.value) return `${required.value} 项配置缺失`
-  if (defaults.value) return `${defaults.value} 项配置提示`
-  return '配置检查通过'
+  if (loading.value) return tr("配置检查中")
+  if (error.value || !snapshot.value) return tr("配置检查待确认")
+  if (required.value) return tr("{0} 项配置缺失", [required.value])
+  if (defaults.value) return tr("{0} 项配置提示", [defaults.value])
+  return tr("配置检查通过")
 })
 const summary = computed(() => {
-  if (loading.value) return '正在读取最近一次启动时的配置检查结果。'
-  if (error.value) return `${error.value} 点击进入配置检查页面重试。`
-  if (!snapshot.value) return '尚未收到配置检查结果，点击进入配置检查页面查看。'
-  if (required.value) return `${required.value} 个必需参数缺失，需要按字段说明补齐；另有 ${defaults.value} 个字段采用缺省处理。`
-  if (defaults.value) return `${defaults.value} 个部署字段未显式配置，当前采用兼容默认值，可按需补充。`
-  return optional.value ? `没有需要补充的启动参数。${optional.value} 个未启用功能的可选参数无需补齐。` : '当前没有需要补充的启动参数。'
+  if (loading.value) return tr("正在读取最近一次启动时的配置检查结果。")
+  if (error.value) return tr("{0} 点击进入配置检查页面重试。", [error.value])
+  if (!snapshot.value) return tr("尚未收到配置检查结果，点击进入配置检查页面查看。")
+  if (required.value) return tr("{0} 个必需参数缺失，需要按字段说明补齐；另有 {1} 个字段采用缺省处理。", [required.value, defaults.value])
+  if (defaults.value) return tr("{0} 个部署字段未显式配置，当前采用兼容默认值，可按需补充。", [defaults.value])
+  return optional.value ? tr("没有需要补充的启动参数。{0} 个未启用功能的可选参数无需补齐。", [optional.value]) : tr("当前没有需要补充的启动参数。")
 })
 
 async function updatePosition() {
@@ -80,7 +82,7 @@ onBeforeUnmount(() => {
       ref="anchor"
       to="/setting"
       class="flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-sm opacity-60 hover:bg-base-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      :aria-label="`${label}，点击查看启动配置检查`"
+      :aria-label="tr(&quot;{0}，点击查看启动配置检查&quot;, [label])"
       :aria-describedby="tooltipVisible ? tooltipId : undefined"
       @mouseenter="activate('hover')"
       @mouseleave="hovering = false"
@@ -98,10 +100,10 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div v-if="tooltipVisible" ref="tooltip" class="tooltip tooltip-right tooltip-open pointer-events-none z-[60] after:hidden" :style="tooltipStyle">
         <div :id="tooltipId" role="tooltip" class="tooltip-content p-3 text-left leading-5" style="position: static; width: 100%; max-width: none; transform: none;">
-          <p class="font-semibold">启动配置检查</p>
+          <p class="font-semibold">{{ tr("启动配置检查") }}</p>
           <p class="mt-1">{{ summary }}</p>
-          <p class="mt-2 text-xs opacity-80">仅提示部署文件参数，Web 管理的数据库参数不列入提示。文件与 Docker 部署均适用；修改文件后需重启对应进程。</p>
-          <p class="mt-2 text-xs opacity-80">点击查看字段、内置缺省值和处理说明。扫描器配置请在对应扫描器的配置页面查看。</p>
+          <p class="mt-2 text-xs opacity-80">{{ tr("仅提示部署文件参数，Web 管理的数据库参数不列入提示。文件与 Docker 部署均适用；修改文件后需重启对应进程。") }}</p>
+          <p class="mt-2 text-xs opacity-80">{{ tr("点击查看字段、内置缺省值和处理说明。扫描器配置请在对应扫描器的配置页面查看。") }}</p>
         </div>
       </div>
     </Teleport>

@@ -57,6 +57,7 @@ export async function createTurnstileWidget(container, options, events, isActive
     action: options.action,
     theme: options.theme,
     size: options.size,
+    ...(options.language ? { language: options.language } : {}),
     'response-field': false,
     retry: 'never',
     'refresh-expired': 'manual',

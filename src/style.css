@@ -222,3 +222,7 @@ html[data-theme] .apexmaps {
         color-scheme: light;
     }
 }
+
+/* Message catalogs and prose do not contain utility classes. */
+@source not "./i18n/en.json";
+@source not "../docs";

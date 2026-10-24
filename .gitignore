@@ -44,3 +44,8 @@ ssl/
 .codegraph
 
 .claude
+.venv-docs/
+
+mkdocs/site/
+
+__pycache__/

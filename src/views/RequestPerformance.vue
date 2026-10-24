@@ -1,7 +1,9 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { useChartTheme } from '@/composables/useChartTheme'
 import ChartCsvExport from '@/components/ChartCsvExport.vue'
-import { formatTime as formatSystemClock } from '@/utils/systemTime'
+import { formatTime as formatSystemClock } from '../i18n/time.js'
 import { computed, defineAsyncComponent, onMounted, ref, useId } from 'vue'
 import { useRouter } from 'vue-router'
 import AppAlert from '@/components/AppAlert.vue'
@@ -16,26 +18,26 @@ const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 const router = useRouter()
 
 const windowOptions = [
-  { value: '1h', label: '最近 1 小时', seconds: 3600 },
-  { value: '24h', label: '最近 24 小时', seconds: 86400 },
-  { value: '7d', label: '最近 7 天', seconds: 604800 },
+  { value: '1h', get label() { return tr("最近 1 小时") }, seconds: 3600 },
+  { value: '24h', get label() { return tr("最近 24 小时") }, seconds: 86400 },
+  { value: '7d', get label() { return tr("最近 7 天") }, seconds: 604800 },
 ]
 const granularityOptions = [
-  { value: 'auto', label: '自动', seconds: null },
-  { value: '1m', label: '1 分钟', seconds: 60 },
-  { value: '5m', label: '5 分钟', seconds: 300 },
-  { value: '15m', label: '15 分钟', seconds: 900 },
-  { value: '30m', label: '30 分钟', seconds: 1800 },
-  { value: '1h', label: '1 小时', seconds: 3600 },
-  { value: '2h', label: '2 小时', seconds: 7200 },
-  { value: '6h', label: '6 小时', seconds: 21600 },
+  { value: 'auto', get label() { return tr("自动") }, seconds: null },
+  { value: '1m', get label() { return tr("1 分钟") }, seconds: 60 },
+  { value: '5m', get label() { return tr("5 分钟") }, seconds: 300 },
+  { value: '15m', get label() { return tr("15 分钟") }, seconds: 900 },
+  { value: '30m', get label() { return tr("30 分钟") }, seconds: 1800 },
+  { value: '1h', get label() { return tr("1 小时") }, seconds: 3600 },
+  { value: '2h', get label() { return tr("2 小时") }, seconds: 7200 },
+  { value: '6h', get label() { return tr("6 小时") }, seconds: 21600 },
 ]
 const methodOptions = ['', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD']
 const statusOptions = [
-  { value: '', label: '全部状态' },
-  { value: 'success', label: '成功与重定向' },
-  { value: '4xx', label: '4xx 客户端错误' },
-  { value: '5xx', label: '5xx 服务端错误' },
+  { value: '', get label() { return tr("全部状态") } },
+  { value: 'success', get label() { return tr("成功与重定向") } },
+  { value: '4xx', get label() { return tr("4xx 客户端错误") } },
+  { value: '5xx', get label() { return tr("5xx 服务端错误") } },
 ]
 
 const filters = ref({ window: '24h', granularity: 'auto', method: '', route: '', status_class: '' })
@@ -91,7 +93,7 @@ function formatRate(value) {
 }
 
 function deltaLabel(value) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '暂无基线'
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return tr("暂无基线")
   const rate = Number(value) * 100
   return `${rate > 0 ? '+' : ''}${rate.toFixed(1)}%`
 }
@@ -125,7 +127,7 @@ async function loadPerformance() {
       if (filters.value[key]) params[key] = filters.value[key]
     }
     const response = await http.get('/api/requests/performance', { params })
-    if (response.data?.success !== true) throw new Error('服务器未返回有效的性能数据')
+    if (response.data?.success !== true) throw new Error(tr("服务器未返回有效的性能数据"))
     summary.value = { ...emptySummary(), ...(response.data.summary || {}) }
     baseline.value = { ...emptySummary(), ...(response.data.baseline || {}) }
     changes.value = response.data.changes || {}
@@ -148,9 +150,9 @@ async function loadPerformance() {
     console.error('load request performance failed', error)
     if (!hasLoaded.value) loadFailed.value = true
     if (error.response?.status === 403) {
-      pushAlert('error', '性能基线加载失败', '只有管理员可以查看请求性能数据。')
+      pushAlert('error', tr("性能基线加载失败"), tr("只有管理员可以查看请求性能数据。"))
     } else {
-      pushAlert('error', '性能基线加载失败', '请检查网络连接或服务器运行状态。')
+      pushAlert('error', tr("性能基线加载失败"), tr("请检查网络连接或服务器运行状态。"))
     }
   } finally {
     loading.value = false
@@ -186,11 +188,11 @@ const summaryHasBaseline = computed(() => Number(summary.value.sample_count) >= 
 const trendSeries = computed(() => {
   const shiftMilliseconds = Number(meta.value.comparison_shift_seconds || 0) * 1000
   return [
-    { name: '当前 P50', data: trend.value.map((point) => ({ x: point.bucket, y: point.p50_ms })) },
-    { name: '当前 P95', data: trend.value.map((point) => ({ x: point.bucket, y: point.p95_ms })) },
-    { name: '当前 P99', data: trend.value.map((point) => ({ x: point.bucket, y: point.p99_ms })) },
+    { rawName: "当前 P50", get name() { return tr("当前 P50") }, data: trend.value.map((point) => ({ x: point.bucket, y: point.p50_ms })) },
+    { rawName: "当前 P95", get name() { return tr("当前 P95") }, data: trend.value.map((point) => ({ x: point.bucket, y: point.p95_ms })) },
+    { rawName: "当前 P99", get name() { return tr("当前 P99") }, data: trend.value.map((point) => ({ x: point.bucket, y: point.p99_ms })) },
     {
-      name: '上一周期 P95',
+      rawName: "上一周期 P95", get name() { return tr("上一周期 P95") },
       data: baselineTrend.value.map((point) => ({
         x: new Date(new Date(point.bucket).getTime() + shiftMilliseconds).toISOString(),
         y: point.p95_ms,
@@ -224,7 +226,7 @@ const trendOptions = useChartTheme(() => ({
       })
     }
   },
-  noData: { text: '暂无趋势数据' },
+  noData: { get text() { return tr("暂无趋势数据") } },
 }))
 
 onMounted(loadPerformance)
@@ -247,23 +249,23 @@ onMounted(loadPerformance)
   <main class="page-shell">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="page-title">请求性能基线</h1>
-        <p class="mt-1 text-sm text-base-content/60">按请求事件分析服务端处理耗时，并与上一等长周期比较。</p>
+        <h1 class="page-title">{{ tr("请求性能基线") }}</h1>
+        <p class="mt-1 text-sm text-base-content/60">{{ tr("按请求事件分析服务端处理耗时，并与上一等长周期比较。") }}</p>
       </div>
-      <span class="text-xs text-base-content/50">计时包含中间件与业务处理，不包含客户端网络传输</span>
+      <span class="text-xs text-base-content/50">{{ tr("计时包含中间件与业务处理，不包含客户端网络传输") }}</span>
     </div>
 
     <div class="card border border-base-300 bg-base-100 shadow-sm">
       <div class="card-body gap-4 p-4">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间范围</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("时间范围") }}</label></legend>
             <select :id="`${formFieldId}-1`" v-model="filters.window" class="select select-bordered w-full" @change="ensureValidGranularity">
               <option v-for="option in windowOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </fieldset>
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">时间粒度</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">{{ tr("时间粒度") }}</label></legend>
             <select :id="`${formFieldId}-2`" v-model="filters.granularity" class="select select-bordered w-full">
               <option v-for="option in granularityOptions" :key="option.value" :value="option.value" :disabled="granularityDisabled(option)">
                 {{ option.label }}
@@ -271,27 +273,27 @@ onMounted(loadPerformance)
             </select>
           </fieldset>
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">请求方法</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">{{ tr("请求方法") }}</label></legend>
             <select :id="`${formFieldId}-3`" v-model="filters.method" class="select select-bordered w-full">
-              <option v-for="method in methodOptions" :key="method" :value="method">{{ method || '全部方法' }}</option>
+              <option v-for="method in methodOptions" :key="method" :value="method">{{ method || tr("全部方法") }}</option>
             </select>
           </fieldset>
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">状态类别</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">{{ tr("状态类别") }}</label></legend>
             <select :id="`${formFieldId}-4`" v-model="filters.status_class" class="select select-bordered w-full">
               <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </fieldset>
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">事件路由</label></legend>
-            <input :id="`${formFieldId}-5`" v-model.trim="filters.route" class="input input-bordered w-full" placeholder="例如 /api/task" @keyup.enter="loadPerformance" />
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">{{ tr("事件路由") }}</label></legend>
+            <input :id="`${formFieldId}-5`" v-model.trim="filters.route" class="input input-bordered w-full" :placeholder="tr(&quot;例如 /api/task&quot;)" @keyup.enter="loadPerformance" />
           </fieldset>
         </div>
         <div class="flex justify-end gap-2">
-          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="resetFilters">重置</button>
+          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="resetFilters">{{ tr("重置") }}</button>
           <button class="btn btn-neutral btn-sm" :disabled="loading" @click="loadPerformance">
             <span v-if="loading" class="loading loading-spinner loading-xs"></span>
-            {{ loading ? '查询中…' : '应用筛选' }}
+            {{ loading ? tr("查询中…") : tr("应用筛选") }}
           </button>
         </div>
       </div>
@@ -308,52 +310,52 @@ onMounted(loadPerformance)
       v-else-if="loadFailed && !hasLoaded"
       class="mt-5"
       type="error"
-      title="性能基线加载失败"
-      message="无法从服务器获取请求性能数据，请确认当前账号权限及服务器运行状态。"
+      :title="tr(&quot;性能基线加载失败&quot;)"
+      :message="tr(&quot;无法从服务器获取请求性能数据，请确认当前账号权限及服务器运行状态。&quot;)"
     />
 
     <template v-else>
       <div class="mt-5 grid grid-cols-2 gap-4 xl:grid-cols-5">
         <div class="stat rounded-box border border-base-300 bg-base-100">
-          <div class="stat-title">性能样本</div>
+          <div class="stat-title">{{ tr("性能样本") }}</div>
           <div class="stat-value text-2xl">{{ Number(summary.sample_count).toLocaleString('zh-CN') }}</div>
-          <div class="stat-desc">上一周期 {{ Number(baseline.sample_count).toLocaleString('zh-CN') }}</div>
+          <div class="stat-desc">{{ tr("上一周期") }} {{ Number(baseline.sample_count).toLocaleString('zh-CN') }}</div>
         </div>
         <div class="stat rounded-box border border-base-300 bg-base-100">
           <div class="stat-title">P50</div>
           <div class="stat-value text-2xl">{{ formatDuration(summary.p50_ms) }}</div>
-          <div class="stat-desc" :class="deltaClass(changes.p50_delta_rate)">{{ summaryHasBaseline ? deltaLabel(changes.p50_delta_rate) : '基线样本不足' }}</div>
+          <div class="stat-desc" :class="deltaClass(changes.p50_delta_rate)">{{ summaryHasBaseline ? deltaLabel(changes.p50_delta_rate) : tr("基线样本不足") }}</div>
         </div>
         <div class="stat rounded-box border border-base-300 bg-base-100">
           <div class="stat-title">P95</div>
           <div class="stat-value text-2xl">{{ formatDuration(summary.p95_ms) }}</div>
-          <div class="stat-desc" :class="deltaClass(changes.p95_delta_rate)">{{ summaryHasBaseline ? deltaLabel(changes.p95_delta_rate) : '基线样本不足' }}</div>
+          <div class="stat-desc" :class="deltaClass(changes.p95_delta_rate)">{{ summaryHasBaseline ? deltaLabel(changes.p95_delta_rate) : tr("基线样本不足") }}</div>
         </div>
         <div class="stat rounded-box border border-base-300 bg-base-100">
           <div class="stat-title">P99</div>
           <div class="stat-value text-2xl">{{ formatDuration(summary.p99_ms) }}</div>
-          <div class="stat-desc" :class="deltaClass(changes.p99_delta_rate)">{{ summaryHasBaseline ? deltaLabel(changes.p99_delta_rate) : '基线样本不足' }}</div>
+          <div class="stat-desc" :class="deltaClass(changes.p99_delta_rate)">{{ summaryHasBaseline ? deltaLabel(changes.p99_delta_rate) : tr("基线样本不足") }}</div>
         </div>
         <div class="stat rounded-box border border-base-300 bg-base-100">
-          <div class="stat-title">按当前策略的慢请求率</div>
+          <div class="stat-title">{{ tr("按当前策略的慢请求率") }}</div>
           <div class="stat-value text-2xl">{{ formatRate(summary.policy_slow_rate) }}</div>
-          <div class="stat-desc">监控策略 #{{ meta.policy_revision || '—' }}{{ meta.policy_enabled === false ? ' · 已关闭' : '' }} · 错误率 {{ formatRate(summary.error_rate) }}</div>
-          <div class="mt-1 text-xs opacity-60">固定 {{ meta.slow_threshold_ms || 1000 }} ms 参考值：{{ formatRate(summary.slow_rate) }}</div>
+          <div class="stat-desc">{{ tr("监控策略 #") }}{{ meta.policy_revision || '—' }}{{ meta.policy_enabled === false ? tr(" · 已关闭") : '' }} {{ tr("· 错误率") }} {{ formatRate(summary.error_rate) }}</div>
+          <div class="mt-1 text-xs opacity-60">{{ tr("固定") }} {{ meta.slow_threshold_ms || 1000 }} {{ tr("ms 参考值：") }}{{ formatRate(summary.slow_rate) }}</div>
         </div>
       </div>
 
-      <p class="mt-3 text-xs opacity-60">策略慢请求率按当前操作规则重新计算，已关闭的操作不计入慢请求；缺少路由模板的历史样本使用 Web API 默认规则。历史告警保留发生时的阈值与配置版本。</p>
+      <p class="mt-3 text-xs opacity-60">{{ tr("策略慢请求率按当前操作规则重新计算，已关闭的操作不计入慢请求；缺少路由模板的历史样本使用 Web API 默认规则。历史告警保留发生时的阈值与配置版本。") }}</p>
 
       <div v-if="summary.sample_count > 0 && normalizedCoverage < 1" class="alert alert-warning mt-4 text-sm">
-        <span>当前范围内有 {{ formatRate(1 - normalizedCoverage) }} 的历史请求缺少标准化路由，已合并为“历史未标准化”。新采集数据会自动恢复正常事件分组。</span>
+        <span>{{ tr("当前范围内有") }} {{ formatRate(1 - normalizedCoverage) }} {{ tr("的历史请求缺少标准化路由，已合并为“历史未标准化”。新采集数据会自动恢复正常事件分组。") }}</span>
       </div>
 
       <section class="card mt-5 border border-base-300 bg-base-100 shadow-sm">
         <div class="card-body p-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 class="font-semibold">耗时趋势 <span v-if="granularityLabel" class="badge badge-ghost badge-sm align-middle">{{ granularityLabel }}</span></h2>
-              <p class="mt-1 text-xs text-base-content/60">上一周期 P95 已平移到当前时间轴，用于观察相同位置的性能变化。</p>
+              <h2 class="font-semibold">{{ tr("耗时趋势") }} <span v-if="granularityLabel" class="badge badge-ghost badge-sm align-middle">{{ granularityLabel }}</span></h2>
+              <p class="mt-1 text-xs text-base-content/60">{{ tr("上一周期 P95 已平移到当前时间轴，用于观察相同位置的性能变化。") }}</p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
               <span v-if="loading" class="loading loading-spinner loading-sm"></span>
@@ -366,7 +368,7 @@ onMounted(loadPerformance)
               />
             </div>
           </div>
-          <EmptyState v-if="!trend.length" class="mt-4" title="暂无耗时趋势" message="当前筛选范围内没有可用于分析的请求样本。" />
+          <EmptyState v-if="!trend.length" class="mt-4" :title="tr(&quot;暂无耗时趋势&quot;)" :message="tr(&quot;当前筛选范围内没有可用于分析的请求样本。&quot;)" />
           <div v-else class="relative">
             <ApexChart ref="maintenanceChartRef" type="line" height="330" :options="trendOptions" :series="trendSeries" @mounted="applyMaintenanceAnnotations" />
             <SystemMaintenanceTooltip :tooltip="maintenanceTooltip" />
@@ -377,23 +379,23 @@ onMounted(loadPerformance)
       <section class="mt-5 overflow-hidden rounded-box border border-base-300 bg-base-100">
         <div class="flex items-start justify-between gap-3 border-b border-base-300 p-4">
           <div>
-            <h2 class="font-semibold">事件性能榜</h2>
-            <p class="mt-1 text-xs text-base-content/60">事件按“请求方法 + Actix 匹配路由”归并，默认展示 P95 最慢的前 {{ meta.event_limit || 50 }} 项。</p>
+            <h2 class="font-semibold">{{ tr("事件性能榜") }}</h2>
+            <p class="mt-1 text-xs text-base-content/60">{{ tr("事件按“请求方法 + Actix 匹配路由”归并，默认展示 P95 最慢的前") }} {{ meta.event_limit || 50 }} {{ tr("项。") }}</p>
           </div>
         </div>
-        <EmptyState v-if="!events.length" title="暂无事件数据" message="当前筛选范围内没有可显示的请求事件。" />
+        <EmptyState v-if="!events.length" :title="tr(&quot;暂无事件数据&quot;)" :message="tr(&quot;当前筛选范围内没有可显示的请求事件。&quot;)" />
         <div v-else class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
               <tr>
-                <th>事件</th>
-                <th>样本</th>
-                <th>平均</th>
+                <th>{{ tr("事件") }}</th>
+                <th>{{ tr("样本") }}</th>
+                <th>{{ tr("平均") }}</th>
                 <th>P50</th>
                 <th>P95</th>
                 <th>P99</th>
-                <th>最大</th>
-                <th>较上一周期 P95</th>
+                <th>{{ tr("最大") }}</th>
+                <th>{{ tr("较上一周期 P95") }}</th>
                 <th></th>
               </tr>
             </thead>
@@ -415,10 +417,10 @@ onMounted(loadPerformance)
                   <span v-if="event.sample_count >= 20 && event.baseline_sample_count >= 20" class="font-mono text-xs" :class="deltaClass(event.p95_delta_rate)">
                     {{ deltaLabel(event.p95_delta_rate) }}
                   </span>
-                  <span v-else class="text-xs text-base-content/40">样本不足</span>
+                  <span v-else class="text-xs text-base-content/40">{{ tr("样本不足") }}</span>
                 </td>
                 <td>
-                  <button class="btn btn-ghost btn-xs whitespace-nowrap" :disabled="!event.normalized" @click="viewRequestLogs(event)">查看日志</button>
+                  <button class="btn btn-ghost btn-xs whitespace-nowrap" :disabled="!event.normalized" @click="viewRequestLogs(event)">{{ tr("查看日志") }}</button>
                 </td>
               </tr>
             </tbody>

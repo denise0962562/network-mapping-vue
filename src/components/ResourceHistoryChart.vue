@@ -1,7 +1,9 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { useChartTheme } from '@/composables/useChartTheme'
 import ChartCsvExport from '@/components/ChartCsvExport.vue'
-import { formatTime as formatSystemClock, toLocalInputValue as systemInputValue, parseSystemDate } from '@/utils/systemTime'
+import { formatTime as formatSystemClock, toLocalInputValue as systemInputValue, parseSystemDate } from '../i18n/time.js'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -18,24 +20,24 @@ const emit = defineEmits(['error'])
 const DEFAULT_RANGE_MILLISECONDS = 30 * 60 * 1000
 
 const rangeOptions = [
-  { value: '30m', label: '最近 30 分钟', milliseconds: DEFAULT_RANGE_MILLISECONDS },
-  { value: '1h', label: '最近 1 小时', milliseconds: 60 * 60 * 1000 },
-  { value: '6h', label: '最近 6 小时', milliseconds: 6 * 60 * 60 * 1000 },
-  { value: '24h', label: '最近 24 小时', milliseconds: 24 * 60 * 60 * 1000 },
-  { value: '7d', label: '最近 7 天', milliseconds: 7 * 24 * 60 * 60 * 1000 },
-  { value: '30d', label: '最近 30 天', milliseconds: 30 * 24 * 60 * 60 * 1000 },
-  { value: 'custom', label: '自定义时间', milliseconds: null }
+  { value: '30m', get label() { return tr("最近 30 分钟") }, milliseconds: DEFAULT_RANGE_MILLISECONDS },
+  { value: '1h', get label() { return tr("最近 1 小时") }, milliseconds: 60 * 60 * 1000 },
+  { value: '6h', get label() { return tr("最近 6 小时") }, milliseconds: 6 * 60 * 60 * 1000 },
+  { value: '24h', get label() { return tr("最近 24 小时") }, milliseconds: 24 * 60 * 60 * 1000 },
+  { value: '7d', get label() { return tr("最近 7 天") }, milliseconds: 7 * 24 * 60 * 60 * 1000 },
+  { value: '30d', get label() { return tr("最近 30 天") }, milliseconds: 30 * 24 * 60 * 60 * 1000 },
+  { value: 'custom', get label() { return tr("自定义时间") }, milliseconds: null }
 ]
 const granularityOptions = [
-  { value: 'auto', label: '自动', seconds: null },
-  { value: '10s', label: '10 秒', seconds: 10 },
-  { value: '30s', label: '30 秒', seconds: 30 },
-  { value: '1m', label: '1 分钟', seconds: 60 },
-  { value: '5m', label: '5 分钟', seconds: 300 },
-  { value: '15m', label: '15 分钟', seconds: 900 },
-  { value: '30m', label: '30 分钟', seconds: 1800 },
-  { value: '1h', label: '1 小时', seconds: 3600 },
-  { value: '2h', label: '2 小时', seconds: 7200 }
+  { value: 'auto', get label() { return tr("自动") }, seconds: null },
+  { value: '10s', get label() { return tr("10 秒") }, seconds: 10 },
+  { value: '30s', get label() { return tr("30 秒") }, seconds: 30 },
+  { value: '1m', get label() { return tr("1 分钟") }, seconds: 60 },
+  { value: '5m', get label() { return tr("5 分钟") }, seconds: 300 },
+  { value: '15m', get label() { return tr("15 分钟") }, seconds: 900 },
+  { value: '30m', get label() { return tr("30 分钟") }, seconds: 1800 },
+  { value: '1h', get label() { return tr("1 小时") }, seconds: 3600 },
+  { value: '2h', get label() { return tr("2 小时") }, seconds: 7200 }
 ]
 
 function toLocalInputValue(date) {
@@ -105,16 +107,16 @@ function buildRequestParams() {
     start = parseSystemDate(customStart.value)
     end = parseSystemDate(customEnd.value)
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      throw new Error('请选择有效的开始和结束时间。')
+      throw new Error(tr("请选择有效的开始和结束时间。"))
     }
   } else {
     end = new Date()
     const duration = selectedRangeMilliseconds()
     start = new Date(end.getTime() - duration)
   }
-  if (start >= end) throw new Error('开始时间必须早于结束时间。')
+  if (start >= end) throw new Error(tr("开始时间必须早于结束时间。"))
   if (end.getTime() - start.getTime() > 30 * 24 * 60 * 60 * 1000) {
-    throw new Error('查询时间范围不能超过 30 天。')
+    throw new Error(tr("查询时间范围不能超过 30 天。"))
   }
   return {
     start_at: start.toISOString(),
@@ -139,7 +141,7 @@ async function loadHistory({ silent = false } = {}) {
   try {
     params = buildRequestParams()
   } catch (error) {
-    emit('error', { title: '资源趋势查询失败', description: error.message })
+    emit('error', { get title() { return tr("资源趋势查询失败") }, description: error.message })
     return
   }
 
@@ -154,7 +156,7 @@ async function loadHistory({ silent = false } = {}) {
     })
     const responsePoints = response.data?.data?.points
     if (response.data?.success !== true || !Array.isArray(responsePoints)) {
-      throw new Error('服务器未返回有效的资源趋势数据。')
+      throw new Error(tr("服务器未返回有效的资源趋势数据。"))
     }
     if (version !== requestVersion) return
     points.value = responsePoints
@@ -169,8 +171,8 @@ async function loadHistory({ silent = false } = {}) {
     failed.value = !hasLoaded.value
     if (!silent) {
       emit('error', {
-        title: '资源趋势加载失败',
-        description: error.response?.data?.message || '请检查网络连接或服务器运行状态。'
+        get title() { return tr("资源趋势加载失败") },
+        description: error.response?.data?.message || tr("请检查网络连接或服务器运行状态。")
       })
     }
   } finally {
@@ -213,7 +215,7 @@ const resourceStats = computed(() => {
       class: 'text-info'
     },
     {
-      name: '内存',
+      rawName: "内存", get name() { return tr("内存") },
       current: formatPercent(latestPoint.value?.ram_avg),
       peak: formatPercent(peakValue('ram_max')),
       class: 'text-success'
@@ -228,7 +230,7 @@ const resourceStats = computed(() => {
     })
   }
   stats.push({
-    name: '磁盘',
+    rawName: "磁盘", get name() { return tr("磁盘") },
     current: formatPercent(latestPoint.value?.disk_avg),
     peak: formatPercent(peakValue('disk_max')),
     class: 'text-warning'
@@ -243,7 +245,7 @@ const chartSeries = computed(() => {
       data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.cpu_avg }))
     },
     {
-      name: '内存',
+      rawName: "内存", get name() { return tr("内存") },
       data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.ram_avg }))
     }
   ]
@@ -254,7 +256,7 @@ const chartSeries = computed(() => {
     })
   }
   series.push({
-    name: '磁盘',
+    rawName: "磁盘", get name() { return tr("磁盘") },
     data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.disk_avg }))
   })
   return series
@@ -294,16 +296,16 @@ const chartOptions = useChartTheme(() => ({
       if (!point) return ''
       const rows = [
         { label: 'CPU', value: `平均 ${formatPercent(point.cpu_avg)} · 峰值 ${formatPercent(point.cpu_max)}`, color: '#008ffb' },
-        { label: '内存', value: `平均 ${formatPercent(point.ram_avg)} · 峰值 ${formatPercent(point.ram_max)}`, color: '#00a76f' }
+        { get label() { return tr("内存") }, value: `平均 ${formatPercent(point.ram_avg)} · 峰值 ${formatPercent(point.ram_max)}`, color: '#00a76f' }
       ]
       if (hasSwapMetrics.value) {
         rows.push({ label: 'Swap', value: `平均 ${formatPercent(point.swap_avg)} · 峰值 ${formatPercent(point.swap_max)}`, color: '#775dd0' })
       }
-      rows.push({ label: '磁盘', value: `平均 ${formatPercent(point.disk_avg)} · 峰值 ${formatPercent(point.disk_max)}`, color: '#f59e0b' })
+      rows.push({ get label() { return tr("磁盘") }, value: `平均 ${formatPercent(point.disk_avg)} · 峰值 ${formatPercent(point.disk_max)}`, color: '#f59e0b' })
       return renderChartTooltip({
         title: formatChartTooltipTime(point.timestamp_ms),
         rows,
-        footer: `样本数 ${Number(point.sample_count).toLocaleString('zh-CN')}`
+        footer: tr("样本数 {0}", [Number(point.sample_count).toLocaleString('zh-CN')])
       })
     }
   },
@@ -322,9 +324,9 @@ const totalSamples = computed(() =>
 )
 
 const statusLabel = computed(() => {
-  if (!lastUpdatedAt.value) return '尚未完成加载'
+  if (!lastUpdatedAt.value) return tr("尚未完成加载")
   const granularityLabel = meta.value?.granularity || granularity.value
-  return `粒度 ${granularityLabel} · ${points.value.length} 个时间点 · ${totalSamples.value.toLocaleString('zh-CN')} 个样本 · 更新于 ${formatSystemClock(lastUpdatedAt.value)}`
+  return tr("粒度 {0} · {1} 个时间点 · {2} 个样本 · 更新于 {3}", [granularityLabel, points.value.length, totalSamples.value.toLocaleString('zh-CN'), formatSystemClock(lastUpdatedAt.value)])
 })
 
 onMounted(() => {
@@ -345,20 +347,20 @@ onBeforeUnmount(() => {
   <div class="flex flex-col gap-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 class="text-lg font-semibold">服务器资源趋势</h2>
-        <p class="mt-1 text-xs text-base-content/60">展示各时间桶内 CPU、内存、磁盘及（配置时）Swap 使用率的平均值，Tooltip 同时显示峰值。</p>
+        <h2 class="text-lg font-semibold">{{ tr("服务器资源趋势") }}</h2>
+        <p class="mt-1 text-xs text-base-content/60">{{ tr("展示各时间桶内 CPU、内存、磁盘及（配置时）Swap 使用率的平均值，Tooltip 同时显示峰值。") }}</p>
       </div>
 
       <div class="flex flex-wrap items-end justify-end gap-2">
         <fieldset class="fieldset min-w-0 w-36">
-          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间范围</label></legend>
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("时间范围") }}</label></legend>
           <select :id="`${formFieldId}-1`" v-model="range" class="select select-bordered select-sm w-full" :disabled="loading" @change="handleRangeChange">
             <option v-for="option in rangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
           </select>
         </fieldset>
 
         <fieldset class="fieldset min-w-0 w-32">
-          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">时间粒度</label></legend>
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">{{ tr("时间粒度") }}</label></legend>
           <select :id="`${formFieldId}-2`" v-model="granularity" class="select select-bordered select-sm w-full" :disabled="loading">
             <option
               v-for="option in granularityOptions"
@@ -380,18 +382,18 @@ onBeforeUnmount(() => {
         />
         <button class="btn btn-neutral btn-sm" :disabled="loading" @click="loadHistory()">
           <span v-if="loading" class="loading loading-spinner loading-xs"></span>
-          {{ loading ? '加载中…' : '应用' }}
+          {{ loading ? tr("加载中…") : tr("应用") }}
         </button>
       </div>
     </div>
 
     <div v-if="range === 'custom'" class="grid gap-3 rounded-box bg-base-200/60 p-3 sm:grid-cols-2">
       <fieldset class="fieldset min-w-0 w-full">
-        <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">开始时间</label></legend>
+        <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">{{ tr("开始时间") }}</label></legend>
         <SystemDateTimeInput :id="`${formFieldId}-3`" v-model="customStart" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
       </fieldset>
       <fieldset class="fieldset min-w-0 w-full">
-        <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">结束时间</label></legend>
+        <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">{{ tr("结束时间") }}</label></legend>
         <SystemDateTimeInput :id="`${formFieldId}-4`" v-model="customEnd" class="input input-bordered input-sm w-full" :disabled="loading" @change="ensureValidGranularity" />
       </fieldset>
     </div>
@@ -402,10 +404,10 @@ onBeforeUnmount(() => {
       :class="resourceStats.length === 4 ? 'min-[52rem]:flex-row' : 'min-[39rem]:flex-row'"
     >
       <div v-for="item in resourceStats" :key="item.name" class="flex-1 rounded-box border border-base-300 bg-base-200/40 px-4 py-3">
-        <div class="text-xs text-base-content/60">{{ item.name }} 最新平均值</div>
+        <div class="text-xs text-base-content/60">{{ item.name }} {{ tr("最新平均值") }}</div>
         <div class="mt-1 flex items-baseline justify-between gap-3">
           <span class="text-xl font-semibold" :class="item.class">{{ item.current }}</span>
-          <span class="text-xs text-base-content/50">区间峰值 {{ item.peak }}</span>
+          <span class="text-xs text-base-content/50">{{ tr("区间峰值") }} {{ item.peak }}</span>
         </div>
       </div>
     </div>
@@ -414,13 +416,13 @@ onBeforeUnmount(() => {
     <EmptyState
       v-else-if="failed && !hasLoaded"
       type="error"
-      title="资源趋势加载失败"
-      message="无法从服务器读取历史资源数据，请稍后重试。"
+      :title="tr(&quot;资源趋势加载失败&quot;)"
+      :message="tr(&quot;无法从服务器读取历史资源数据，请稍后重试。&quot;)"
     />
     <EmptyState
       v-else-if="!hasMetrics"
-      title="暂无资源数据"
-      message="当前时间范围内没有可用于绘图的系统资源记录。"
+      :title="tr(&quot;暂无资源数据&quot;)"
+      :message="tr(&quot;当前时间范围内没有可用于绘图的系统资源记录。&quot;)"
     />
     <div v-else class="relative">
       <ApexChart ref="maintenanceChartRef" type="line" height="420" :options="chartOptions" :series="chartSeries" @mounted="applyMaintenanceAnnotations" />

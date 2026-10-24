@@ -1,14 +1,15 @@
+import { tr } from '../i18n/index.js'
 import { formatDate, formatDateTime } from './systemTime.js'
 export const reportStatuses = {
-  queued: { label: '等待生成', class: 'badge-ghost' },
-  waiting_data: { label: '等待统计', class: 'badge-warning' },
-  generating: { label: '生成中', class: 'badge-info' },
-  ready: { label: '已归档', class: 'badge-success' },
-  failed: { label: '生成失败', class: 'badge-error' },
+  queued: { get label() { return tr("等待生成") }, class: 'badge-ghost' },
+  waiting_data: { get label() { return tr("等待统计") }, class: 'badge-warning' },
+  generating: { get label() { return tr("生成中") }, class: 'badge-info' },
+  ready: { get label() { return tr("已归档") }, class: 'badge-success' },
+  failed: { get label() { return tr("生成失败") }, class: 'badge-error' },
 }
 
 export const deliveryStatuses = {
-  pending: '等待发送', sending: '发送中', sent: '已发送', failed: '发送失败', cancelled: '已取消',
+  get pending() { return tr("等待发送") }, get sending() { return tr("发送中") }, get sent() { return tr("已发送") }, get failed() { return tr("发送失败") }, get cancelled() { return tr("已取消") },
 }
 
 export function reportDate(value, withTime = false, timezone) {

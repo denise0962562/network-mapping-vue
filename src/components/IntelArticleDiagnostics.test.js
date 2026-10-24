@@ -9,6 +9,8 @@ import { renderToString } from 'vue/server-renderer'
 test('article failure details show stage and correlation ID, escape text, and explain legacy records', async () => {
   const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../../', import.meta.url)), plugins: [vue()], server: { middlewareMode: true, hmr: false }, logLevel: 'silent' })
   try {
+    const { i18n } = await server.ssrLoadModule('/src/i18n/index.js')
+    i18n.global.locale.value = 'zh-CN'
     const { default: component } = await server.ssrLoadModule('/src/components/IntelArticleDiagnostics.vue')
     const render = diagnostic => renderToString(createSSRApp(component, { articleId: 'article-fixture', diagnostic }))
     const html = await render({ stage: 'ai_request', http_status: 503, host: '<img src=x onerror=alert(1)>', authorization: 'Bearer secret' })

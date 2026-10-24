@@ -1,4 +1,6 @@
 <script setup>
+import { locale, tr } from '../i18n/index.js'
+
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { verificationAdapter } from '@/utils/humanVerification.js'
 
@@ -35,6 +37,7 @@ async function restart() {
       action: props.action,
       theme: props.theme,
       size: props.config.widget.size,
+      language: locale.value === 'zh-CN' ? 'zh-cn' : 'en',
     }, {
       token: (token) => {
         emit('token', token)
@@ -54,7 +57,7 @@ async function restart() {
   } catch (error) {
     if (!isActive()) return
     state.value = 'error'
-    errorMessage.value = error.message || '验证组件暂不可用，请重试。'
+    errorMessage.value = error.message || tr("验证组件暂不可用，请重试。")
   }
 }
 
@@ -65,7 +68,7 @@ function reset() {
 }
 
 onMounted(() => { mounted = true; restart() })
-watch(() => [props.config, props.action, props.theme], () => { if (mounted) restart() })
+watch(() => [props.config, props.action, props.theme, locale.value], () => { if (mounted) restart() })
 onBeforeUnmount(() => {
   mounted = false
   generation += 1
@@ -77,11 +80,11 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-col gap-2" aria-label="人机验证" :aria-busy="state === 'loading'">
+  <div class="flex min-w-0 flex-col gap-2" :aria-label="tr(&quot;人机验证&quot;)" :aria-busy="state === 'loading'">
     <div ref="container" class="min-w-0 max-w-full" />
-    <p v-if="state === 'loading'" class="text-sm opacity-70" role="status">正在加载验证…</p>
-    <p v-else-if="state === 'waiting'" class="text-sm opacity-70" role="status">请完成人机验证</p>
+    <p v-if="state === 'loading'" class="text-sm opacity-70" role="status">{{ tr("正在加载验证…") }}</p>
+    <p v-else-if="state === 'waiting'" class="text-sm opacity-70" role="status">{{ tr("请完成人机验证") }}</p>
     <p v-if="errorMessage" class="text-error text-sm" role="alert">{{ errorMessage }}</p>
-    <button v-if="state === 'error'" type="button" class="btn btn-outline btn-sm self-start" :disabled="busy" @click="restart">重新验证</button>
+    <button v-if="state === 'error'" type="button" class="btn btn-outline btn-sm self-start" :disabled="busy" @click="restart">{{ tr("重新验证") }}</button>
   </div>
 </template>

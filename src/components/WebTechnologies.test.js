@@ -16,6 +16,8 @@ test('Web evidence renders safely and partial results retain their limits', asyn
     logLevel: 'silent',
   })
   try {
+    const { i18n } = await server.ssrLoadModule('/src/i18n/index.js')
+    i18n.global.locale.value = 'zh-CN'
     const { default: component } = await server.ssrLoadModule('/src/components/WebTechnologies.vue')
     const value = {
       status: 'partial', truncated: true, observed_at: 1000, stale: true, ruleset_version: 'fixture',

@@ -1,3 +1,7 @@
+import StartupFailure from './components/StartupFailure.vue'
+import { i18n, locale, tr } from './i18n/index.js'
+import { watch } from 'vue'
+import LanguageSelect from './components/LanguageSelect.vue'
 import { createApp } from 'vue'
 import Search from './Search.vue'
 import './style.css'
@@ -13,17 +17,13 @@ async function start() {
   const root = document.querySelector('#search')
   try {
     await loadSystemPreferences()
-    createApp(Search).mount('#search')
+    createApp(Search).use(i18n).component('LanguageSelect', LanguageSelect).mount('#search')
     syncSystemPreferences()
   } catch {
-    root.replaceChildren()
-    const message = document.createElement('p')
-    message.textContent = '系统时间设置加载失败，请重试。'
-    const retry = document.createElement('button')
-    retry.className = 'btn btn-neutral btn-sm'
-    retry.textContent = '重新加载'
-    retry.onclick = start
-    root.append(message, retry)
+    const fallback = createApp(StartupFailure, { retry: () => { fallback.unmount(); start() } }).use(i18n)
+    fallback.mount(root)
   }
 }
 if (getCookieValue('csrf_token')) start()
+
+watch(locale, () => { document.title = tr('搜索') + ' · Network Mapping' }, { immediate: true })

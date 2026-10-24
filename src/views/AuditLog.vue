@@ -1,5 +1,7 @@
 <script setup>
-import { formatDateTime as formatSystemDateTime, localToIso } from '@/utils/systemTime'
+import { tr } from '../i18n/index.js'
+
+import { formatDateTime as formatSystemDateTime, localToIso } from '../i18n/time.js'
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -26,50 +28,50 @@ const filters = ref({
 })
 
 const categoryLabels = {
-  authentication: '身份认证',
-  authorization: '权限控制',
-  user_security: '用户安全',
-  task: '扫描任务',
-  scanner: '扫描器',
-  automatic_target: '系统生成目标',
-  configuration: '系统配置',
-  data_access: '数据访问',
-  backup: '数据备份',
-  audit: '审计系统'
+  get authentication() { return tr("身份认证") },
+  get authorization() { return tr("权限控制") },
+  get user_security() { return tr("用户安全") },
+  get task() { return tr("扫描任务") },
+  get scanner() { return tr("扫描器") },
+  get automatic_target() { return tr("系统生成目标") },
+  get configuration() { return tr("系统配置") },
+  get data_access() { return tr("数据访问") },
+  get backup() { return tr("数据备份") },
+  get audit() { return tr("审计系统") }
 }
 
 const actionLabels = {
-  'auth.login': '用户登录',
-  'auth.password_verify': '密码验证',
-  'auth.logout': '退出登录',
-  'auth.totp_verify': '双因素验证',
-  'user.password_change': '修改密码',
-  'user.totp_bind': '绑定双因素认证',
-  'user.totp_unbind': '解绑双因素认证',
-  'user.create': '创建用户',
-  'user.enable': '启用用户',
-  'user.disable': '禁用用户',
-  'user.kick': '踢出用户',
-  'user.delete': '删除用户',
-  'user.login_records.query': '查询登录记录',
-  'task.create': '创建任务',
-  'task.create_dns': '创建 DNS 任务',
-  'task.auto_generate': '生成系统目标',
-  'task.cancel': '取消任务',
-  'task.retry': '重试任务',
-  'scanner.create': '创建扫描器',
-  'scanner.register': '注册扫描器',
-  'scanner.update': '更新扫描器',
-  'scanner.enable': '启用扫描器',
-  'scanner.disable': '禁用扫描器',
-  'scanner.token.reissue': '重发扫描器令牌',
-  'scanner.delete': '删除扫描器',
-  'backup.job.create': '提交备份任务',
-  'backup.job.complete': '备份任务完成',
-  'backup.run': '执行数据备份',
-  'backup.check': '执行归档检查',
-  'audit.query': '查询审计日志',
-  'audit.export': '导出审计日志'
+  get 'auth.login'() { return tr("用户登录") },
+  get 'auth.password_verify'() { return tr("密码验证") },
+  get 'auth.logout'() { return tr("退出登录") },
+  get 'auth.totp_verify'() { return tr("双因素验证") },
+  get 'user.password_change'() { return tr("修改密码") },
+  get 'user.totp_bind'() { return tr("绑定双因素认证") },
+  get 'user.totp_unbind'() { return tr("解绑双因素认证") },
+  get 'user.create'() { return tr("创建用户") },
+  get 'user.enable'() { return tr("启用用户") },
+  get 'user.disable'() { return tr("禁用用户") },
+  get 'user.kick'() { return tr("踢出用户") },
+  get 'user.delete'() { return tr("删除用户") },
+  get 'user.login_records.query'() { return tr("查询登录记录") },
+  get 'task.create'() { return tr("创建任务") },
+  get 'task.create_dns'() { return tr("创建 DNS 任务") },
+  get 'task.auto_generate'() { return tr("生成系统目标") },
+  get 'task.cancel'() { return tr("取消任务") },
+  get 'task.retry'() { return tr("重试任务") },
+  get 'scanner.create'() { return tr("创建扫描器") },
+  get 'scanner.register'() { return tr("注册扫描器") },
+  get 'scanner.update'() { return tr("更新扫描器") },
+  get 'scanner.enable'() { return tr("启用扫描器") },
+  get 'scanner.disable'() { return tr("禁用扫描器") },
+  get 'scanner.token.reissue'() { return tr("重发扫描器令牌") },
+  get 'scanner.delete'() { return tr("删除扫描器") },
+  get 'backup.job.create'() { return tr("提交备份任务") },
+  get 'backup.job.complete'() { return tr("备份任务完成") },
+  get 'backup.run'() { return tr("执行数据备份") },
+  get 'backup.check'() { return tr("执行归档检查") },
+  get 'audit.query'() { return tr("查询审计日志") },
+  get 'audit.export'() { return tr("导出审计日志") }
 }
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
@@ -100,13 +102,13 @@ function resultClass(outcome) {
 }
 
 function resultLabel(outcome) {
-  return { success: '成功', failure: '失败', denied: '拒绝' }[outcome] || outcome
+  return { get success() { return tr("成功") }, get failure() { return tr("失败") }, get denied() { return tr("拒绝") } }[outcome] || outcome
 }
 
 function actorLabel(event) {
   if (event.actor_name) return event.actor_name
   if (event.actor_id) return `${event.actor_type}:${event.actor_id}`
-  return event.actor_type === 'anonymous' ? '匿名访问' : event.actor_type
+  return event.actor_type === 'anonymous' ? tr("匿名访问") : event.actor_type
 }
 
 function resourceLabel(event) {
@@ -144,9 +146,9 @@ async function loadEvents() {
       initialLoadFailed.value = true
     }
     if (error.response?.status === 403) {
-      pushAlert('error', '审计日志加载失败', '只有管理员可以查看审计日志。')
+      pushAlert('error', tr("审计日志加载失败"), tr("只有管理员可以查看审计日志。"))
     } else {
-      pushAlert('error', '审计日志加载失败', error.response?.data?.message || error.message || '请检查网络连接或服务器运行状态。')
+      pushAlert('error', tr("审计日志加载失败"), error.response?.data?.message || error.message || tr("请检查网络连接或服务器运行状态。"))
     }
   } finally {
     loading.value = false
@@ -195,10 +197,10 @@ async function exportCsv() {
     console.error('export audit events failed', error)
     pushAlert(
       'error',
-      '审计日志导出失败',
+      tr("审计日志导出失败"),
       error.response?.status === 403
-        ? '只有管理员可以导出审计日志。'
-        : '请检查网络连接或服务器运行状态。'
+        ? tr("只有管理员可以导出审计日志。")
+        : tr("请检查网络连接或服务器运行状态。")
     )
   } finally {
     exporting.value = false
@@ -230,35 +232,35 @@ onMounted(loadEvents)
   <main class="page-shell">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="page-title">审计日志</h1>
-        <p class="mt-1 text-sm text-base-content/60">追踪关键身份认证、任务和扫描器管理操作。</p>
+        <h1 class="page-title">{{ tr("审计日志") }}</h1>
+        <p class="mt-1 text-sm text-base-content/60">{{ tr("追踪关键身份认证、任务和扫描器管理操作。") }}</p>
       </div>
       <button class="btn btn-outline btn-sm" :disabled="exporting || loading" @click="exportCsv">
-        {{ exporting ? '导出中…' : '导出 CSV' }}
+        {{ exporting ? tr("导出中…") : tr("导出 CSV") }}
       </button>
     </div>
 
     <div class="card border border-base-300 bg-base-100 shadow-sm">
       <div class="card-body gap-4 p-4">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-          <input v-model.trim="filters.keyword" class="input input-bordered w-full xl:col-span-2" placeholder="动作、操作者或资源 ID" @keyup.enter="applyFilters" />
+          <input v-model.trim="filters.keyword" class="input input-bordered w-full xl:col-span-2" :placeholder="tr(&quot;动作、操作者或资源 ID&quot;)" @keyup.enter="applyFilters" />
           <select v-model="filters.category" class="select select-bordered w-full">
-            <option value="">全部分类</option>
+            <option value="">{{ tr("全部分类") }}</option>
             <option v-for="(label, value) in categoryLabels" :key="value" :value="value">{{ label }}</option>
           </select>
           <select v-model="filters.outcome" class="select select-bordered w-full">
-            <option value="">全部结果</option>
-            <option value="success">成功</option>
-            <option value="failure">失败</option>
-            <option value="denied">拒绝</option>
+            <option value="">{{ tr("全部结果") }}</option>
+            <option value="success">{{ tr("成功") }}</option>
+            <option value="failure">{{ tr("失败") }}</option>
+            <option value="denied">{{ tr("拒绝") }}</option>
           </select>
-          <SystemDateTimeInput v-model="filters.start" class="input input-bordered w-full" aria-label="开始时间" />
-          <SystemDateTimeInput v-model="filters.end" class="input input-bordered w-full" aria-label="结束时间" />
-          <input v-model.trim="filters.request_id" class="input input-bordered w-full" placeholder="请求 ID (UUID)" @keyup.enter="applyFilters" />
+          <SystemDateTimeInput v-model="filters.start" class="input input-bordered w-full" :aria-label="tr(&quot;开始时间&quot;)" />
+          <SystemDateTimeInput v-model="filters.end" class="input input-bordered w-full" :aria-label="tr(&quot;结束时间&quot;)" />
+          <input v-model.trim="filters.request_id" class="input input-bordered w-full" :placeholder="tr(&quot;请求 ID (UUID)&quot;)" @keyup.enter="applyFilters" />
         </div>
         <div class="flex justify-end gap-2">
-          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="resetFilters">重置</button>
-          <button class="btn btn-neutral btn-sm" :disabled="loading" @click="applyFilters">查询</button>
+          <button class="btn btn-ghost btn-sm" :disabled="loading" @click="resetFilters">{{ tr("重置") }}</button>
+          <button class="btn btn-neutral btn-sm" :disabled="loading" @click="applyFilters">{{ tr("查询") }}</button>
         </div>
       </div>
     </div>
@@ -271,21 +273,21 @@ onMounted(loadEvents)
       <EmptyState
         v-else-if="initialLoadFailed"
         type="error"
-        title="加载数据失败"
-        :message="'这通常是由于客户端与服务器的网络不可达或服务器崩溃了\n请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员'"
+        :title="tr(&quot;加载数据失败&quot;)"
+        :message="tr(&quot;这通常是由于客户端与服务器的网络不可达或服务器崩溃了\n请检查您的网络，并测试是否可以正常访问服务器，如果上述一切正常，请联系系统管理员&quot;)"
       />
-      <EmptyState v-else-if="events.length === 0" title="暂无审计事件" message="当前筛选条件下没有可显示的记录。" />
+      <EmptyState v-else-if="events.length === 0" :title="tr(&quot;暂无审计事件&quot;)" :message="tr(&quot;当前筛选条件下没有可显示的记录。&quot;)" />
       <div v-else-if="events.length" class="overflow-x-auto">
         <table class="table table-zebra">
           <thead>
             <tr>
-              <th>时间</th>
-              <th>操作者</th>
-              <th>动作</th>
-              <th>资源</th>
-              <th>请求 ID</th>
-              <th>来源 IP</th>
-              <th>结果</th>
+              <th>{{ tr("时间") }}</th>
+              <th>{{ tr("操作者") }}</th>
+              <th>{{ tr("动作") }}</th>
+              <th>{{ tr("资源") }}</th>
+              <th>{{ tr("请求 ID") }}</th>
+              <th>{{ tr("来源 IP") }}</th>
+              <th>{{ tr("结果") }}</th>
               <th></th>
             </tr>
           </thead>
@@ -304,7 +306,7 @@ onMounted(loadEvents)
               </td>
               <td class="font-mono text-xs">{{ event.source_ip || '--' }}</td>
               <td><span class="badge badge-sm" :class="resultClass(event.outcome)">{{ resultLabel(event.outcome) }}</span></td>
-              <td><button class="btn btn-ghost btn-xs" @click="selectedEvent = event">详情</button></td>
+              <td><button class="btn btn-ghost btn-xs" @click="selectedEvent = event">{{ tr("详情") }}</button></td>
             </tr>
           </tbody>
         </table>
@@ -312,40 +314,40 @@ onMounted(loadEvents)
     </div>
 
     <div v-if="events.length" class="mt-4 flex items-center justify-between text-sm">
-      <span class="text-base-content/60">共 {{ total }} 条，第 {{ page }} / {{ totalPages }} 页</span>
+      <span class="text-base-content/60">{{ tr("共") }} {{ total }} {{ tr("条，第") }} {{ page }} / {{ totalPages }} {{ tr("页") }}</span>
       <div class="join">
-        <button class="btn btn-sm join-item" :disabled="page <= 1 || loading" @click="changePage(page - 1)">上一页</button>
-        <button class="btn btn-sm join-item" :disabled="page >= totalPages || loading" @click="changePage(page + 1)">下一页</button>
+        <button class="btn btn-sm join-item" :disabled="page <= 1 || loading" @click="changePage(page - 1)">{{ tr("上一页") }}</button>
+        <button class="btn btn-sm join-item" :disabled="page >= totalPages || loading" @click="changePage(page + 1)">{{ tr("下一页") }}</button>
       </div>
     </div>
 
     <dialog class="modal" :class="{ 'modal-open': selectedEvent }">
       <div v-if="selectedEvent" class="modal-box max-w-3xl">
-        <h2 class="text-lg font-semibold">审计事件详情</h2>
+        <h2 class="text-lg font-semibold">{{ tr("审计事件详情") }}</h2>
         <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
-          <div><span class="text-base-content/50">事件 ID</span><div class="break-all font-mono text-xs">{{ selectedEvent.event_id }}</div></div>
+          <div><span class="text-base-content/50">{{ tr("事件 ID") }}</span><div class="break-all font-mono text-xs">{{ selectedEvent.event_id }}</div></div>
           <div>
-            <span class="text-base-content/50">请求 ID</span>
+            <span class="text-base-content/50">{{ tr("请求 ID") }}</span>
             <div class="break-all font-mono text-xs">{{ selectedEvent.request_id || '--' }}</div>
-            <button v-if="selectedEvent.request_id" class="btn btn-outline btn-xs mt-2" @click="filterByRequestId(selectedEvent.request_id)">筛选此请求的全部事件</button>
+            <button v-if="selectedEvent.request_id" class="btn btn-outline btn-xs mt-2" @click="filterByRequestId(selectedEvent.request_id)">{{ tr("筛选此请求的全部事件") }}</button>
           </div>
-          <div><span class="text-base-content/50">时间</span><div>{{ formatTime(selectedEvent.occurred_at) }}</div></div>
-          <div><span class="text-base-content/50">响应状态</span><div>{{ selectedEvent.response_status || '--' }}</div></div>
-          <div><span class="text-base-content/50">事件触发者 IP</span><div class="font-mono text-xs">{{ selectedEvent.source_ip || '--' }}</div></div>
-          <div><span class="text-base-content/50">请求</span><div>{{ selectedEvent.http_method || '--' }} {{ selectedEvent.request_path || '--' }}</div></div>
+          <div><span class="text-base-content/50">{{ tr("时间") }}</span><div>{{ formatTime(selectedEvent.occurred_at) }}</div></div>
+          <div><span class="text-base-content/50">{{ tr("响应状态") }}</span><div>{{ selectedEvent.response_status || '--' }}</div></div>
+          <div><span class="text-base-content/50">{{ tr("事件触发者 IP") }}</span><div class="font-mono text-xs">{{ selectedEvent.source_ip || '--' }}</div></div>
+          <div><span class="text-base-content/50">{{ tr("请求") }}</span><div>{{ selectedEvent.http_method || '--' }} {{ selectedEvent.request_path || '--' }}</div></div>
           <div><span class="text-base-content/50">User-Agent</span><div class="break-all">{{ selectedEvent.user_agent || '--' }}</div></div>
         </div>
         <div class="mt-4">
-          <div class="text-sm text-base-content/50">变更内容</div>
+          <div class="text-sm text-base-content/50">{{ tr("变更内容") }}</div>
           <pre class="mt-1 max-h-52 overflow-auto rounded-box bg-base-200 p-3 text-xs">{{ formattedJson(selectedEvent.changes) }}</pre>
         </div>
         <div class="mt-4">
-          <div class="text-sm text-base-content/50">元数据</div>
+          <div class="text-sm text-base-content/50">{{ tr("元数据") }}</div>
           <pre class="mt-1 max-h-52 overflow-auto rounded-box bg-base-200 p-3 text-xs">{{ formattedJson(selectedEvent.metadata) }}</pre>
         </div>
-        <div class="modal-action"><button class="btn" @click="selectedEvent = null">关闭</button></div>
+        <div class="modal-action"><button class="btn" @click="selectedEvent = null">{{ tr("关闭") }}</button></div>
       </div>
-      <button class="modal-backdrop" aria-label="关闭详情" @click="selectedEvent = null"></button>
+      <button class="modal-backdrop" :aria-label="tr(&quot;关闭详情&quot;)" @click="selectedEvent = null"></button>
     </dialog>
   </main>
 </template>

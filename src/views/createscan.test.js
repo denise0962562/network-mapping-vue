@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -14,7 +15,7 @@ const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration
 
 function page() {
   const requests = []
-  const state = vm.runInNewContext(`${source}\n;({scanProfile, targetInput, port, scanSettingsLoading,
+  const state = localizedVm(`${source}\n;({scanProfile, targetInput, port, scanSettingsLoading,
     targetInputRef, portInputRef, probeServerName, modbusUnitId, requiredServices,
     serviceProbeOptions, previewPlacement, submitTask})`, {
     ...services, ...targets, computed, ref, watch, useId: () => 'scan-form',
@@ -60,3 +61,9 @@ test('UDP preview and creation select the full transport protocol set automatica
     assert.deepEqual(payload.service_probe_options, {})
   }
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

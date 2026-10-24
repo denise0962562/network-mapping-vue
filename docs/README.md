@@ -9,7 +9,7 @@ Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。�
 
 ## 版本更新
 
-[更新日志](CHANGELOG.md)记录已实现的变更；[服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)区分当前交付和后续 UDP/Transport 入口。
+[更新日志](CHANGELOG.md)按阶段记录已实现变更与明确标注的规划；[服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)区分当前交付与后续批次。
 
 [服务协议识别与部署](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_PROTOCOLS.md)列出当前已实现协议、证据及边界。创建页默认自动识别全部已实现 TCP 服务，UDP 主动/被动任务自动识别各自支持的协议，无需逐项选择；非标准端口覆盖仍受扫描器策略和预算限制。TLS、DoH 与工业参数集中在 daisyUI 折叠高级设置，沿用明暗主题和现有布局。
 
@@ -68,3 +68,5 @@ Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。�
 - 本仓库尚无独立 MkDocs 配置；服务端和扫描器文档站的本地预览方式见各自文档中心。
 
 - [域名发现与证书关联](DOMAIN_DISCOVERY.md)
+
+[语言切换与多语言文档](LOCALIZATION.md)：语言规则、cookie 和中英统一构建。

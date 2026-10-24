@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { onBeforeUnmount, ref, watch } from 'vue'
 import http from '../utils/http'
 import IntelEvidence from './IntelEvidence.vue'
@@ -19,4 +21,4 @@ watch(() => [props.type, props.value], ([type, value]) => {
 }, { immediate: true })
 onBeforeUnmount(() => { version++; clearTimeout(timer); controller?.abort() })
 </script>
-<template><IntelEvidence :intel="intel" :label="type === 'asn' ? 'ASN 情报' : '情报'" /></template>
+<template><IntelEvidence :intel="intel" :label="type === &#39;asn&#39; ? tr(&quot;ASN 情报&quot;) : tr(&quot;情报&quot;)" /></template>

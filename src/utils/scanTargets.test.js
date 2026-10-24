@@ -1,3 +1,5 @@
+import { i18n } from '../i18n/index.js'
+i18n.global.locale.value = 'zh-CN'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { parseScanTargets } from './scanTargets.js'

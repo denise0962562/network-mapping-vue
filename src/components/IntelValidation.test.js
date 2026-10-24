@@ -9,6 +9,8 @@ import { renderToString } from 'vue/server-renderer'
 test('isolated source records show bounded diagnostics as plain text', async () => {
   const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../../', import.meta.url)), plugins: [vue()], server: { middlewareMode: true, hmr: false }, logLevel: 'silent' })
   try {
+    const { i18n } = await server.ssrLoadModule('/src/i18n/index.js')
+    i18n.global.locale.value = 'zh-CN'
     const { default: component } = await server.ssrLoadModule('/src/components/IntelValidation.vue')
     const render = report => renderToString(createSSRApp(component, { report }))
     const html = await render({ rejected: 1, rejection_samples: [{ record: 7, external_id: '42', file: '<script>report.json', type: 'domain', value: '<img src=x onerror=alert(1)>', code: 'intel_invalid_domain' }] })

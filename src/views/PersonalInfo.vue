@@ -1,5 +1,7 @@
 <script setup>
-import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
+import { tr } from '../i18n/index.js'
+
+import { formatDateTime as formatSystemDateTime } from '../i18n/time.js'
 import { computed, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
@@ -57,7 +59,7 @@ function normalizeUserInfo(rawUserInfo) {
   return {
     username: rawUserInfo?.username || '',
     email: rawUserInfo?.email || '',
-    userType: rawUserInfo?.role === 1 ? '管理员' : '普通用户',
+    userType: rawUserInfo?.role === 1 ? tr("管理员") : tr("普通用户"),
     createdAt: rawUserInfo?.create_time,
     updatedAt: '--',
     lastLoginAt: rawUserInfo?.last_login_at,
@@ -67,11 +69,11 @@ function normalizeUserInfo(rawUserInfo) {
 }
 
 function loginMethodLabel(value) {
-  return value === 'password_totp' ? '密码 + 2FA' : '密码'
+  return value === 'password_totp' ? tr("密码 + 2FA") : tr("密码")
 }
 
 function loginResultLabel(value) {
-  return value === 'success' ? '成功' : '失败'
+  return value === 'success' ? tr("成功") : tr("失败")
 }
 
 function loginResultClass(value) {
@@ -80,10 +82,10 @@ function loginResultClass(value) {
 
 function loginReasonLabel(value) {
   return {
-    invalid_credentials: '用户名或密码错误',
-    invalid_totp: '2FA 验证码错误',
-    ip_not_allowlisted: '登录 IP 不在白名单中',
-    legacy_login_failure: '旧版登录失败'
+    get invalid_credentials() { return tr("用户名或密码错误") },
+    get invalid_totp() { return tr("2FA 验证码错误") },
+    get ip_not_allowlisted() { return tr("登录 IP 不在白名单中") },
+    get legacy_login_failure() { return tr("旧版登录失败") }
   }[value] || '--'
 }
 
@@ -100,7 +102,7 @@ async function fetchLoginRecords(page = 1) {
   } catch (error) {
     console.error('fetch login records failed', error)
     loginRecordsFailed.value = true
-    pushAlert('error', '登录记录加载失败', '请稍后重试。', 7000)
+    pushAlert('error', tr("登录记录加载失败"), tr("请稍后重试。"), 7000)
   } finally {
     loginRecordsLoading.value = false
   }
@@ -116,7 +118,7 @@ async function fetchUserInfo() {
     savedUserInfo.value = { ...normalizedUserInfo }
   } catch (error) {
     console.error('fetch user info failed', error)
-    pushAlert('error', '个人信息加载失败', '请稍后刷新页面重试。', 7000)
+    pushAlert('error', tr("个人信息加载失败"), tr("请稍后刷新页面重试。"), 7000)
   } finally {
     loadingUserInfo.value = false
   }
@@ -135,15 +137,15 @@ async function saveUserInfo() {
 
     if (response.status === 200) {
       savedUserInfo.value = { ...userInfo.value }
-      pushAlert('success', '个人信息已保存', '账号资料已更新。', 5000)
+      pushAlert('success', tr("个人信息已保存"), tr("账号资料已更新。"), 5000)
       return true
     } else {
-      pushAlert('error', '个人信息保存失败', '服务器未接受本次更新。', 7000)
+      pushAlert('error', tr("个人信息保存失败"), tr("服务器未接受本次更新。"), 7000)
       return false
     }
   } catch (error) {
     console.error('update user info failed', error)
-    pushAlert('error', '个人信息保存失败', '请检查网络连接后重试。', 7000)
+    pushAlert('error', tr("个人信息保存失败"), tr("请检查网络连接后重试。"), 7000)
     return false
   } finally {
     savingUserInfo.value = false
@@ -174,18 +176,18 @@ onMounted(() => {
 
   <div class="page-shell">
     <div class="mb-5">
-      <h1 class="page-title">个人信息</h1>
-      <p class="mt-1 text-xs opacity-60">查看当前用户资料、登录状态和基础账号信息。</p>
+      <h1 class="page-title">{{ tr("个人信息") }}</h1>
+      <p class="mt-1 text-xs opacity-60">{{ tr("查看当前用户资料、登录状态和基础账号信息。") }}</p>
     </div>
 
     <div class="card bg-base-100 card-border border-base-300 p-4">
       <div class="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h3 class="font-semibold">账号资料</h3>
-          <p class="mt-1 text-xs opacity-60">用户名和邮箱可编辑，其余信息由系统记录。</p>
+          <h3 class="font-semibold">{{ tr("账号资料") }}</h3>
+          <p class="mt-1 text-xs opacity-60">{{ tr("用户名和邮箱可编辑，其余信息由系统记录。") }}</p>
         </div>
         <button class="btn btn-neutral btn-sm rounded-lg" :class="showSave ? 'visible' : 'invisible'" :disabled="!showSave || savingUserInfo" @click="saveUserInfo">
-          {{ savingUserInfo ? '保存中...' : '保存' }}
+          {{ savingUserInfo ? tr("保存中...") : tr("保存") }}
         </button>
       </div>
 
@@ -205,42 +207,42 @@ onMounted(() => {
 
       <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <fieldset class="fieldset min-w-0 w-full">
-          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">用户名</label></legend>
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("用户名") }}</label></legend>
           <input :id="`${formFieldId}-1`" v-model="userInfo.username" type="text" class="input input-bordered w-full" />
         </fieldset>
 
         <fieldset class="fieldset min-w-0 w-full">
-          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">邮箱</label></legend>
+          <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">{{ tr("邮箱") }}</label></legend>
           <input :id="`${formFieldId}-2`" v-model="userInfo.email" type="email" class="input input-bordered w-full" />
         </fieldset>
 
         <div class="rounded-lg bg-base-200/60 p-3">
-          <div class="text-xs opacity-60">用户类型</div>
+          <div class="text-xs opacity-60">{{ tr("用户类型") }}</div>
           <div class="mt-1 text-sm font-medium">{{ userInfo.userType }}</div>
         </div>
 
         <div class="rounded-lg bg-base-200/60 p-3">
-          <div class="text-xs opacity-60">是否限制登录</div>
-          <div class="mt-1 text-sm font-medium">{{ userInfo.loginRestricted ? '是' : '否' }}</div>
+          <div class="text-xs opacity-60">{{ tr("是否限制登录") }}</div>
+          <div class="mt-1 text-sm font-medium">{{ userInfo.loginRestricted ? tr("是") : tr("否") }}</div>
         </div>
 
         <div class="rounded-lg bg-base-200/60 p-3">
-          <div class="text-xs opacity-60">创建时间</div>
+          <div class="text-xs opacity-60">{{ tr("创建时间") }}</div>
           <div class="mt-1 text-sm font-medium">{{ formatTime(userInfo.createdAt) }}</div>
         </div>
 
         <div class="rounded-lg bg-base-200/60 p-3">
-          <div class="text-xs opacity-60">更新时间</div>
+          <div class="text-xs opacity-60">{{ tr("更新时间") }}</div>
           <div class="mt-1 text-sm font-medium">{{ userInfo.updatedAt }}</div>
         </div>
 
         <div class="rounded-lg bg-base-200/60 p-3">
-          <div class="text-xs opacity-60">最后一次登录时间</div>
+          <div class="text-xs opacity-60">{{ tr("最后一次登录时间") }}</div>
           <div class="mt-1 text-sm font-medium">{{ formatTime(userInfo.lastLoginAt) }}</div>
         </div>
 
         <div class="rounded-lg bg-base-200/60 p-3">
-          <div class="text-xs opacity-60">最后一次登录 IP</div>
+          <div class="text-xs opacity-60">{{ tr("最后一次登录 IP") }}</div>
           <div class="mt-1 text-sm font-medium">{{ userInfo.lastLoginIp }}</div>
         </div>
       </div>
@@ -249,35 +251,31 @@ onMounted(() => {
     <div class="card bg-base-100 card-border border-base-300 mt-5 p-4">
       <div class="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h3 class="font-semibold">登录记录</h3>
-          <p class="mt-1 text-xs opacity-60">查看账号近期的成功登录和失败尝试。</p>
+          <h3 class="font-semibold">{{ tr("登录记录") }}</h3>
+          <p class="mt-1 text-xs opacity-60">{{ tr("查看账号近期的成功登录和失败尝试。") }}</p>
         </div>
         <select v-model="loginOutcome" class="select select-bordered select-sm" :disabled="loginRecordsLoading" @change="fetchLoginRecords(1)">
-          <option value="">全部结果</option>
-          <option value="success">成功</option>
-          <option value="failure">失败</option>
+          <option value="">{{ tr("全部结果") }}</option>
+          <option value="success">{{ tr("成功") }}</option>
+          <option value="failure">{{ tr("失败") }}</option>
         </select>
       </div>
 
       <div v-if="loginRecordsLoading" class="grid min-h-36 place-items-center">
         <span class="loading loading-spinner loading-md"></span>
       </div>
-      <div v-else-if="loginRecordsFailed" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60">
-        登录记录加载失败
-      </div>
-      <div v-else-if="loginRecords.length === 0" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60">
-        暂无登录记录
-      </div>
+      <div v-else-if="loginRecordsFailed" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60"> {{ tr("登录记录加载失败") }} </div>
+      <div v-else-if="loginRecords.length === 0" class="grid min-h-36 place-items-center rounded-lg bg-base-200/60 text-sm opacity-60"> {{ tr("暂无登录记录") }} </div>
       <div v-else class="overflow-x-auto">
         <table class="table">
           <thead>
             <tr>
-              <th>时间</th>
-              <th>结果</th>
-              <th>认证方式</th>
-              <th>来源 IP</th>
-              <th>说明</th>
-              <th>客户端</th>
+              <th>{{ tr("时间") }}</th>
+              <th>{{ tr("结果") }}</th>
+              <th>{{ tr("认证方式") }}</th>
+              <th>{{ tr("来源 IP") }}</th>
+              <th>{{ tr("说明") }}</th>
+              <th>{{ tr("客户端") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -293,10 +291,10 @@ onMounted(() => {
         </table>
       </div>
       <div v-if="loginRecords.length" class="mt-4 flex items-center justify-between border-t border-base-300 pt-4 text-xs">
-        <span class="opacity-60">共 {{ loginPagination.total }} 条，第 {{ loginPagination.page }} / {{ loginPagination.totalPages }} 页</span>
+        <span class="opacity-60">{{ tr("共") }} {{ loginPagination.total }} {{ tr("条，第") }} {{ loginPagination.page }} / {{ loginPagination.totalPages }} {{ tr("页") }}</span>
         <div class="join">
-          <button class="btn btn-sm join-item" :disabled="loginPagination.page <= 1 || loginRecordsLoading" @click="fetchLoginRecords(loginPagination.page - 1)">上一页</button>
-          <button class="btn btn-sm join-item" :disabled="loginPagination.page >= loginPagination.totalPages || loginRecordsLoading" @click="fetchLoginRecords(loginPagination.page + 1)">下一页</button>
+          <button class="btn btn-sm join-item" :disabled="loginPagination.page <= 1 || loginRecordsLoading" @click="fetchLoginRecords(loginPagination.page - 1)">{{ tr("上一页") }}</button>
+          <button class="btn btn-sm join-item" :disabled="loginPagination.page >= loginPagination.totalPages || loginRecordsLoading" @click="fetchLoginRecords(loginPagination.page + 1)">{{ tr("下一页") }}</button>
         </div>
       </div>
     </div>

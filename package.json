@@ -22,7 +22,8 @@
     "preview": "vite preview",
     "test:routing": "node --test src/utils/scanRouting.test.js",
     "test:open-api": "node --test src/utils/openApi.test.js",
-    "test:web": "node --test src/utils/webDetection.test.js src/components/WebTechnologies.test.js src/views/taskdetail.test.js"
+    "test:web": "node --test src/utils/webDetection.test.js src/components/WebTechnologies.test.js src/views/taskdetail.test.js",
+    "test:i18n": "node --test src/i18n/*.test.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -39,6 +40,7 @@
     "vue": "^3.5.35",
     "vue-apexmaps": "^0.3.0",
     "vue-codemirror": "^6.1.1",
+    "vue-i18n": "11.2.8",
     "vue-qrcode": "^2.2.2",
     "vue-router": "^5.1.0",
     "vue3-apexcharts": "^1.11.1"

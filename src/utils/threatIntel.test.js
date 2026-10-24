@@ -1,3 +1,5 @@
+import { i18n } from '../i18n/index.js'
+i18n.global.locale.value = 'zh-CN'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { defaultIntervals, newSource, sourcePayload, settingsPayload, safeReference, originLabel, intelError, articleDiagnosticRows, articleStatusLabel } from './threatIntel.js'

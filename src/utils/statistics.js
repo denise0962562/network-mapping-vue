@@ -1,16 +1,39 @@
-import { chartCsv } from './chartCsv.js'
-import { addCalendarDays, calendarDate, calendarMidnight, formatDateTime } from './systemTime.js'
-
-export const groupLabels = { day: '按日', week: '按周', month: '按月', scanner: '按扫描器', task_source: '按任务来源', port: '按端口', service: '按服务' }
-export const chartLabels = { line: '折线图', bar: '柱状图', donut: '环形图', stacked: '堆叠柱状图', heatmap: '热力图' }
-export const metrics = {
+const csvGroupLabels = { day: '按日', week: '按周', month: '按月', scanner: '按扫描器', task_source: '按任务来源', port: '按端口', service: '按服务' }
+const csvMetrics = {
   count: { label: '数量', unit: '个' }, unique_ips: { label: '周期去重 IP', unit: '个' }, categories: { label: '类别数', unit: '类' },
   percentage: { label: '占比', unit: '%' }, created: { label: '新建任务', unit: '个' }, completed: { label: '完成数量（含取消）', unit: '个' },
   succeeded: { label: '成功', unit: '个' }, failed: { label: '失败', unit: '个' }, partial: { label: '部分完成', unit: '个' }, cancelled: { label: '取消', unit: '个' },
   success_rate: { label: '成功率', unit: '%' }, avg_duration_ms: { label: '平均耗时', unit: 'ms' }, p95_ms: { label: 'P95 耗时', unit: 'ms' }, p50_ms: { label: 'P50 耗时', unit: 'ms' },
   observed_days: { label: '有观测天数', unit: '天' }, peak_count: { label: '单日峰值', unit: '个' }, mean_count: { label: '每日去重 IP 均值', unit: '个' }, top5_share: { label: 'Top 5 集中度', unit: '%' }, failure_rate: { label: '失败率', unit: '%' }, partial_rate: { label: '部分完成率', unit: '%' },
 }
-const sourceLabels = { manual: '手动任务', automatic: '自动任务', search: '搜索生成' }
+const csvSourceLabels = { manual: '手动任务', automatic: '自动任务', search: '搜索生成' }
+import { locale, tr } from '../i18n/index.js'
+import { chartCsv } from './chartCsv.js'
+import { addCalendarDays, calendarDate, calendarMidnight } from './systemTime.js'
+import { formatDateTime as displayDateTime } from '../i18n/time.js'
+
+const typeLabels = {
+  get discovery() { return tr('IP 发现') },
+  get port() { return tr('端口分布') },
+  get service() { return tr('服务分布') },
+  get tasks() { return tr('任务执行') },
+  get scanners() { return tr('扫描器表现') },
+}
+
+export function statisticsTypeLabel(definition) {
+  return Object.hasOwn(typeLabels, definition?.id) ? typeLabels[definition.id] : definition?.label || ''
+}
+
+export const groupLabels = { get day() { return tr("按日") }, get week() { return tr("按周") }, get month() { return tr("按月") }, get scanner() { return tr("按扫描器") }, get task_source() { return tr("按任务来源") }, get port() { return tr("按端口") }, get service() { return tr("按服务") } }
+export const chartLabels = { get line() { return tr("折线图") }, get bar() { return tr("柱状图") }, get donut() { return tr("环形图") }, get stacked() { return tr("堆叠柱状图") }, get heatmap() { return tr("热力图") } }
+export const metrics = {
+  count: { get label() { return tr("数量") }, get unit() { return tr("个") } }, unique_ips: { get label() { return tr("周期去重 IP") }, get unit() { return tr("个") } }, categories: { get label() { return tr("类别数") }, get unit() { return tr("类") } },
+  percentage: { get label() { return tr("占比") }, unit: '%' }, created: { get label() { return tr("新建任务") }, get unit() { return tr("个") } }, completed: { get label() { return tr("完成数量（含取消）") }, get unit() { return tr("个") } },
+  succeeded: { get label() { return tr("成功") }, get unit() { return tr("个") } }, failed: { get label() { return tr("失败") }, get unit() { return tr("个") } }, partial: { get label() { return tr("部分完成") }, get unit() { return tr("个") } }, cancelled: { get label() { return tr("取消") }, get unit() { return tr("个") } },
+  success_rate: { get label() { return tr("成功率") }, unit: '%' }, avg_duration_ms: { get label() { return tr("平均耗时") }, unit: 'ms' }, p95_ms: { get label() { return tr("P95 耗时") }, unit: 'ms' }, p50_ms: { get label() { return tr("P50 耗时") }, unit: 'ms' },
+  observed_days: { get label() { return tr("有观测天数") }, get unit() { return tr("天") } }, peak_count: { get label() { return tr("单日峰值") }, get unit() { return tr("个") } }, mean_count: { get label() { return tr("每日去重 IP 均值") }, get unit() { return tr("个") } }, top5_share: { get label() { return tr("Top 5 集中度") }, unit: '%' }, failure_rate: { get label() { return tr("失败率") }, unit: '%' }, partial_rate: { get label() { return tr("部分完成率") }, unit: '%' },
+}
+const sourceLabels = { get manual() { return tr("手动任务") }, get automatic() { return tr("自动任务") }, get search() { return tr("搜索生成") } }
 
 export function rowLabel(label, group) {
   return group === 'task_source' ? (sourceLabels[label] || label) : label
@@ -22,10 +45,10 @@ export function defaultFilters(now = Date.now()) {
 }
 
 export function queryBody(filters, timezone) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(filters.start_date) || !/^\d{4}-\d{2}-\d{2}$/.test(filters.end_date)) throw new Error('请选择完整的开始和结束日期。')
-  if (filters.start_date > filters.end_date) throw new Error('开始日期不能晚于结束日期。')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(filters.start_date) || !/^\d{4}-\d{2}-\d{2}$/.test(filters.end_date)) throw new Error(tr("请选择完整的开始和结束日期。"))
+  if (filters.start_date > filters.end_date) throw new Error(tr("开始日期不能晚于结束日期。"))
   const days = (new Date(`${filters.end_date}T12:00:00Z`) - new Date(`${filters.start_date}T12:00:00Z`)) / 86400_000 + 1
-  if (days > 366) throw new Error('统计范围不能超过 366 天。')
+  if (days > 366) throw new Error(tr("统计范围不能超过 366 天。"))
   return {
     data_type: filters.data_type, group_by: filters.group_by, timezone,
     start_at: calendarMidnight(filters.start_date), end_at: calendarMidnight(addCalendarDays(filters.end_date, 1)),
@@ -60,7 +83,7 @@ export function chartRows(rows, meta, topN, metric) {
     const rest = ordered.slice(topN)
     const count = rest.reduce((sum, row) => sum + row.count, 0)
     const total = ordered.reduce((sum, row) => sum + row.count, 0)
-    shown.push({ label: '其他', count, percentage: total ? Math.round(count / total * 1000) / 10 : 0 })
+    shown.push({ synthetic: true, get label() { return tr("其他") }, count, percentage: total ? Math.round(count / total * 1000) / 10 : 0 })
   }
   return shown
 }
@@ -75,7 +98,7 @@ export function chartSeries(rows, meta, metric, type) {
       return addCalendarDays(row.label, -(day === 0 ? 6 : day - 1))
     }))]
     const values = new Map(rows.map((row) => [row.label, row[metric]]))
-    return weekdays.map((name, index) => ({ name, data: weeks.map((week) => {
+    return weekdays.map((name, index) => ({ rawName: name, name: tr(name), data: weeks.map((week) => {
       const date = addCalendarDays(week, index)
       return { x: week, y: values.has(date) ? values.get(date) : null, dateLabel: date }
     }) })).reverse()
@@ -85,26 +108,35 @@ export function chartSeries(rows, meta, metric, type) {
 
 export function formatMetric(value, key) {
   if (value === null || value === undefined) return '--'
-  return Number(value).toLocaleString('zh-CN', { maximumFractionDigits: ['percentage', 'success_rate', 'failure_rate', 'partial_rate', 'top5_share'].includes(key) ? 1 : 2 })
+  return Number(value).toLocaleString(locale.value, { maximumFractionDigits: ['percentage', 'success_rate', 'failure_rate', 'partial_rate', 'top5_share'].includes(key) ? 1 : 2 })
 }
 
 export function statisticsCsv(result, definition, rows = result.data.rows, metricKeys = definition.metrics) {
   const { meta, data } = result
   const context = [
-    ['数据类型', definition.label], ['汇总维度', groupLabels[meta.group_by]], ['开始时间（含）', meta.start_at], ['结束时间（不含）', meta.end_at],
-    ['时区', meta.timezone], ['扫描器', meta.scanner_id || '全部'], ['任务来源', sourceLabels[meta.task_source] || '全部'],
+    ['数据类型', definition.label], ['汇总维度', csvGroupLabels[meta.group_by]], ['开始时间（含）', meta.start_at], ['结束时间（不含）', meta.end_at],
+    ['时区', meta.timezone], ['扫描器', meta.scanner_id || '全部'], ['任务来源', csvSourceLabels[meta.task_source] || '全部'],
     ['生成时间', meta.generated_at], ['处理水位', meta.data_as_of || '--'], ['数据模式', meta.mode], ['口径版本', meta.metric_version],
-    ...Object.entries(data.summary).filter(([key]) => metrics[key]).map(([key, value]) => [`汇总：${metrics[key].label}（${metrics[key].unit}）`, value]),
-    ...(result.comparison ? [['对比开始时间', result.comparison.meta.start_at], ['对比结束时间', result.comparison.meta.end_at], ['对比说明', result.comparison.note], ...Object.entries(result.comparison.data.summary).filter(([key]) => metrics[key]).map(([key, value]) => [`上期：${metrics[key].label}`, value])] : []),
+    ...Object.entries(data.summary).filter(([key]) => csvMetrics[key]).map(([key, value]) => [`汇总：${csvMetrics[key].label}（${csvMetrics[key].unit}）`, value]),
+    ...(result.comparison ? [['对比开始时间', result.comparison.meta.start_at], ['对比结束时间', result.comparison.meta.end_at], ['对比说明', result.comparison.note], ...Object.entries(result.comparison.data.summary).filter(([key]) => csvMetrics[key]).map(([key, value]) => [`上期：${csvMetrics[key].label}`, value])] : []),
     ...(meta.notes || []).map((note) => ['统计说明', note]), [],
-    [groupLabels[meta.group_by], ...metricKeys.map((key) => `${metrics[key].label}（${metrics[key].unit}）`)],
-    ...rows.map((row) => [rowLabel(row.label, meta.group_by), ...metricKeys.map((key) => row[key] ?? null)]),
+    [csvGroupLabels[meta.group_by], ...metricKeys.map((key) => `${csvMetrics[key].label}（${csvMetrics[key].unit}）`)],
+    ...rows.map((row) => [row.synthetic ? '其他' : (meta.group_by === 'task_source' ? (csvSourceLabels[row.label] || row.label) : row.label), ...metricKeys.map((key) => row[key] ?? null)]),
   ]
   return chartCsv({ headers: ['统计分析', '值'], rows: context })
 }
 
 export function imageCaption(meta) {
-  return `${formatDateTime(meta.start_at, meta.timezone)} 至 ${formatDateTime(meta.end_at, meta.timezone)}（结束不含） · ${meta.timezone}`
+  return tr("{0} 至 {1}（结束不含） · {2}", [displayDateTime(meta.start_at, meta.timezone), displayDateTime(meta.end_at, meta.timezone), meta.timezone])
+}
+
+export function statisticsFooter(meta, type) {
+  return [
+    tr('生成时间：{0} · {1} · {2}', [displayDateTime(meta.generated_at, meta.timezone), meta.data_as_of ? tr('处理水位：{0}', [displayDateTime(meta.data_as_of, meta.timezone)]) : tr('基于查询时保留的数据'), chartLabels[type]]),
+    tr('扫描器：{0} · 任务来源：{1} · 口径版本：{2}', [meta.scanner_id || tr('全部'), rowLabel(meta.task_source, 'task_source') || tr('全部'), meta.metric_version]),
+    meta.notes?.[0] ? tr(meta.notes[0]) : '',
+    meta.data_type === 'discovery' ? tr('IP 按分组独立去重，周期去重数不能累加分组数量。') : meta.notes?.at(-1) ? tr(meta.notes.at(-1)) : '',
+  ].filter(Boolean)
 }
 
 export function downloadBlob(blob, filename) {
@@ -137,5 +169,5 @@ export function enrichStatistics(result) {
 export function metricDifference(current, previous, key) {
   if (current == null || previous == null) return '--'
   const delta = current - previous
-  return `${delta > 0 ? '+' : ''}${formatMetric(delta, key)}${['success_rate', 'failure_rate', 'partial_rate', 'top5_share', 'percentage'].includes(key) ? ' 个百分点' : ''}`
+  return `${delta > 0 ? '+' : ''}${formatMetric(delta, key)}${['success_rate', 'failure_rate', 'partial_rate', 'top5_share', 'percentage'].includes(key) ? tr(" 个百分点") : ''}`
 }

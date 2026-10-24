@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -11,7 +12,7 @@ const code = compiled.scriptSetupAst.filter(node => node.type === 'ImportDeclara
   .reduce((text, node) => text.slice(0, node.start) + text.slice(node.end), descriptor.scriptSetup.content)
 function createPanel(variables) {
   const props = reactive({variables})
-  const panel = vm.runInNewContext(`${code}\n;({query,filteredVariables})`, {
+  const panel = localizedVm(`${code}\n;({query,filteredVariables})`, {
     computed, ref, defineProps:()=>props, defineEmits:()=>()=>{},
   })
   return {...panel,props}
@@ -41,3 +42,9 @@ test('large catalogues remain fully available and filtering updates with the cur
   assert.equal(panel.filteredVariables.value.length, 1)
   assert.equal(panel.filteredVariables.value[0].key, 'replacement')
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

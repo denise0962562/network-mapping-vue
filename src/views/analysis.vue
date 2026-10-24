@@ -1,9 +1,11 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { useChartTheme } from '@/composables/useChartTheme'
 import ChartCsvExport from '@/components/ChartCsvExport.vue'
 import { useTheme } from '@/composables/useTheme'
-import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '@/utils/systemTime'
-import { calendarDate, mondayDate, addCalendarDays, calendarMidnight, timeSettings } from '@/utils/systemTime'
+import { formatDateTime as formatSystemDateTime, formatTime as formatSystemClock } from '../i18n/time.js'
+import { calendarDate, mondayDate, addCalendarDays, calendarMidnight, timeSettings } from '../i18n/time.js'
 import axios from 'axios'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
@@ -17,7 +19,7 @@ const ApexChart = defineAsyncComponent(() => import('vue3-apexcharts/core'))
 
 const weekOptions = [4, 8, 12]
 const topOptions = [5, 7, 10]
-const weekdayRows = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+const weekdayRows = [tr("周一"), tr("周二"), tr("周三"), tr("周四"), tr("周五"), tr("周六"), tr("周日")]
 
 const filters = ref({
   weeks: 12,
@@ -99,7 +101,7 @@ function buildCommonParams(snapshot) {
 function parseDistribution(response) {
   const data = response.data?.data
   if (response.data?.success !== true || !data || !Array.isArray(data.items)) {
-    throw new Error('服务器未返回有效的分布数据')
+    throw new Error(tr("服务器未返回有效的分布数据"))
   }
   return {
     items: data.items,
@@ -111,17 +113,17 @@ function parseDistribution(response) {
 function parseHeatmap(response) {
   const items = response.data?.data?.items
   if (response.data?.success !== true || !Array.isArray(items)) {
-    throw new Error('服务器未返回有效的热力图数据')
+    throw new Error(tr("服务器未返回有效的热力图数据"))
   }
   return items
 }
 
 function analysisErrorMessage(error) {
   const body = error?.response?.data
-  const message = typeof body?.message === 'string' ? body.message : '无法从服务器获取统计数据，请稍后重试。'
+  const message = typeof body?.message === 'string' ? body.message : tr("无法从服务器获取统计数据，请稍后重试。")
   const progress = body?.progress
   if (progress?.last_error) {
-    return `${message}\n失败执行：${progress.failed_execution_id ?? '未知'}；最近原因：${progress.last_error}`
+    return tr("{0}\n失败执行：{1}；最近原因：{2}", [message, progress.failed_execution_id ?? '未知', progress.last_error])
   }
   return message
 }
@@ -134,7 +136,7 @@ async function loadScanners() {
     const response = await http.get('/api/scanner/list', { signal: scannerController.signal })
     const items = response.data?.data
     if (response.data?.success !== true || !Array.isArray(items)) {
-      throw new Error('服务器未返回有效的扫描器列表')
+      throw new Error(tr("服务器未返回有效的扫描器列表"))
     }
     scannerList.value = items
       .map((item) => ({ id: item.scanner_id, name: item.name || item.scanner_id }))
@@ -143,7 +145,7 @@ async function loadScanners() {
   } catch (error) {
     if (!axios.isCancel(error)) {
       console.error('load analysis scanners failed', error)
-      pushAlert('warning', '扫描器筛选加载失败', '仍可查看全部扫描器的数据。')
+      pushAlert('warning', tr("扫描器筛选加载失败"), tr("仍可查看全部扫描器的数据。"))
     }
   } finally {
     scannerLoading.value = false
@@ -191,13 +193,13 @@ async function loadAnalysis() {
       console.error('parse distribution failed', error)
       distributionFailed.value = true
       distributionError.value = analysisErrorMessage(error)
-      failedSections.push('服务分布')
+      failedSections.push(tr("服务分布"))
     }
   } else if (!axios.isCancel(distributionResult.reason)) {
     console.error('load distribution failed', distributionResult.reason)
     distributionFailed.value = true
     distributionError.value = analysisErrorMessage(distributionResult.reason)
-    failedSections.push('服务分布')
+    failedSections.push(tr("服务分布"))
   }
 
   if (heatmapResult.status === 'fulfilled') {
@@ -210,18 +212,18 @@ async function loadAnalysis() {
       console.error('parse heatmap failed', error)
       heatmapFailed.value = true
       heatmapError.value = analysisErrorMessage(error)
-      failedSections.push('发现 IP 热力图')
+      failedSections.push(tr("发现 IP 热力图"))
     }
   } else if (!axios.isCancel(heatmapResult.reason)) {
     console.error('load heatmap failed', heatmapResult.reason)
     heatmapFailed.value = true
     heatmapError.value = analysisErrorMessage(heatmapResult.reason)
-    failedSections.push('发现 IP 热力图')
+    failedSections.push(tr("发现 IP 热力图"))
   }
 
   if (failedSections.length > 0) {
     const reasons = [...new Set([distributionError.value, heatmapError.value].filter(Boolean))]
-    pushAlert('error', '分析数据加载失败', reasons.join('\n'))
+    pushAlert('error', tr("分析数据加载失败"), reasons.join('\n'))
   } else {
     lastUpdatedAt.value = new Date()
   }
@@ -237,7 +239,7 @@ const distributionSegments = computed(() => {
     value: Number(item.count) || 0
   }))
   if (distributionData.value.other_count > 0) {
-    items.push({ name: '其他', value: distributionData.value.other_count })
+    items.push({ rawName: "其他", get name() { return tr("其他") }, value: distributionData.value.other_count })
   }
   return items
 })
@@ -259,11 +261,11 @@ const pieOptions = useChartTheme(() => ({
       return renderChartTooltip({
         title: w.globals.labels[index],
         rows: [{
-          label: '端点数',
+          get label() { return tr("端点数") },
           value: `${Number(pieSeries.value[index]).toLocaleString('zh-CN')} 个`,
           color: w.globals.colors[index]
         }],
-        footer: `占比 ${distributionData.value.total > 0 ? ((pieSeries.value[index] / distributionData.value.total) * 100).toFixed(1) : '0.0'}%`
+        footer: tr("占比 {0}%", [distributionData.value.total > 0 ? ((pieSeries.value[index] / distributionData.value.total) * 100).toFixed(1) : '0.0'])
       })
     }
   },
@@ -332,8 +334,8 @@ const heatmapOptions = useChartTheme(() => ({
   },
   colors: ['#008ffb'],
   dataLabels: { enabled: false },
-  xaxis: { type: 'category', title: { text: `最近 ${activeFilters.value.weeks} 周（按周起始日）` } },
-  yaxis: { title: { text: '星期' } },
+  xaxis: { type: 'category', title: { text: tr("最近 {0} 周（按周起始日）", [activeFilters.value.weeks]) } },
+  yaxis: { title: { get text() { return tr("星期") } } },
   plotOptions: {
     heatmap: {
       shadeIntensity: 0.5,
@@ -391,10 +393,10 @@ function scheduleSquareHeatmapCells() {
 
 const lastUpdatedLabel = computed(() => {
   if (snapshotDataAsOf.value) {
-    return `统计截至 ${formatSystemDateTime(snapshotDataAsOf.value)}`
+    return tr("统计截至 {0}", [formatSystemDateTime(snapshotDataAsOf.value)])
   }
-  if (!lastUpdatedAt.value) return '尚未完成加载'
-  return `更新于 ${formatSystemClock(lastUpdatedAt.value)}`
+  if (!lastUpdatedAt.value) return tr("尚未完成加载")
+  return tr("更新于 {0}", [formatSystemClock(lastUpdatedAt.value)])
 })
 
 onMounted(() => {
@@ -437,8 +439,8 @@ onBeforeUnmount(() => {
   <main class="page-shell">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 class="page-title">扫描分析</h1>
-        <p class="mt-1 text-sm text-base-content/60">按扫描结果查看常见服务、开放端口和每日发现的 IP。</p>
+        <h1 class="page-title">{{ tr("扫描分析") }}</h1>
+        <p class="mt-1 text-sm text-base-content/60">{{ tr("按扫描结果查看常见服务、开放端口和每日发现的 IP。") }}</p>
       </div>
       <span class="text-xs text-base-content/50">{{ lastUpdatedLabel }}</span>
     </div>
@@ -447,40 +449,40 @@ onBeforeUnmount(() => {
       <div class="card-body gap-4 p-4">
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">时间范围</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("时间范围") }}</label></legend>
             <select :id="`${formFieldId}-1`" v-model.number="filters.weeks" class="select select-bordered w-full">
-              <option v-for="weeks in weekOptions" :key="weeks" :value="weeks">最近 {{ weeks }} 周</option>
+              <option v-for="weeks in weekOptions" :key="weeks" :value="weeks">{{ tr("最近") }} {{ weeks }} {{ tr("周") }}</option>
             </select>
           </fieldset>
 
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">扫描器</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">{{ tr("扫描器") }}</label></legend>
             <select :id="`${formFieldId}-2`" v-model="filters.scannerId" class="select select-bordered w-full" :disabled="scannerLoading">
-              <option value="">{{ scannerLoading ? '加载扫描器中…' : '全部扫描器' }}</option>
+              <option value="">{{ scannerLoading ? tr("加载扫描器中…") : tr("全部扫描器") }}</option>
               <option v-for="scanner in scannerList" :key="scanner.id" :value="scanner.id">{{ scanner.name }}</option>
             </select>
           </fieldset>
 
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">任务来源</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">{{ tr("任务来源") }}</label></legend>
             <select :id="`${formFieldId}-3`" v-model="filters.taskSource" class="select select-bordered w-full">
-              <option value="">全部来源</option>
-              <option value="manual">手动任务</option>
-              <option value="automatic">自动任务</option>
-              <option value="search">搜索生成</option>
+              <option value="">{{ tr("全部来源") }}</option>
+              <option value="manual">{{ tr("手动任务") }}</option>
+              <option value="automatic">{{ tr("自动任务") }}</option>
+              <option value="search">{{ tr("搜索生成") }}</option>
             </select>
           </fieldset>
 
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">分布维度</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">{{ tr("分布维度") }}</label></legend>
             <select :id="`${formFieldId}-4`" v-model="filters.dimension" class="select select-bordered w-full">
-              <option value="service">识别服务</option>
-              <option value="port">开放端口</option>
+              <option value="service">{{ tr("识别服务") }}</option>
+              <option value="port">{{ tr("开放端口") }}</option>
             </select>
           </fieldset>
 
           <fieldset class="fieldset min-w-0 w-full">
-            <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">显示数量</label></legend>
+            <legend class="fieldset-legend"><label :for="`${formFieldId}-5`">{{ tr("显示数量") }}</label></legend>
             <select :id="`${formFieldId}-5`" v-model.number="filters.topN" class="select select-bordered w-full">
               <option v-for="item in topOptions" :key="item" :value="item">Top {{ item }}</option>
             </select>
@@ -490,7 +492,7 @@ onBeforeUnmount(() => {
         <div class="flex justify-end">
           <button class="btn btn-neutral btn-sm" :disabled="isLoading" @click="loadAnalysis">
             <span v-if="isLoading" class="loading loading-spinner loading-xs"></span>
-            {{ isLoading ? '查询中…' : '应用筛选' }}
+            {{ isLoading ? tr("查询中…") : tr("应用筛选") }}
           </button>
         </div>
       </div>
@@ -501,11 +503,11 @@ onBeforeUnmount(() => {
         <div class="card-body p-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 class="font-semibold">常见{{ activeFilters.dimension === 'service' ? '服务' : '端口' }}分布</h2>
-              <p class="mt-1 text-xs text-base-content/60">按唯一 IP、端口和任务执行去重，Top N 之外合并为“其他”。</p>
+              <h2 class="font-semibold">{{ tr("常见") }}{{ activeFilters.dimension === 'service' ? tr("服务") : tr("端口") }}{{ tr("分布") }}</h2>
+              <p class="mt-1 text-xs text-base-content/60">{{ tr("按唯一 IP、端口和任务执行去重，Top N 之外合并为“其他”。") }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <span class="badge badge-ghost whitespace-nowrap">共 {{ distributionData.total.toLocaleString('zh-CN') }} 个端点</span>
+              <span class="badge badge-ghost whitespace-nowrap">{{ tr("共") }} {{ distributionData.total.toLocaleString('zh-CN') }} {{ tr("个端点") }}</span>
               <ChartCsvExport
                 :filename="`${activeFilters.dimension}-distribution`"
                 :series="pieSeries"
@@ -522,14 +524,14 @@ onBeforeUnmount(() => {
             v-else-if="distributionFailed && !hasLoadedDistribution"
             class="mt-4"
             type="error"
-            title="服务分布加载失败"
+            :title="tr(&quot;服务分布加载失败&quot;)"
             :message="distributionError"
           />
           <EmptyState
             v-else-if="distributionData.total === 0"
             class="mt-4"
-            title="暂无服务数据"
-            message="当前筛选范围内没有可用于统计的扫描结果。"
+            :title="tr(&quot;暂无服务数据&quot;)"
+            :message="tr(&quot;当前筛选范围内没有可用于统计的扫描结果。&quot;)"
           />
           <div v-else class="relative mt-2">
             <ApexChart type="pie" height="340" :options="pieOptions" :series="pieSeries" />
@@ -542,11 +544,11 @@ onBeforeUnmount(() => {
         <div class="card-body p-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 class="font-semibold">发现 IP 热力图</h2>
-              <p class="mt-1 text-xs text-base-content/60">按自然日统计去重 IP；无发现显示为 0，未来日期留空。</p>
+              <h2 class="font-semibold">{{ tr("发现 IP 热力图") }}</h2>
+              <p class="mt-1 text-xs text-base-content/60">{{ tr("按自然日统计去重 IP；无发现显示为 0，未来日期留空。") }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <span class="badge badge-ghost whitespace-nowrap">累计 {{ discoveredTotal.toLocaleString('zh-CN') }}</span>
+              <span class="badge badge-ghost whitespace-nowrap">{{ tr("累计") }} {{ discoveredTotal.toLocaleString('zh-CN') }}</span>
               <ChartCsvExport
                 filename="discovered-ip-heatmap"
                 :series="heatmapSeries"
@@ -563,7 +565,7 @@ onBeforeUnmount(() => {
             v-else-if="heatmapFailed && !hasLoadedHeatmap"
             class="mt-4"
             type="error"
-            title="热力图加载失败"
+            :title="tr(&quot;热力图加载失败&quot;)"
             :message="heatmapError"
           />
           <div v-else ref="heatmapChartContainer" class="relative mt-2 flex items-stretch gap-3">
@@ -572,7 +574,7 @@ onBeforeUnmount(() => {
             </div>
             <span v-if="heatmapLoading" class="loading loading-spinner loading-sm absolute top-2 right-2"></span>
             <div v-if="hasLoadedHeatmap" class="flex shrink-0 flex-col items-center text-xs text-base-content/60">
-              <span>发现 IP</span>
+              <span>{{ tr("发现 IP") }}</span>
               <div class="relative mt-1 h-56 w-14">
                 <span class="absolute left-0 top-0">{{ heatmapMaximum.toLocaleString('zh-CN') }}</span>
                 <span class="absolute bottom-0 left-0">0</span>

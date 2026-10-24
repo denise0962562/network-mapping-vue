@@ -34,18 +34,18 @@ export function formatDate(value, timezone = timeSettings.timezone) {
   return timeSettings.dateFormat === 'YYYY/MM/DD' ? `${year}/${month}/${day}` : key
 }
 
-export function formatTime(value, timezone = timeSettings.timezone) {
+export function formatTime(value, timezone = timeSettings.timezone, displayLocale = 'zh-CN') {
   if (!parts(value, timezone)) return '-'
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(displayLocale, {
     timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit',
     hourCycle: timeSettings.hourCycle === '12' ? 'h12' : 'h23'
   }).format(new Date(value))
 }
 
-export function formatDateTime(value, timezone = timeSettings.timezone) {
+export function formatDateTime(value, timezone = timeSettings.timezone, displayLocale = 'zh-CN') {
   if (value === null || value === undefined || value === '') return '-'
   if (!parts(value, timezone)) return '-'
-  return `${formatDate(value, timezone)} ${formatTime(value, timezone)}`
+  return `${formatDate(value, timezone)} ${formatTime(value, timezone, displayLocale)}`
 }
 
 export function localTimeCandidates(value, timezone = timeSettings.timezone) {

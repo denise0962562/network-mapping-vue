@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -22,7 +23,7 @@ function taskResponse(webStatus, osStatus = 'identified', status = 'succeeded', 
 function createPage(responses) {
   const timers = new Map(), requests = []
   let dispose, nextTimer = 0
-  const page = vm.runInNewContext(`${source}\n;({ loadTask, task })`, {
+  const page = localizedVm(`${source}\n;({ loadTask, task })`, {
     computed, ref, isProjectionPending, projectionMessage,
     useRoute: () => ({ params: { taskid: 'task-id' } }), useRouter: () => ({}),
     // Drive the first load explicitly so its asynchronous completion can be awaited.
@@ -79,3 +80,9 @@ test('unmount clears a pending Web refresh and late responses cannot schedule an
   await loading
   assert.equal(page.timers.size, 0)
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

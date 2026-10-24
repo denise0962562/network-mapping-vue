@@ -81,6 +81,7 @@ docs/             使用与开发文档
 | 命令 | 用途 |
 | --- | --- |
 | `pnpm dev` | 开发服务 |
+| `pnpm test:i18n` | 浏览器语言、cookie、词库完整性和切换兼容检查 |
 | `pnpm test:time` | 系统时间与报告工具测试 |
 | `pnpm test:reports` | 单独运行报告工具测试，已包含在 `test:time` 中 |
 | `pnpm test:targets` | 扫描目标校验测试 |
@@ -98,6 +99,7 @@ docs/             使用与开发文档
 | 搜索与扫描页面行为 | [功能指南](docs/FEATURES.md) |
 | 路由、组件、HTTP 与扩展约定 | [维护与扩展指南](docs/maintenance-guide.md) |
 | 主题及扫描器诊断面板 | [文档中心](docs/README.md) |
+| 前端与文档多语言支持 | [语言切换与构建](docs/LOCALIZATION.md) |
 
 ## 许可证
 

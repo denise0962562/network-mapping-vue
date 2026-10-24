@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed, ref } from 'vue'
 import { Database } from '@lucide/vue'
 import { technologyLabel } from '@/utils/webDetection'
@@ -17,6 +19,6 @@ const icon = computed(() => failedSource.value === source.value ? webTechnologyI
       class="size-[18px] shrink-0 rounded-sm bg-white p-px object-contain"
       decoding="async" @error="failedSource = source">
     <span class="break-words">{{ technologyLabel(technology) }}</span>
-    <span v-if="technology.category === 'database'" class="badge badge-outline badge-sm shrink-0">数据库</span>
+    <span v-if="technology.category === 'database'" class="badge badge-outline badge-sm shrink-0">{{ tr("数据库") }}</span>
   </span>
 </template>
