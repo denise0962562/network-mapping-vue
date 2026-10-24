@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed, nextTick, ref, watch } from 'vue'
 import { formatChartTooltipTime, renderChartTooltip } from '@/utils/chartTooltip'
 
@@ -27,9 +29,9 @@ function formatMaintenanceDuration(maintenance) {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const remainingSeconds = seconds % 60
-  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
-  if (minutes > 0) return `${minutes} 分钟 ${remainingSeconds} 秒`
-  return `${remainingSeconds} 秒`
+  if (hours > 0) return tr("{0} 小时 {1} 分钟", [hours, minutes])
+  if (minutes > 0) return tr("{0} 分钟 {1} 秒", [minutes, remainingSeconds])
+  return tr("{0} 秒", [remainingSeconds])
 }
 
 const tooltipContent = computed(() => {
@@ -37,15 +39,15 @@ const tooltipContent = computed(() => {
   if (!maintenance) return ''
 
   return renderChartTooltip({
-    title: maintenance.in_progress ? '系统维护中' : '系统维护',
+    title: maintenance.in_progress ? tr("系统维护中") : tr("系统维护"),
     rows: [
-      { label: '开始时间', value: formatChartTooltipTime(maintenance.started_at), color: '#f59e0b' },
-      { label: '结束时间', value: maintenance.ended_at ? formatChartTooltipTime(maintenance.ended_at) : '进行中' },
-      { label: '预计结束', value: maintenance.expected_end_at ? formatChartTooltipTime(maintenance.expected_end_at) : '--' },
-      { label: '实际时长', value: formatMaintenanceDuration(maintenance) },
-      { label: '操作者', value: maintenance.operator_username || '--' }
+      { get label() { return tr("开始时间") }, value: formatChartTooltipTime(maintenance.started_at), color: '#f59e0b' },
+      { get label() { return tr("结束时间") }, value: maintenance.ended_at ? formatChartTooltipTime(maintenance.ended_at) : '进行中' },
+      { get label() { return tr("预计结束") }, value: maintenance.expected_end_at ? formatChartTooltipTime(maintenance.expected_end_at) : '--' },
+      { get label() { return tr("实际时长") }, value: formatMaintenanceDuration(maintenance) },
+      { get label() { return tr("操作者") }, value: maintenance.operator_username || '--' }
     ],
-    footer: maintenance.message ? `维护说明：${maintenance.message}` : ''
+    footer: maintenance.message ? tr("维护说明：{0}", [maintenance.message]) : ''
   })
 })
 

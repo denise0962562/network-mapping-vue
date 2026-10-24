@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -11,7 +12,7 @@ const script = descriptor.scriptSetup.content.replace(/^import .*$/gm, '')
 function button() {
   const props = reactive({ loading: false }), timers = new Map()
   let now = 0, id = 0, dispose
-  const { visible } = vm.runInNewContext(`${script}\n;({ visible })`, {
+  const { visible } = localizedVm(`${script}\n;({ visible })`, {
     ref, watch, defineProps: () => props, defineEmits: () => () => {},
     Date: { now: () => now },
     setTimeout: (fn, delay) => { timers.set(++id, { fn, at: now + delay }); return id },
@@ -63,3 +64,9 @@ test('a new refresh cancels a pending hide and unmount clears pending timers', (
   assert.equal(b.visible.value, false)
   assert.equal(b.timers.size, 0)
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -11,7 +12,7 @@ const compiled = compileScript(descriptor, { id: 'notification-template-navigati
 const code = compiled.scriptSetupAst.filter(node => node.type === 'ImportDeclaration').reverse()
   .reduce((text, node) => text.slice(0, node.start) + text.slice(node.end), descriptor.scriptSetup.content)
 function createPage(confirm = () => true) {
-  return vm.runInNewContext(`${code}\n;({provider,editor,mailTemplates,selectedEvent,events,initialBotEvent,botVariants,navigationDisabled,historyVersions,historyLoading,restoreVersion,syncSelection,selectProvider,selectEvent,selectProviderFromDropdown,selectEventFromDropdown})`, {
+  return localizedVm(`${code}\n;({provider,editor,mailTemplates,selectedEvent,events,initialBotEvent,botVariants,navigationDisabled,historyVersions,historyLoading,restoreVersion,syncSelection,selectProvider,selectEvent,selectProviderFromDropdown,selectEventFromDropdown})`, {
     computed, nextTick, reactive, ref, notificationProviders, window: { confirm },
   })
 }
@@ -132,3 +133,9 @@ test('mail navigation remains available if loading the mail catalogue fails', as
   assert.equal(page.selectedEvent.value, 'report_weekly')
   assert.equal(page.events.value.length, 5)
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed } from 'vue'
 import { autocompletion } from '@codemirror/autocomplete'
 import { html } from '@codemirror/lang-html'
@@ -12,7 +14,7 @@ const model = defineModel({ type: String, default: '' })
 const props = defineProps({
   variables: { type: Array, default: () => [] },
   language: { type: String, default: 'html' },
-  placeholder: { type: String, default: '输入模板内容和 Tera 语法' },
+  placeholder: { type: String, get default() { return tr("输入模板内容和 Tera 语法") } },
   disabled: Boolean,
 })
 const emit = defineEmits(['ready','focus'])

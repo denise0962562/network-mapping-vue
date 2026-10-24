@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -20,7 +21,7 @@ function createPage(get, request = async () => ({ data: { success: true, data: {
   let mount, dispose
   const timers = new Map()
   let nextTimer = 0
-  const page = vm.runInNewContext(`${source}\n;({ loadChannels, loadHistory, channels, deliveries, loadFailed, historyFailed, form, save })`, {
+  const page = localizedVm(`${source}\n;({ loadChannels, loadHistory, channels, deliveries, loadFailed, historyFailed, form, save })`, {
     computed, ref, useId: () => 'notification-test-field', channelForm, channelPayload, validateChannel, AbortController, crypto: globalThis.crypto,
     http: Object.assign(request, { get }), useUnsavedChanges: () => {},
     onMounted: (callback) => { mount = callback },
@@ -113,3 +114,9 @@ test('the same page saves each provider with independent common event subscripti
   assert(requests.every(config => config.url === '/api/notifications/channels' && config.method === 'POST'))
   page.dispose()
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

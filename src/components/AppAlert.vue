@@ -1,4 +1,6 @@
 <script setup>
+import { tr, uiText } from '../i18n/index.js'
+
 import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue'
 import { alertHost, releaseAlertHost } from '@/utils/alertHost'
 
@@ -129,7 +131,7 @@ onUnmounted(() => releaseAlertHost(host))
         >
           <div
             tabindex="0"
-            aria-label="提示详细内容"
+            :aria-label="tr(&quot;提示详细内容&quot;)"
             class="flex max-h-[calc(50vh-1rem)] min-h-0 min-w-0 flex-1 items-start gap-2 overflow-y-auto pr-1 outline-none focus-visible:ring-2 focus-visible:ring-current/25"
           >
             <div class="shrink-0 rounded-lg bg-base-100/40 p-1 backdrop-blur-xl" :class="currentConfig.iconClass">
@@ -206,8 +208,8 @@ onUnmounted(() => releaseAlertHost(host))
             </div>
 
             <div class="min-w-0 flex-1">
-              <p class="break-words font-medium">{{ title }}</p>
-              <p v-if="description" class="mt-1 break-words whitespace-pre-wrap opacity-65">{{ description }}</p>
+              <p class="break-words font-medium">{{ uiText(title) }}</p>
+              <p v-if="description" class="mt-1 break-words whitespace-pre-wrap opacity-65">{{ uiText(description) }}</p>
             </div>
           </div>
 
@@ -215,7 +217,7 @@ onUnmounted(() => releaseAlertHost(host))
             v-if="closable"
             type="button"
             class="btn btn-ghost btn-square btn-xs shrink-0 rounded-md hover:bg-base-content/10"
-            aria-label="关闭提示"
+            :aria-label="tr(&quot;关闭提示&quot;)"
             @click="handleClose"
           >
             <svg
@@ -232,7 +234,7 @@ onUnmounted(() => releaseAlertHost(host))
           <div
             v-if="timeout > 0"
             role="progressbar"
-            aria-label="自动关闭倒计时"
+            :aria-label="tr(&quot;自动关闭倒计时&quot;)"
             aria-live="off"
             :aria-valuenow="Math.round(countdownProgress * 100)"
             :aria-valuemin="0"

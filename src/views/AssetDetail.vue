@@ -1,6 +1,8 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import ServiceLabel from '@/components/ServiceLabel.vue'
-import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
+import { formatDateTime as formatSystemDateTime } from '../i18n/time.js'
 import { computed, markRaw, onMounted, ref } from 'vue'
 import ApexMaps from 'vue-apexmaps'
 import 'apexmaps/apexmaps.css'
@@ -92,7 +94,7 @@ const mapPoint = computed(() => {
       name: summary.value.ip,
       value: 1,
       location: location.value,
-      precision: summary.value.city_name ? '城市级定位' : '坐标定位',
+      precision: summary.value.city_name ? tr("城市级定位") : tr("坐标定位"),
     }
   }
 
@@ -105,7 +107,7 @@ const mapPoint = computed(() => {
     name: summary.value.ip,
     value: 1,
     location: location.value,
-    precision: '国家/地区级定位',
+    get precision() { return tr("国家/地区级定位") },
   }
 })
 const mapCoordinates = computed(() => {
@@ -113,7 +115,7 @@ const mapCoordinates = computed(() => {
   return point ? pointCoordinates(point) : null
 })
 const mapCsvData = computed(() => ({
-  headers: ['IP 地址', '地理位置', '定位精度', '纬度', '经度'],
+  headers: [tr("IP 地址"), tr("地理位置"), tr("定位精度"), tr("纬度"), tr("经度")],
   rows: mapPoint.value ? [[
     mapPoint.value.name,
     mapPoint.value.location,
@@ -124,7 +126,7 @@ const mapCsvData = computed(() => ({
 }))
 const countryTooltipSeries = computed(() => ({
   type: 'choropleth',
-  name: '国家和地区',
+  rawName: "国家和地区", get name() { return tr("国家和地区") },
   joinBy: 'name',
   data: (worldCountriesGeometry.value?.features || [])
     .filter((feature) => feature.properties?.name)
@@ -139,7 +141,7 @@ const mapSeries = computed(() => {
   if (!point || !coordinates) return [countryTooltipSeries.value]
   return [countryTooltipSeries.value, {
     type: 'marker',
-    name: '资产位置',
+    rawName: "资产位置", get name() { return tr("资产位置") },
     shape: 'pin',
     size: 18,
     color: isDark.value ? '#60a5fa' : '#2563eb',
@@ -253,7 +255,7 @@ async function loadWorldMap() {
     worldCountriesGeometry.value = normalizeWorldMap(await response.json())
   } catch (error) {
     console.error('load detailed world map failed', error)
-    mapError.value = '地图边界数据加载失败，请稍后重试。'
+    mapError.value = tr("地图边界数据加载失败，请稍后重试。")
   }
 }
 
@@ -323,7 +325,7 @@ async function loadAsset() {
   portsOffset.value = 0
   errorMessage.value = ''
   if (!assetIp.value) {
-    errorMessage.value = '请输入需要查看的资产 IP。'
+    errorMessage.value = tr("请输入需要查看的资产 IP。")
     return
   }
   loading.value = true
@@ -340,7 +342,7 @@ async function loadAsset() {
     ports.value = portsData.items || []
     portsTotal.value = Number(portsData.total) || 0
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || '资产聚合数据加载失败。'
+    errorMessage.value = error.response?.data?.message || tr("资产聚合数据加载失败。")
   } finally {
     loading.value = false
   }
@@ -358,7 +360,7 @@ async function loadPorts(offset) {
     portsTotal.value = Number(data.total) || 0
     portsOffset.value = offset
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || '端口数据加载失败。'
+    errorMessage.value = error.response?.data?.message || tr("端口数据加载失败。")
   } finally {
     portsLoading.value = false
   }
@@ -386,7 +388,7 @@ async function loadHistory(offset = 0) {
   } catch (error) {
     historyItems.value = []
     historyTotal.value = 0
-    historyError.value = error.response?.data?.message || '端口历史加载失败。'
+    historyError.value = error.response?.data?.message || tr("端口历史加载失败。")
   } finally {
     historyLoading.value = false
   }
@@ -418,7 +420,7 @@ async function loadTagCatalog() {
     const response = await http.get('/api/tags')
     tagCatalog.value = response.data?.data?.items || []
   } catch (error) {
-    tagError.value = error.response?.data?.message || '标签列表加载失败。'
+    tagError.value = error.response?.data?.message || tr("标签列表加载失败。")
   } finally {
     tagCatalogLoading.value = false
   }
@@ -445,7 +447,7 @@ async function assignTag(tagId = selectedTagId.value) {
     if (tag && !assignedTagIds.value.has(tag.id)) summary.value.tags.push(tag)
     selectedTagId.value = ''
   } catch (error) {
-    tagError.value = error.response?.data?.message || '标签绑定失败。'
+    tagError.value = error.response?.data?.message || tr("标签绑定失败。")
   } finally {
     tagActionLoading.value = false
   }
@@ -458,7 +460,7 @@ async function removeTag(tag) {
     await http.delete(`/api/assets/tags/${tag.id}`, { params: { ip: assetIp.value } })
     summary.value.tags = assignedTags.value.filter((item) => item.id !== tag.id)
   } catch (error) {
-    tagError.value = error.response?.data?.message || '标签移除失败。'
+    tagError.value = error.response?.data?.message || tr("标签移除失败。")
   } finally {
     tagActionLoading.value = false
   }
@@ -477,13 +479,14 @@ onMounted(() => {
     <div class="space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 class="page-title">资产详情</h1>
-          <p class="mt-1 text-sm opacity-65">展示单个 IP 的网络属性、发现概况和端口服务。</p>
+          <h1 class="page-title">{{ tr("资产详情") }}</h1>
+          <p class="mt-1 text-sm opacity-65">{{ tr("展示单个 IP 的网络属性、发现概况和端口服务。") }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <LanguageSelect />
           <ThemeToggle />
-          <a href="/search.html" class="btn btn-ghost btn-sm">返回搜索</a>
-          <a href="/" class="btn btn-ghost btn-sm">仪表盘</a>
+          <a href="/search.html" class="btn btn-ghost btn-sm">{{ tr("返回搜索") }}</a>
+          <a href="/" class="btn btn-ghost btn-sm">{{ tr("仪表盘") }}</a>
         </div>
       </div>
 
@@ -491,9 +494,9 @@ onMounted(() => {
         <form class="flex flex-col gap-3 sm:flex-row" @submit.prevent="submitIp">
           <label class="input w-full">
             <span class="label">IP</span>
-            <input v-model="ipInput" class="font-mono" placeholder="192.0.2.1 或 2001:db8::1" />
+            <input v-model="ipInput" class="font-mono" :placeholder="tr(&quot;192.0.2.1 或 2001:db8::1&quot;)" />
           </label>
-          <button class="btn btn-neutral" :disabled="loading">{{ loading ? '加载中' : '搜索' }}</button>
+          <button class="btn btn-neutral" :disabled="loading">{{ loading ? tr("加载中") : tr("搜索") }}</button>
         </form>
       </section>
 
@@ -505,24 +508,24 @@ onMounted(() => {
         <section class="rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p class="text-xs font-medium uppercase tracking-wide opacity-55">IP 地址</p>
+              <p class="text-xs font-medium uppercase tracking-wide opacity-55">{{ tr("IP 地址") }}</p>
               <div class="mt-1 flex flex-wrap items-center gap-2">
                 <h2 class="break-all font-mono text-2xl font-semibold">{{ summary.ip }}</h2>
                 <AssetTags :tags="assignedTags" />
-                <IntelEvidence :intel="summary.intel" label="IP 情报" />
+                <IntelEvidence :intel="summary.intel" :label="tr(&quot;IP 情报&quot;)" />
               </div>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button v-if="summary.can_manage_tags" type="button" class="btn btn-outline btn-sm" @click="openTagDialog">管理标签</button>
-              <span class="badge badge-info badge-lg">{{ summary.port_count }} 个端口</span>
+              <button v-if="summary.can_manage_tags" type="button" class="btn btn-outline btn-sm" @click="openTagDialog">{{ tr("管理标签") }}</button>
+              <span class="badge badge-info badge-lg">{{ summary.port_count }} {{ tr("个端口") }}</span>
             </div>
           </div>
 
           <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">端口总数</p><p class="mt-1 text-2xl font-semibold">{{ summary.port_count }}</p></div>
-            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">识别服务</p><p class="mt-1 text-2xl font-semibold">{{ summary.service_count }}</p></div>
-            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">数据来源</p><p class="mt-1 text-2xl font-semibold">{{ summary.scanner_count }}</p></div>
-            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">观察记录</p><p class="mt-1 text-2xl font-semibold">{{ summary.observation_count }}</p></div>
+            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">{{ tr("端口总数") }}</p><p class="mt-1 text-2xl font-semibold">{{ summary.port_count }}</p></div>
+            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">{{ tr("识别服务") }}</p><p class="mt-1 text-2xl font-semibold">{{ summary.service_count }}</p></div>
+            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">{{ tr("数据来源") }}</p><p class="mt-1 text-2xl font-semibold">{{ summary.scanner_count }}</p></div>
+            <div class="rounded-lg bg-base-200 p-4"><p class="text-xs opacity-60">{{ tr("观察记录") }}</p><p class="mt-1 text-2xl font-semibold">{{ summary.observation_count }}</p></div>
           </div>
         </section>
 
@@ -531,8 +534,8 @@ onMounted(() => {
             <div class="p-5">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 class="font-semibold">IP 地理位置</h2>
-                  <p class="mt-1 text-sm opacity-60">{{ mapPoint?.precision || '未提供可用的地理位置' }}</p>
+                  <h2 class="font-semibold">{{ tr("IP 地理位置") }}</h2>
+                  <p class="mt-1 text-sm opacity-60">{{ mapPoint?.precision || tr("未提供可用的地理位置") }}</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                   <span v-if="mapPoint" class="badge badge-outline">{{ location }}</span>
@@ -556,51 +559,49 @@ onMounted(() => {
                 @resized="constrainLocationMapPan"
               />
               <div v-else-if="mapError" class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">{{ mapError }}</div>
-              <div v-else-if="mapPoint" class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">地图暂时无法加载：未找到该国家的边界数据。</div>
-              <div v-else class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">
-                暂无该 IP 的地理位置数据。
-              </div>
+              <div v-else-if="mapPoint" class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60">{{ tr("地图暂时无法加载：未找到该国家的边界数据。") }}</div>
+              <div v-else class="mt-4 flex h-[180px] items-center justify-center rounded-lg bg-base-200/60 text-sm opacity-60"> {{ tr("暂无该 IP 的地理位置数据。") }} </div>
             </div>
             <div class="border-t border-base-300 p-5 lg:border-l lg:border-t-0">
-              <h2 class="font-semibold">网络与位置</h2>
+              <h2 class="font-semibold">{{ tr("网络与位置") }}</h2>
               <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
-                <dt class="opacity-60">ASN / AS 组织</dt><dd class="break-words">{{ networkOwner }}</dd>
+                <dt class="opacity-60">{{ tr("ASN / AS 组织") }}</dt><dd class="break-words">{{ networkOwner }}</dd>
                 <dt class="opacity-60">ISP</dt><dd class="break-words">{{ summary.isp || '-' }}</dd>
-                <dt class="opacity-60">地理位置</dt><dd>{{ location }}</dd>
+                <dt class="opacity-60">{{ tr("地理位置") }}</dt><dd>{{ location }}</dd>
               </dl>
               <div class="my-5 border-t border-base-300"></div>
-              <h3 class="font-semibold">发现时间</h3>
+              <h3 class="font-semibold">{{ tr("发现时间") }}</h3>
               <dl class="mt-4 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 text-sm">
-                <dt class="opacity-60">首次发现</dt><dd>{{ formatTime(summary.first_seen_at) }}</dd>
-                <dt class="opacity-60">最近发现</dt><dd>{{ formatTime(summary.last_seen_at) }}</dd>
-                <dt class="opacity-60">推测操作系统</dt><dd><OsFingerprint :value="summary.os" /></dd>
+                <dt class="opacity-60">{{ tr("首次发现") }}</dt><dd>{{ formatTime(summary.first_seen_at) }}</dd>
+                <dt class="opacity-60">{{ tr("最近发现") }}</dt><dd>{{ formatTime(summary.last_seen_at) }}</dd>
+                <dt class="opacity-60">{{ tr("推测操作系统") }}</dt><dd><OsFingerprint :value="summary.os" /></dd>
               </dl>
             </div>
           </div>
         </section>
 
         <div role="alert" class="alert alert-info alert-dash text-sm">
-          <span>端点按 IP、端口和传输协议区分；被动识别只证明观察到协议流量，不代表源端口开放。</span>
+          <span>{{ tr("端点按 IP、端口和传输协议区分；被动识别只证明观察到协议流量，不代表源端口开放。") }}</span>
         </div>
 
         <section class="rounded-xl border border-base-300 bg-base-100 shadow-sm">
           <div class="flex items-center justify-between border-b border-base-300 px-4 py-3">
-            <h2 class="font-semibold"><span class="font-mono">{{ assetIp || '-' }}</span> 的端口</h2>
-            <span class="text-sm opacity-60">共 {{ portsTotal }} 个</span>
+            <h2 class="font-semibold"><span class="font-mono">{{ assetIp || '-' }}</span> {{ tr("的端口") }}</h2>
+            <span class="text-sm opacity-60">{{ tr("共") }} {{ portsTotal }} {{ tr("个") }}</span>
           </div>
           <div v-if="portsLoading" class="flex justify-center py-16"><span class="loading loading-spinner loading-lg"></span></div>
-          <div v-else-if="ports.length === 0" class="py-16 text-center opacity-60">暂无端口观察记录。</div>
+          <div v-else-if="ports.length === 0" class="py-16 text-center opacity-60">{{ tr("暂无端口观察记录。") }}</div>
           <div v-else class="overflow-x-auto">
             <table class="table table-zebra">
               <thead>
-                <tr><th>端口</th><th>协议 / 服务</th><th>Banner</th><th>系统线索</th><th>Web 技术栈</th><th>首次发现</th><th>最近发现</th><th>来源</th><th></th></tr>
+                <tr><th>{{ tr("端口") }}</th><th>{{ tr("协议 / 服务") }}</th><th>Banner</th><th>{{ tr("系统线索") }}</th><th>{{ tr("Web 技术栈") }}</th><th>{{ tr("首次发现") }}</th><th>{{ tr("最近发现") }}</th><th>{{ tr("来源") }}</th><th></th></tr>
               </thead>
               <tbody>
                 <tr v-for="port in ports" :key="`${port.protocol || 'unknown'}:${port.port}`">
-                  <td><span class="font-mono font-semibold">{{ port.port }}</span><IntelEvidence :intel="port.intel" label="端点情报" /></td>
+                  <td><span class="font-mono font-semibold">{{ port.port }}</span><IntelEvidence :intel="port.intel" :label="tr(&quot;端点情报&quot;)" /></td>
                   <td>
                     <div>{{ port.protocol || '-' }}<span v-if="port.service"> · <ServiceLabel :service="port.service" :data="port.data" /></span></div>
-                    <div v-if="port.service_stale" class="mt-1 text-xs text-warning">服务信息早于最近端口观察</div>
+                    <div v-if="port.service_stale" class="mt-1 text-xs text-warning">{{ tr("服务信息早于最近端口观察") }}</div>
                   </td>
                   <td class="max-w-xs truncate" :title="port.banner">{{ port.banner || '-' }}</td>
                   <td><OsFingerprint :value="port.os" /></td>
@@ -609,17 +610,17 @@ onMounted(() => {
                   <td class="whitespace-nowrap">{{ formatTime(port.last_seen_at) }}</td>
                   <td>
                     <div>{{ port.source }}</div>
-                    <div v-if="port.service_source" class="text-xs opacity-60">服务：{{ port.service_source }}</div>
+                    <div v-if="port.service_source" class="text-xs opacity-60">{{ tr("服务：") }}{{ port.service_source }}</div>
                   </td>
-                  <td><button class="btn btn-ghost btn-sm whitespace-nowrap" @click="openHistory(port)">历史</button></td>
+                  <td><button class="btn btn-ghost btn-sm whitespace-nowrap" @click="openHistory(port)">{{ tr("历史") }}</button></td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div v-if="portsTotal > PORT_PAGE_SIZE" class="flex items-center justify-end gap-3 border-t border-base-300 px-4 py-3">
-            <span class="text-sm opacity-60">第 {{ portsPage }} / {{ portsPages }} 页</span>
-            <button class="btn btn-sm" :disabled="portsLoading || portsOffset === 0" @click="loadPorts(Math.max(0, portsOffset - PORT_PAGE_SIZE))">上一页</button>
-            <button class="btn btn-sm" :disabled="portsLoading || portsOffset + PORT_PAGE_SIZE >= portsTotal" @click="loadPorts(portsOffset + PORT_PAGE_SIZE)">下一页</button>
+            <span class="text-sm opacity-60">{{ tr("第") }} {{ portsPage }} / {{ portsPages }} {{ tr("页") }}</span>
+            <button class="btn btn-sm" :disabled="portsLoading || portsOffset === 0" @click="loadPorts(Math.max(0, portsOffset - PORT_PAGE_SIZE))">{{ tr("上一页") }}</button>
+            <button class="btn btn-sm" :disabled="portsLoading || portsOffset + PORT_PAGE_SIZE >= portsTotal" @click="loadPorts(portsOffset + PORT_PAGE_SIZE)">{{ tr("下一页") }}</button>
           </div>
         </section>
       </template>
@@ -630,23 +631,23 @@ onMounted(() => {
     <div class="modal-box w-[calc(100vw-2rem)] max-w-6xl">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <h3 class="text-lg font-bold">端口观察历史</h3>
+          <h3 class="text-lg font-bold">{{ tr("端口观察历史") }}</h3>
           <p class="font-mono text-sm opacity-65">{{ assetIp }}:{{ selectedPort?.port }} / {{ selectedPort?.protocol || 'unknown' }}</p>
         </div>
-        <button class="btn btn-ghost btn-sm" @click="closeHistory">关闭</button>
+        <button class="btn btn-ghost btn-sm" @click="closeHistory">{{ tr("关闭") }}</button>
       </div>
 
       <div v-if="historyError" role="alert" class="alert alert-error mt-4"><span>{{ historyError }}</span></div>
       <div v-if="historyLoading" class="flex justify-center py-16"><span class="loading loading-spinner loading-lg"></span></div>
-      <div v-else-if="historyItems.length === 0 && !historyError" class="py-16 text-center opacity-60">暂无历史记录。</div>
+      <div v-else-if="historyItems.length === 0 && !historyError" class="py-16 text-center opacity-60">{{ tr("暂无历史记录。") }}</div>
       <div v-else class="mt-5 overflow-x-auto">
         <table class="table table-sm table-zebra">
-          <thead><tr><th>时间</th><th>类型</th><th>状态</th><th>协议 / 服务</th><th>来源</th><th>扫描器</th><th>任务</th><th>数据</th></tr></thead>
+          <thead><tr><th>{{ tr("时间") }}</th><th>{{ tr("类型") }}</th><th>{{ tr("状态") }}</th><th>{{ tr("协议 / 服务") }}</th><th>{{ tr("来源") }}</th><th>{{ tr("扫描器") }}</th><th>{{ tr("任务") }}</th><th>{{ tr("数据") }}</th></tr></thead>
           <tbody>
             <template v-for="item in historyItems" :key="item.id">
               <tr>
                 <td class="whitespace-nowrap">{{ formatTime(item.observed_at) }}</td>
-                <td><span class="badge badge-outline">{{ item.kind === 'service' ? '服务' : '端口' }}</span></td>
+                <td><span class="badge badge-outline">{{ item.kind === 'service' ? tr("服务") : tr("端口") }}</span></td>
                 <td>{{ item.state }}</td>
                 <td>{{ item.protocol || '-' }}<span v-if="item.service"> · <ServiceLabel :service="item.service" :data="item.data" /></span></td>
                 <td>{{ item.source }}</td>
@@ -661,7 +662,7 @@ onMounted(() => {
                     :aria-controls="`history-data-${item.id}`"
                     @click="toggleHistoryData(item)"
                   >
-                    {{ expandedHistoryItemId === item.id ? '收起' : '查看' }}
+                    {{ expandedHistoryItemId === item.id ? tr("收起") : tr("查看") }}
                   </button>
                   <span v-else>-</span>
                 </td>
@@ -676,7 +677,7 @@ onMounted(() => {
                           <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ item.banner }}</pre>
                         </section>
                         <section v-if="item.data" :class="item.banner ? 'mt-4 border-t border-base-300 pt-4' : ''">
-                          <h4 class="font-semibold">原始数据</h4>
+                          <h4 class="font-semibold">{{ tr("原始数据") }}</h4>
                           <pre class="mt-2 whitespace-pre-wrap break-all font-mono">{{ JSON.stringify(item.data, null, 2) }}</pre>
                         </section>
                       </div>
@@ -690,22 +691,22 @@ onMounted(() => {
       </div>
 
       <div v-if="historyTotal > HISTORY_PAGE_SIZE" class="mt-5 flex items-center justify-end gap-3">
-        <span class="text-sm opacity-60">第 {{ historyPage }} / {{ historyPages }} 页</span>
-        <button class="btn btn-sm" :disabled="historyLoading || historyOffset === 0" @click="loadHistory(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))">上一页</button>
-        <button class="btn btn-sm" :disabled="historyLoading || historyOffset + HISTORY_PAGE_SIZE >= historyTotal" @click="loadHistory(historyOffset + HISTORY_PAGE_SIZE)">下一页</button>
+        <span class="text-sm opacity-60">{{ tr("第") }} {{ historyPage }} / {{ historyPages }} {{ tr("页") }}</span>
+        <button class="btn btn-sm" :disabled="historyLoading || historyOffset === 0" @click="loadHistory(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))">{{ tr("上一页") }}</button>
+        <button class="btn btn-sm" :disabled="historyLoading || historyOffset + HISTORY_PAGE_SIZE >= historyTotal" @click="loadHistory(historyOffset + HISTORY_PAGE_SIZE)">{{ tr("下一页") }}</button>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button @click="closeHistory">关闭</button></form>
+    <form method="dialog" class="modal-backdrop"><button @click="closeHistory">{{ tr("关闭") }}</button></form>
   </dialog>
 
   <dialog ref="tagDialogRef" class="modal">
     <div class="modal-box w-[calc(100vw-2rem)] max-w-3xl">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <h3 class="text-lg font-bold">绑定资产标签</h3>
+          <h3 class="text-lg font-bold">{{ tr("绑定资产标签") }}</h3>
           <p class="mt-1 font-mono text-sm opacity-65">{{ assetIp }}</p>
         </div>
-        <button type="button" class="btn btn-ghost btn-sm" @click="closeTagDialog">关闭</button>
+        <button type="button" class="btn btn-ghost btn-sm" @click="closeTagDialog">{{ tr("关闭") }}</button>
       </div>
 
       <div v-if="tagError" role="alert" class="alert alert-error mt-4 text-sm"><span>{{ tagError }}</span></div>
@@ -713,7 +714,7 @@ onMounted(() => {
 
       <div v-else class="mt-5 space-y-5">
         <section>
-          <h4 class="text-sm font-semibold">已绑定标签</h4>
+          <h4 class="text-sm font-semibold">{{ tr("已绑定标签") }}</h4>
           <div v-if="assignedTags.length" class="mt-2 flex flex-wrap gap-2">
             <button
               v-for="tag in assignedTags"
@@ -722,33 +723,33 @@ onMounted(() => {
               class="btn btn-sm"
               :class="tag.kind === 'malicious' ? 'btn-error' : tag.kind === 'benign' ? 'btn-success' : 'btn-info'"
               :disabled="tagActionLoading"
-              :title="`${tag.category_name || '未分类'} · ${tag.description || tag.name}（点击移除）`"
+              :title="tr(&quot;{0} · {1}（点击移除）&quot;, [tag.category_name || &#39;未分类&#39;, tag.description || tag.name])"
               @click="removeTag(tag)"
             >
               {{ tag.name }} ×
             </button>
           </div>
-          <p v-else class="mt-2 text-sm opacity-60">该 IP 暂无标签。</p>
+          <p v-else class="mt-2 text-sm opacity-60">{{ tr("该 IP 暂无标签。") }}</p>
         </section>
 
         <section class="rounded-lg bg-base-200/60 p-4">
-          <h4 class="text-sm font-semibold">添加已有标签</h4>
+          <h4 class="text-sm font-semibold">{{ tr("添加已有标签") }}</h4>
           <div class="mt-3 flex flex-col gap-2 sm:flex-row">
             <select v-model="selectedTagId" class="select select-bordered w-full" :disabled="tagActionLoading || availableTags.length === 0">
-              <option value="">{{ availableTags.length ? '选择标签' : '没有可添加的标签' }}</option>
-              <option v-for="tag in availableTags" :key="tag.id" :value="tag.id">{{ tag.category_name || '未分类' }} · {{ tag.name }}</option>
+              <option value="">{{ availableTags.length ? tr("选择标签") : tr("没有可添加的标签") }}</option>
+              <option v-for="tag in availableTags" :key="tag.id" :value="tag.id">{{ tag.category_name || tr("未分类") }} · {{ tag.name }}</option>
             </select>
-            <button type="button" class="btn btn-neutral" :disabled="tagActionLoading || !selectedTagId" @click="assignTag()">添加</button>
+            <button type="button" class="btn btn-neutral" :disabled="tagActionLoading || !selectedTagId" @click="assignTag()">{{ tr("添加") }}</button>
           </div>
         </section>
 
         <div class="flex items-center justify-between gap-3 rounded-lg border border-base-300 p-4 text-sm">
-          <span class="opacity-65">标签分类、名称和风险属性由标签中心统一维护。</span>
-          <a class="btn btn-ghost btn-sm" href="/admin/tags">打开标签管理</a>
+          <span class="opacity-65">{{ tr("标签分类、名称和风险属性由标签中心统一维护。") }}</span>
+          <a class="btn btn-ghost btn-sm" href="/admin/tags">{{ tr("打开标签管理") }}</a>
         </div>
       </div>
     </div>
-    <form method="dialog" class="modal-backdrop"><button>关闭</button></form>
+    <form method="dialog" class="modal-backdrop"><button>{{ tr("关闭") }}</button></form>
   </dialog>
 </template>
 

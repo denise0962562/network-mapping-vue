@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -12,7 +13,7 @@ const compiled = compileScript(descriptor, { id: 'runtime-history-test' })
 const source = compiled.scriptSetupAst.filter(node => node.type === 'ImportDeclaration').reverse()
   .reduce((code, node) => code.slice(0, node.start) + code.slice(node.end), descriptor.scriptSetup.content)
 function page(post = async () => { throw new Error('unexpected save') }) {
-  return vm.runInNewContext(`${source}\n;({activeTab,applyDocument,restoreVersion,documentFor,isDirty,saveNamespace,cidrText,revisions,savedDocuments,changeReasons})`, {
+  return localizedVm(`${source}\n;({activeTab,applyDocument,restoreVersion,documentFor,isDirty,saveNamespace,cidrText,revisions,savedDocuments,changeReasons})`, {
     computed, reactive, ref, structuredClone, crypto: globalThis.crypto,
     normalizeMonitor, policyDiff, scannerHealthDefaults, scannerHealthFields, validateMonitor, validateScannerHealth,
     cacheDefaults, validateCache, onMounted: () => {}, useUnsavedChanges: () => {}, http: { post },
@@ -60,3 +61,9 @@ test('history restoration hydrates every DNS and automatic target range editor',
     assert.equal(p.revisions[namespace], 7); assert.equal(p.isDirty(namespace), true)
   }
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

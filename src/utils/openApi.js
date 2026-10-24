@@ -1,4 +1,5 @@
-export function apiError(error, fallback = '操作失败，请稍后重试。') {
+import { tr } from '../i18n/index.js'
+export function apiError(error, fallback = tr("操作失败，请稍后重试。")) {
   const data = error?.response?.data
   return { code: data?.error?.code || '', message: data?.error?.message || data?.message || fallback, requestId: data?.request_id || error?.response?.headers?.['x-request-id'] || '' }
 }

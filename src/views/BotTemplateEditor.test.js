@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -18,7 +19,7 @@ function createPage(request = async () => response(initial), post = async () => 
   let dispose
   let exposed
   const events = []
-  const page = vm.runInNewContext(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewDocument,previewError,error,hasUnsavedChanges,sendTest,channelId,channels,loadChannels,sampleSeverity,testDelivery,testNotice,selectEvent,event,selectStateFromDropdown})`, {
+  const page = localizedVm(`${code}\n;({load,apply,act,refreshPreview,source,saved,detail,preview,previewDocument,previewError,error,hasUnsavedChanges,sendTest,channelId,channels,loadChannels,sampleSeverity,testDelivery,testNotice,selectEvent,event,selectStateFromDropdown})`, {
     computed, nextTick, ref, shallowRef, watch, useId: () => 'bot-template-test', notificationEvents, providerLabel, deliveryReason, AbortController,
     defineProps: () => ({provider, initialEvent, eventVariants}), defineExpose: value => { exposed = value }, defineEmits: () => (...args) => events.push(args),
     http:Object.assign(request,{post}), setTimeout, clearTimeout,
@@ -209,3 +210,9 @@ test('late test status cannot update the page after unmount', async () => {
   assert.equal(statusSignal.aborted,true)
   assert.equal(page.testDelivery.value.status,'pending')
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

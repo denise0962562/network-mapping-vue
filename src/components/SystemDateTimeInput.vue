@@ -1,6 +1,8 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed, ref, watch, watchEffect } from 'vue'
-import { localTimeCandidates, localToIso, offsetLabel, timeSettings, toLocalInputValue } from '@/utils/systemTime'
+import { localTimeCandidates, localToIso, offsetLabel, timeSettings, toLocalInputValue } from '../i18n/time.js'
 
 defineOptions({ inheritAttrs: false })
 const props = defineProps({ modelValue: { type: String, default: '' } })
@@ -24,8 +26,8 @@ function change(value) { emit('update:modelValue', value); emit('change') }
   <span class="inline-flex min-w-0 flex-col gap-1">
     <input ref="input" v-bind="$attrs" type="datetime-local" :value="local" @input="change($event.target.value)" />
     <span class="text-xs opacity-60">{{ timeSettings.timezone }}</span>
-    <select v-if="candidates.length > 1" class="select select-bordered select-xs" :value="modelValue.split('@')[1] || ''" aria-label="重复时间的 UTC 偏移" @change="change(`${local}@${$event.target.value}`)">
-      <option value="" disabled>请选择 UTC 偏移</option>
+    <select v-if="candidates.length > 1" class="select select-bordered select-xs" :value="modelValue.split('@')[1] || ''" :aria-label="tr(&quot;重复时间的 UTC 偏移&quot;)" @change="change(`${local}@${$event.target.value}`)">
+      <option value="" disabled>{{ tr("请选择 UTC 偏移") }}</option>
       <option v-for="candidate in candidates" :key="candidate.timestamp" :value="candidate.timestamp">{{ offsetLabel(candidate.offset) }}</option>
     </select>
     <span v-if="error" class="text-xs text-error">{{ error }}</span>

@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
@@ -10,7 +11,7 @@ const compiled = compileScript(descriptor, { id: 'manual-article' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s,n) => s.slice(0,n.start)+s.slice(n.end),descriptor.scriptSetup.content)
 function form(http) {
   let dispose; const events = []
-  const page = vm.runInNewContext(`${source}\n;({submit,available,sourceId,title,url,body,error,notice,busy})`, { computed, ref, AbortController, http, intelError, defineProps: () => ({ sources: [{id:'a',revision:7,enabled:true,kind:'article',transport:'manual'}, {id:'wrong',enabled:true,kind:'json',transport:'https'}, {id:'disabled',enabled:false,kind:'article',transport:'manual'}] }), defineEmits: () => event => events.push(event), onBeforeUnmount: fn => {dispose=fn} })
+  const page = localizedVm(`${source}\n;({submit,available,sourceId,title,url,body,error,notice,busy})`, { computed, ref, AbortController, http, intelError, defineProps: () => ({ sources: [{id:'a',revision:7,enabled:true,kind:'article',transport:'manual'}, {id:'wrong',enabled:true,kind:'json',transport:'https'}, {id:'disabled',enabled:false,kind:'article',transport:'manual'}] }), defineEmits: () => event => events.push(event), onBeforeUnmount: fn => {dispose=fn} })
   return {...page,events,dispose: () => dispose()}
 }
 test('article submission binds source revision and keeps all text for retry',async () => {
@@ -30,3 +31,9 @@ test('link-only requests send no fake snapshot and leaving aborts the request',a
   p.sourceId.value='a';p.title.value='Report';p.url.value='https://research.example/report'
   const pending=p.submit();p.dispose();assert.equal(options.signal.aborted,true);resolve({});await pending;assert.equal(p.events.length,0)
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

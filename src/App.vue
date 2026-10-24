@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from './i18n/index.js'
+
 import { computed, onBeforeUnmount, onMounted, provide, readonly, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { BookOpenText } from '@lucide/vue'
@@ -11,7 +13,8 @@ import SidebarConfigCheck from '@/components/SidebarConfigCheck.vue'
 import packageInfo from '../package.json'
 
 const route = useRoute()
-const navbarTitle = computed(() => route.meta?.title || '仪表盘')
+const navbarTitle = computed(() => tr(route.meta?.title || '仪表盘'))
+watch(navbarTitle, title => { document.title = `${title} · Network Mapping` }, { immediate: true })
 const logoutLoading = ref(false)
 const drawerOpen = ref(true)
 const activeSettingsTab = ref('system')
@@ -38,7 +41,7 @@ const settingsMenuOpen = ref(activeMenuGroup.value === 'settings')
 let maintenanceRefreshTimer = null
 
 const maintenancePhaseLabel = computed(() => (
-  maintenanceStatus.value?.phase === 'draining' ? '正在通知 Scanner 进入系统维护' : '系统维护中'
+  maintenanceStatus.value?.phase === 'draining' ? tr("正在通知 Scanner 进入系统维护") : tr("系统维护中")
 ))
 
 watch(
@@ -194,6 +197,7 @@ async function handleLogout() {
         <div class="px-4">{{ navbarTitle }}</div>
 
         <div class="ml-auto mr-2.5 flex items-center gap-2">
+          <LanguageSelect />
           <ThemeToggle />
           <div class="p-2.5">
             <a href="https://github.com/wshijiang/" target="_blank">
@@ -209,7 +213,7 @@ async function handleLogout() {
             <div class="font-medium">{{ maintenancePhaseLabel }}</div>
             <div class="truncate text-xs opacity-80">{{ maintenanceStatus.message }}</div>
           </div>
-          <router-link class="btn btn-sm btn-ghost shrink-0" to="/setting/maintenance">查看并管理</router-link>
+          <router-link class="btn btn-sm btn-ghost shrink-0" to="/setting/maintenance">{{ tr("查看并管理") }}</router-link>
         </div>
       </div>
 
@@ -221,9 +225,9 @@ async function handleLogout() {
       <div class="flex min-h-full flex-col items-start bg-base-100 is-drawer-close:w-14 is-drawer-open:w-52">
         <ul v-if="activeSettingsTab === 'system'" class="menu w-full grow">
           <li>
-            <router-link exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="仪表盘" to="/">
+            <router-link exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;仪表盘&quot;)" to="/">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-linejoin="round" stroke-linecap="round" stroke-width="2" fill="none" stroke="currentColor" class="my-1.5 inline-block size-4"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">仪表盘</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("仪表盘") }}</span>
             </router-link>
           </li>
 
@@ -233,14 +237,14 @@ async function handleLogout() {
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="M21 21l-4.35-4.35"></path>
               </svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">搜索</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("搜索") }}</span>
             </a>
           </li>
 
           <li>
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="扫描器" to="/scanner">
+            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;扫描器&quot;)" to="/scanner">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M15 14h.01"/><path d="M9 6h6"/><path d="M9 10h6"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">扫描器</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("扫描器") }}</span>
             </router-link>
           </li>
 
@@ -248,7 +252,7 @@ async function handleLogout() {
             <button
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
-              data-tip="任务"
+              :data-tip="tr(&quot;任务&quot;)"
               :class="{ active: isParentMenuActive('task', taskMenuOpen) }"
               :aria-current="isParentMenuActive('task', taskMenuOpen) ? 'true' : undefined"
               :aria-expanded="drawerOpen && taskMenuOpen"
@@ -256,7 +260,7 @@ async function handleLogout() {
               @click="toggleTaskMenu"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">任务</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("任务") }}</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -275,25 +279,25 @@ async function handleLogout() {
               <ul v-if="taskMenuOpen" id="task-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/task">
-                    <span class="whitespace-nowrap">查看任务</span>
+                    <span class="whitespace-nowrap">{{ tr("查看任务") }}</span>
                   </router-link>
                 </li>
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/create_scan">
-                    <span class="whitespace-nowrap">创建任务</span>
+                    <span class="whitespace-nowrap">{{ tr("创建任务") }}</span>
                   </router-link>
                 </li>
               </ul>
             </Transition>
           </li>
 
-          <li><router-link to="/domain-discovery" active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="域名发现"><span class="my-1.5 inline-block size-4" aria-hidden="true">◎</span><span class="is-drawer-close:hidden whitespace-nowrap">域名发现</span></router-link></li>
+          <li><router-link to="/domain-discovery" active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;域名发现&quot;)"><span class="my-1.5 inline-block size-4" aria-hidden="true">◎</span><span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("域名发现") }}</span></router-link></li>
 
           <li>
             <button
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
-              data-tip="数据分析"
+              :data-tip="tr(&quot;数据分析&quot;)"
               :class="{ active: isParentMenuActive('analysis', analysisMenuOpen) }"
               :aria-current="isParentMenuActive('analysis', analysisMenuOpen) ? 'true' : undefined"
               :aria-expanded="drawerOpen && analysisMenuOpen"
@@ -301,7 +305,7 @@ async function handleLogout() {
               @click="toggleAnalysisMenu"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M5 21V3"/><path d="M12 21V9"/><path d="M19 21v-6"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">数据分析</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("数据分析") }}</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -320,17 +324,17 @@ async function handleLogout() {
               <ul v-if="analysisMenuOpen" id="analysis-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/analysis/scan">
-                    <span class="whitespace-nowrap">扫描分析</span>
+                    <span class="whitespace-nowrap">{{ tr("扫描分析") }}</span>
                   </router-link>
                 </li>
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/analysis/statistics">
-                    <span class="whitespace-nowrap">统计分析</span>
+                    <span class="whitespace-nowrap">{{ tr("统计分析") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/analysis/performance">
-                    <span class="whitespace-nowrap">性能基线</span>
+                    <span class="whitespace-nowrap">{{ tr("性能基线") }}</span>
                   </router-link>
                 </li>
               </ul>
@@ -341,7 +345,7 @@ async function handleLogout() {
             <button
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
-              data-tip="日志"
+              :data-tip="tr(&quot;日志&quot;)"
               :class="{ active: isParentMenuActive('logs', logsMenuOpen) }"
               :aria-current="isParentMenuActive('logs', logsMenuOpen) ? 'true' : undefined"
               :aria-expanded="drawerOpen && logsMenuOpen"
@@ -349,7 +353,7 @@ async function handleLogout() {
               @click="toggleLogsMenu"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9 12l2 2 4-4"/><path d="M12 22c4.4-1 8-5 8-10V5l-8-3-8 3v7c0 5 3.6 9 8 10"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">日志</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("日志") }}</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -368,12 +372,12 @@ async function handleLogout() {
               <ul v-if="logsMenuOpen" id="logs-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/audit">
-                    <span class="whitespace-nowrap">审计日志</span>
+                    <span class="whitespace-nowrap">{{ tr("审计日志") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/requests">
-                    <span class="whitespace-nowrap">请求日志</span>
+                    <span class="whitespace-nowrap">{{ tr("请求日志") }}</span>
                   </router-link>
                 </li>
               </ul>
@@ -381,50 +385,50 @@ async function handleLogout() {
           </li>
 
           <li>
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="开放平台" to="/open-platform">
+            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;开放平台&quot;)" to="/open-platform">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="my-1.5 inline-block size-4"><path d="m8 4-6 8 6 8M16 4l6 8-6 8M14 2l-4 20" /></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">开放平台</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("开放平台") }}</span>
             </router-link>
           </li>
           <li v-if="isAdmin">
-            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="报告中心" to="/reports">
+            <router-link active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;报告中心&quot;)" to="/reports">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">报告中心</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("报告中心") }}</span>
             </router-link>
           </li>
 
           <li v-if="isAdmin">
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="健康告警" to="/health">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;健康告警&quot;)" to="/health">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M12 22c4.4-1 8-5 8-10V5l-8-3-8 3v7c0 5 3.6 9 8 10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">健康告警</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("健康告警") }}</span>
             </router-link>
           </li>
 
           <li v-if="isAdmin">
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="用户管理" to="/admin/users">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;用户管理&quot;)" to="/admin/users">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">用户管理</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("用户管理") }}</span>
             </router-link>
           </li>
 
           <li v-if="isAdmin">
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="数据备份" to="/admin/backups">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;数据备份&quot;)" to="/admin/backups">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">数据备份</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("数据备份") }}</span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="开源项目" to="/open-source">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;开源项目&quot;)" to="/open-source">
               <BookOpenText class="my-1.5 inline-block size-4" aria-hidden="true" />
-              <span class="is-drawer-close:hidden whitespace-nowrap">开源项目</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("开源项目") }}</span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="Alert 测试" to="/testpage">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;Alert 测试&quot;)" to="/testpage">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M8.21 3.61 2.39 17.02A2 2 0 0 0 4.22 20h15.56a2 2 0 0 0 1.83-2.98L15.79 3.61a2 2 0 0 0-3.58 0Z"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">Alert 测试</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("Alert 测试") }}</span>
             </router-link>
           </li>
 
@@ -459,12 +463,12 @@ async function handleLogout() {
               <ul v-if="llmMenuOpen" id="llm-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/llm/basic">
-                    <span class="whitespace-nowrap">基础</span>
+                    <span class="whitespace-nowrap">{{ tr("基础") }}</span>
                   </router-link>
                 </li>
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/llm/providers">
-                    <span class="whitespace-nowrap">供应商</span>
+                    <span class="whitespace-nowrap">{{ tr("供应商") }}</span>
                   </router-link>
                 </li>
               </ul>
@@ -475,7 +479,7 @@ async function handleLogout() {
             <button
               type="button"
               class="is-drawer-close:tooltip is-drawer-close:tooltip-right bg-transparent hover:bg-base-200 focus-visible:bg-base-200"
-              data-tip="设置"
+              :data-tip="tr(&quot;设置&quot;)"
               :class="{ active: isParentMenuActive('settings', settingsMenuOpen) }"
               :aria-current="isParentMenuActive('settings', settingsMenuOpen) ? 'true' : undefined"
               :aria-expanded="drawerOpen && settingsMenuOpen"
@@ -483,7 +487,7 @@ async function handleLogout() {
               @click="toggleSettingsMenu"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">设置</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("设置") }}</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -502,47 +506,47 @@ async function handleLogout() {
               <ul v-if="settingsMenuOpen" id="settings-submenu" class="overflow-hidden py-1 is-drawer-close:hidden">
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting">
-                    <span class="whitespace-nowrap">常规设置</span>
+                    <span class="whitespace-nowrap">{{ tr("常规设置") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/scan">
-                    <span class="whitespace-nowrap">扫描设置</span>
+                    <span class="whitespace-nowrap">{{ tr("扫描设置") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/admin/tags">
-                    <span class="whitespace-nowrap">标签</span>
+                    <span class="whitespace-nowrap">{{ tr("标签") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/admin/intel">
-                    <span class="whitespace-nowrap">威胁情报</span>
+                    <span class="whitespace-nowrap">{{ tr("威胁情报") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/maintenance">
-                    <span class="whitespace-nowrap">系统维护</span>
+                    <span class="whitespace-nowrap">{{ tr("系统维护") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/runtime">
-                    <span class="whitespace-nowrap">运行策略</span>
+                    <span class="whitespace-nowrap">{{ tr("运行策略") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/human-verification">
-                    <span class="whitespace-nowrap">登录保护</span>
+                    <span class="whitespace-nowrap">{{ tr("登录保护") }}</span>
                   </router-link>
                 </li>
                 <li v-if="isAdmin">
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/notifications">
-                    <span class="whitespace-nowrap">通知渠道</span>
+                    <span class="whitespace-nowrap">{{ tr("通知渠道") }}</span>
                   </router-link>
                 </li>
                 <li>
                   <router-link class="sidebar-submenu-item" exact-active-class="active" to="/setting/notification-templates">
-                    <span class="whitespace-nowrap">通知模板</span>
+                    <span class="whitespace-nowrap">{{ tr("通知模板") }}</span>
                   </router-link>
                 </li>
               </ul>
@@ -552,16 +556,16 @@ async function handleLogout() {
 
         <ul v-else class="menu w-full grow">
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="个人信息" to="/user/info">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;个人信息&quot;)" to="/user/info">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">个人信息</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("个人信息") }}</span>
             </router-link>
           </li>
 
           <li>
-            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" data-tip="安全设置" to="/user/security">
+            <router-link active-class="active" exact-active-class="active" class="is-drawer-close:tooltip is-drawer-close:tooltip-right" :data-tip="tr(&quot;安全设置&quot;)" to="/user/security">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="my-1.5 inline-block size-4"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M6.376 18.91a6 6 0 0 1 11.249.003"/><circle cx="12" cy="11" r="4"/></svg>
-              <span class="is-drawer-close:hidden whitespace-nowrap">安全设置</span>
+              <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("安全设置") }}</span>
             </router-link>
           </li>
         </ul>
@@ -575,10 +579,10 @@ async function handleLogout() {
           @expand="drawerOpen = true"
         />
         <div class="w-full is-drawer-close:hidden">
-          <div class="divider my-0 px-4 text-xs opacity-60">版本信息</div>
+          <div class="divider my-0 px-4 text-xs opacity-60">{{ tr("版本信息") }}</div>
           <div class="flex items-center justify-between px-4 pb-2 text-xs opacity-70">
-            <span class="whitespace-nowrap">前端 v{{ frontendVersion }}</span>
-            <span class="whitespace-nowrap">服务端 v{{ serverVersion || '—' }}</span>
+            <span class="whitespace-nowrap">{{ tr("前端 v") }}{{ frontendVersion }}</span>
+            <span class="whitespace-nowrap">{{ tr("服务端 v") }}{{ serverVersion || '—' }}</span>
           </div>
         </div>
 
@@ -588,24 +592,24 @@ async function handleLogout() {
               type="button"
               class="tab w-full min-w-0 justify-center px-0 is-drawer-close:flex-none"
               :class="{ 'tab-active': activeSettingsTab === 'system' }"
-              aria-label="系统设置"
+              :aria-label="tr(&quot;系统设置&quot;)"
               @click="activeSettingsTab = 'system'"
             >
               <span class="flex min-w-0 items-center justify-center gap-1 overflow-hidden">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4 shrink-0"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
-                <span class="is-drawer-close:hidden whitespace-nowrap">系统设置</span>
+                <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("系统设置") }}</span>
               </span>
             </button>
             <button
               type="button"
               class="tab w-full min-w-0 justify-center px-0 is-drawer-close:flex-none"
               :class="{ 'tab-active': activeSettingsTab === 'user' }"
-              aria-label="用户设置"
+              :aria-label="tr(&quot;用户设置&quot;)"
               @click="activeSettingsTab = 'user'"
             >
               <span class="flex min-w-0 items-center justify-center gap-1 overflow-hidden">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4 shrink-0"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <span class="is-drawer-close:hidden whitespace-nowrap">用户设置</span>
+                <span class="is-drawer-close:hidden whitespace-nowrap">{{ tr("用户设置") }}</span>
               </span>
             </button>
           </div>
@@ -625,7 +629,7 @@ async function handleLogout() {
                   <path d="M21 12H9"/>
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                 </svg>
-                <span class="is-drawer-close:hidden whitespace-nowrap overflow-hidden text-ellipsis">{{ logoutLoading ? '退出登录中...' : '退出登录' }}</span>
+                <span class="is-drawer-close:hidden whitespace-nowrap overflow-hidden text-ellipsis">{{ logoutLoading ? tr("退出登录中...") : tr("退出登录") }}</span>
               </button>
             </li>
           </ul>

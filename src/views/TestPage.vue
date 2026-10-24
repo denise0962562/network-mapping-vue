@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 
@@ -43,16 +45,16 @@ function closeAlert(id) {
 <template>
   <div class="page-shell">
     <div class="mb-5">
-      <h1 class="page-title">Alert 测试</h1>
-      <p class="mt-1 text-sm opacity-60">点击按钮触发不同类型的通用提示组件。</p>
+      <h1 class="page-title">{{ tr("Alert 测试") }}</h1>
+      <p class="mt-1 text-sm opacity-60">{{ tr("点击按钮触发不同类型的通用提示组件。") }}</p>
     </div>
     <div class="big_card">
 
       <div class="flex flex-wrap gap-3">
-        <button type="button" class="btn btn-info btn-soft" @click="triggerAlert('info')">信息</button>
-        <button type="button" class="btn btn-success btn-soft" @click="triggerAlert('success')">成功</button>
-        <button type="button" class="btn btn-warning btn-soft" @click="triggerAlert('warning')">警告</button>
-        <button type="button" class="btn btn-error btn-soft" @click="triggerAlert('error')">错误</button>
+        <button type="button" class="btn btn-info btn-soft" @click="triggerAlert('info')">{{ tr("信息") }}</button>
+        <button type="button" class="btn btn-success btn-soft" @click="triggerAlert('success')">{{ tr("成功") }}</button>
+        <button type="button" class="btn btn-warning btn-soft" @click="triggerAlert('warning')">{{ tr("警告") }}</button>
+        <button type="button" class="btn btn-error btn-soft" @click="triggerAlert('error')">{{ tr("错误") }}</button>
       </div>
     </div>
 

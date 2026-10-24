@@ -1,4 +1,6 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed, onMounted, ref } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
@@ -7,23 +9,23 @@ import http from '@/utils/http'
 const scanProfiles = [
   {
     value: 'legacy',
-    title: '兼容模式',
-    description: '发现开放端口，并在扫描端启用时尝试识别服务；服务识别失败不影响端口结果。'
+    get title() { return tr("兼容模式") },
+    get description() { return tr("发现开放端口，并在扫描端启用时尝试识别服务；服务识别失败不影响端口结果。") }
   },
   {
     value: 'port_only',
-    title: '仅端口扫描',
-    description: '只发现开放端口，不启动 zgrab2 服务识别。'
+    get title() { return tr("仅端口扫描") },
+    get description() { return tr("只发现开放端口，不启动 zgrab2 服务识别。") }
   },
   {
     value: 'service_inventory',
-    title: '服务识别',
-    description: '发现开放端口后必须完成 zgrab2 服务识别，识别阶段失败会使任务失败。'
+    get title() { return tr("服务识别") },
+    get description() { return tr("发现开放端口后必须完成 zgrab2 服务识别，识别阶段失败会使任务失败。") }
   },
   {
     value: 'vulnerability_scan',
-    title: '漏洞扫描',
-    description: '发现开放端口并尝试识别服务，然后使用扫描节点配置的安全 Nuclei 模板集检查漏洞。'
+    get title() { return tr("漏洞扫描") },
+    get description() { return tr("发现开放端口并尝试识别服务，然后使用扫描节点配置的安全 Nuclei 模板集检查漏洞。") }
   }
 ]
 
@@ -57,7 +59,7 @@ async function fetchSettings() {
     applySettings(response.data?.data)
   } catch (error) {
     console.error('load scan settings failed', error)
-    pushAlert('error', '扫描设置加载失败', '请检查网络连接或服务器运行状态。')
+    pushAlert('error', tr("扫描设置加载失败"), tr("请检查网络连接或服务器运行状态。"))
   } finally {
     loading.value = false
   }
@@ -71,11 +73,11 @@ async function saveSettings() {
       defaultScanProfile: defaultScanProfile.value
     })
     applySettings(response.data?.data)
-    pushAlert('success', '扫描设置已保存', '新建任务和系统自动任务将默认使用该模式。')
+    pushAlert('success', tr("扫描设置已保存"), tr("新建任务和系统自动任务将默认使用该模式。"))
     return true
   } catch (error) {
     console.error('save scan settings failed', error)
-    pushAlert('error', '扫描设置保存失败', error.response?.data?.message || '请稍后重试。')
+    pushAlert('error', tr("扫描设置保存失败"), error.response?.data?.message || tr("请稍后重试。"))
     return false
   } finally {
     saving.value = false
@@ -102,15 +104,15 @@ onMounted(fetchSettings)
 
   <div class="page-shell">
     <div class="mb-4">
-      <h1 class="page-title">扫描设置</h1>
-      <p class="text-xs opacity-60">设置未显式指定模式的新任务及系统自动任务使用的默认扫描模式。</p>
+      <h1 class="page-title">{{ tr("扫描设置") }}</h1>
+      <p class="text-xs opacity-60">{{ tr("设置未显式指定模式的新任务及系统自动任务使用的默认扫描模式。") }}</p>
     </div>
 
     <div class="card bg-base-100 card-border border-base-300 p-4">
       <div class="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 class="font-semibold">系统默认扫描模式</h3>
-          <p class="mt-1 text-xs opacity-60">设置只影响之后创建的任务，已进入队列的任务不会改变。</p>
+          <h3 class="font-semibold">{{ tr("系统默认扫描模式") }}</h3>
+          <p class="mt-1 text-xs opacity-60">{{ tr("设置只影响之后创建的任务，已进入队列的任务不会改变。") }}</p>
         </div>
         <button
           class="btn btn-neutral btn-sm rounded-lg"
@@ -119,14 +121,12 @@ onMounted(fetchSettings)
           @click="saveSettings"
         >
           <span v-if="saving" class="loading loading-spinner loading-xs"></span>
-          {{ saving ? '保存中' : '保存' }}
+          {{ saving ? tr("保存中") : tr("保存") }}
         </button>
       </div>
 
       <div v-if="loading" class="flex items-center gap-2 py-3 text-sm opacity-60">
-        <span class="loading loading-spinner loading-sm"></span>
-        正在读取扫描设置...
-      </div>
+        <span class="loading loading-spinner loading-sm"></span> {{ tr("正在读取扫描设置...") }} </div>
 
       <fieldset v-else :disabled="saving" class="grid gap-3 lg:grid-cols-3">
         <label

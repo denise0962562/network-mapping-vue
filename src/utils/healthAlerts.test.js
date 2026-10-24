@@ -1,3 +1,5 @@
+import { i18n } from '../i18n/index.js'
+i18n.global.locale.value = 'zh-CN'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { alertGuidance, alertHighlights, alertService, alertSubject, alertTypeLabel, detailItems, diagnosticItems, healthAlertTypes, policyItems, requestLogTarget, severityClass, severityLabel } from './healthAlerts.js'

@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -15,7 +16,7 @@ const fixture = () => ({ revision: 7, enabled: true, provider_id: 'one', model_i
 function page({ http, chatRequest, localStorage } = {}) {
   let dispose
   const context = { ...llm, ...debug, ...draft, computed, ref, nextTick, watch, TextEncoder, crypto: { randomUUID: () => 'session-id' }, AbortController, window: { confirm: () => true, localStorage }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http: http || { get: async () => ({ data: { data: fixture() } }) }, chatRequest: chatRequest || (async () => {}) }
-  const p = vm.runInNewContext(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error,promptDraft,promptDirty,promptEditing,editPrompt,cancelPrompt,selectionDirty,dirty,savePrompt,restorePrompt,saveAll,useSystemPrompt,debugParameters,retainIoc,retainDebug,historyId,session,loadHistory,replayLast,draftError})`, context)
+  const p = localizedVm(`${source}\n;({state,enabled,providerId,modelId,chatProvider,chatModel,messages,input,load,save,chooseProvider,chooseChatProvider,newSession,send,stop,generating,error,promptDraft,promptDirty,promptEditing,editPrompt,cancelPrompt,selectionDirty,dirty,savePrompt,restorePrompt,saveAll,useSystemPrompt,debugParameters,retainIoc,retainDebug,historyId,session,loadHistory,replayLast,draftError})`, context)
   return { ...p, dispose: () => dispose() }
 }
 
@@ -341,3 +342,9 @@ test('failed and cancelled reasoning stops animation while keeping already recei
     p.dispose()
   }
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

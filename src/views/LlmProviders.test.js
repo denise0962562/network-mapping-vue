@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -10,7 +11,7 @@ const compiled = compileScript(descriptor, { id: 'llm-provider-test' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
 function page(http) {
   let dispose
-  const p = vm.runInNewContext(`${source}\n;({form,global,state,editor,open,saveProvider,saveGlobal,remove,refreshModels,load,error,editing})`, { ...llm, computed, ref, AbortController, crypto: { randomUUID: () => 'id' }, window: { confirm: () => true }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http })
+  const p = localizedVm(`${source}\n;({form,global,state,editor,open,saveProvider,saveGlobal,remove,refreshModels,load,error,editing})`, { ...llm, computed, ref, AbortController, crypto: { randomUUID: () => 'id' }, window: { confirm: () => true }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn }, useUnsavedChanges: () => {}, http })
   p.editor.value = { showModal() {}, close() {} }
   return { ...p, dispose: () => dispose() }
 }
@@ -70,3 +71,9 @@ test('clearing a saved credential omits a typed replacement and keeps failed edi
   assert.equal(p.form.value.credential, '')
   p.dispose()
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

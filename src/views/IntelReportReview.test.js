@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
@@ -13,7 +14,7 @@ function page(http) {
   let dispose
   const route = { params: { articleId: 'article' }, query: {} }
   let routeChanged
-  const state = vm.runInNewContext(`${source}\n;({load,locate,submit,decideAll,records,decisions,attribution,article,selected,focused,mark,missing,items,blocked,reviewBlocked,reason,error,submitError,notice,backTo,saving,submitDialog,openConfirmation,closeConfirmation})`, { ...intel, ...reportHelpers, ref, computed, nextTick, AbortController, http, onBeforeUnmount: fn => { dispose = fn }, useRoute: () => route, watch: (source, callback) => { routeChanged = callback } })
+  const state = localizedVm(`${source}\n;({load,locate,submit,decideAll,records,decisions,attribution,article,selected,focused,mark,missing,items,blocked,reviewBlocked,reason,error,submitError,notice,backTo,saving,submitDialog,openConfirmation,closeConfirmation})`, { ...intel, ...reportHelpers, ref, computed, nextTick, AbortController, http, onBeforeUnmount: fn => { dispose = fn }, useRoute: () => route, watch: (source, callback) => { routeChanged = callback } })
   return { ...state, route, routeChanged: () => routeChanged(), dispose: () => dispose() }
 }
 function response(records, body = '恶意 DNS\n192[.]0[.]2[.]1') {
@@ -134,3 +135,9 @@ test('confirmation opens before entering a reason and cancellation preserves the
   assert.equal(p.decisions.value.ioc, 'approved')
   p.dispose()
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

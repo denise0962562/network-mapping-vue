@@ -1,5 +1,7 @@
 <script setup>
-import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
+import { tr } from '../i18n/index.js'
+
+import { formatDateTime as formatSystemDateTime } from '../i18n/time.js'
 import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import AppAlert from '@/components/AppAlert.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -71,41 +73,41 @@ function formatDate(value) {
 
 function resolveStatus(item) {
   if (item.is_enable !== true) {
-    return { key: 'pending', text: '待注册', class: 'badge-warning' }
+    return { key: 'pending', get text() { return tr("待注册") }, class: 'badge-warning' }
   }
   if (maintenanceStatus.value?.phase === 'active' && item.current_task_id) {
-    return { key: 'maintenance-scanning', text: '维护中 · 本地扫描', class: 'badge-warning' }
+    return { key: 'maintenance-scanning', get text() { return tr("维护中 · 本地扫描") }, class: 'badge-warning' }
   }
   if (maintenanceStatus.value?.phase === 'active' || (
     maintenanceStatus.value?.phase === 'draining' && !item.current_task_id
   )) {
-    return { key: 'maintenance', text: '维护休眠', class: 'badge-warning' }
+    return { key: 'maintenance', get text() { return tr("维护休眠") }, class: 'badge-warning' }
   }
   if (item.is_online === true) {
     if (item.runtime_state === 'scanning') {
       return {
         key: 'online',
-        text: maintenanceStatus.value?.phase === 'draining' ? '扫描中 · 正在冻结任务' : '扫描中',
+        text: maintenanceStatus.value?.phase === 'draining' ? tr("扫描中 · 正在冻结任务") : tr("扫描中"),
         class: 'badge-info'
       }
     }
-    return { key: 'online', text: '在线 · 空闲', class: 'badge-success' }
+    return { key: 'online', get text() { return tr("在线 · 空闲") }, class: 'badge-success' }
   }
-  return { key: 'offline', text: '离线', class: 'badge-error' }
+  return { key: 'offline', get text() { return tr("离线") }, class: 'badge-error' }
 }
 
 function normalizeLatency(latency) {
   const milliseconds = Number(latency?.network_rtt_ms)
   if (!Number.isFinite(milliseconds) || milliseconds < 0) {
-    return { text: '--', class: 'badge-ghost', title: '尚无延迟样本' }
+    return { text: '--', class: 'badge-ghost', get title() { return tr("尚无延迟样本") } }
   }
   const text = milliseconds < 10 ? `${milliseconds.toFixed(1)} ms` : `${Math.round(milliseconds)} ms`
   if (latency.stale) {
-    return { text, class: 'badge-ghost', title: `样本已过期：${formatDate(latency.measured_at)}` }
+    return { text, class: 'badge-ghost', title: tr("样本已过期：{0}", [formatDate(latency.measured_at)]) }
   }
   const badgeClass = latency.severity === 'critical' ? 'badge-error'
     : latency.severity === 'warning' ? 'badge-warning' : 'badge-success'
-  return { text, class: badgeClass, title: `测量时间：${formatDate(latency.measured_at)}` }
+  return { text, class: badgeClass, title: tr("测量时间：{0}", [formatDate(latency.measured_at)]) }
 }
 
 function normalizeScanner(item, index) {
@@ -162,7 +164,7 @@ async function loadScanners({ silent = false } = {}) {
     const response = await http.get('/api/scanner/list')
     const data = response.data?.data
     if (response.data?.success !== true || !Array.isArray(data)) {
-      throw new Error('服务器未返回有效扫描器列表')
+      throw new Error(tr("服务器未返回有效扫描器列表"))
     }
     maintenanceStatus.value = response.data?.maintenance || null
     scannerList.value = data.map(normalizeScanner)
@@ -171,7 +173,7 @@ async function loadScanners({ silent = false } = {}) {
   } catch (error) {
     console.error('load scanners failed', error)
     initialLoadFailed.value = scannerList.value.length === 0
-    if (!silent) pushAlert('error', '加载扫描器失败', '请稍后重试。')
+    if (!silent) pushAlert('error', tr("加载扫描器失败"), tr("请稍后重试。"))
   } finally {
     isLoadingData.value = false
   }
@@ -202,14 +204,14 @@ async function createScanner() {
         remark: '',
         tag: ''
       }
-      pushAlert('success', '扫描器创建成功', '请妥善保存下方展示的 token，关闭后无法再次查看。')
+      pushAlert('success', tr("扫描器创建成功"), tr("请妥善保存下方展示的 token，关闭后无法再次查看。"))
       await loadScanners({ silent: true })
     } else {
-      pushAlert('error', '创建扫描器失败', '服务器未返回有效数据，请稍后重试。')
+      pushAlert('error', tr("创建扫描器失败"), tr("服务器未返回有效数据，请稍后重试。"))
     }
   } catch (error) {
     console.error('create scanner failed', error)
-    pushAlert('error', '创建扫描器失败', '请检查网络连接后重试。')
+    pushAlert('error', tr("创建扫描器失败"), tr("请检查网络连接后重试。"))
   } finally {
     submitting.value = false
   }
@@ -246,37 +248,37 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
 
   <div class="page-shell">
     <div class="mb-4">
-      <h1 class="page-title">扫描器</h1>
-      <p class="text-xs opacity-60">该页面展示了添加的所有扫描器</p>
+      <h1 class="page-title">{{ tr("扫描器") }}</h1>
+      <p class="text-xs opacity-60">{{ tr("该页面展示了添加的所有扫描器") }}</p>
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
       <div class="xl:col-span-2 flex flex-col gap-4">
         <div class="stats shadow border border-base-300 bg-base-100">
           <div class="stat place-items-center">
-            <div class="stat-title">扫描器总数</div>
+            <div class="stat-title">{{ tr("扫描器总数") }}</div>
             <div class="stat-value">{{ isLoadingData ? '—' : scannerStats.total }}</div>
-            <div class="stat-desc">当前已注册扫描器</div>
+            <div class="stat-desc">{{ tr("当前已注册扫描器") }}</div>
           </div>
 
           <div class="stat place-items-center">
-            <div class="stat-title">在线扫描器</div>
+            <div class="stat-title">{{ tr("在线扫描器") }}</div>
             <div class="stat-value">{{ isLoadingData ? '—' : scannerStats.online }}</div>
-            <div class="stat-desc">可立即执行任务</div>
+            <div class="stat-desc">{{ tr("可立即执行任务") }}</div>
           </div>
 
           <div class="stat place-items-center">
-            <div class="stat-title">非在线扫描器</div>
+            <div class="stat-title">{{ tr("非在线扫描器") }}</div>
             <div class="stat-value text-error">{{ isLoadingData ? '—' : scannerStats.nonOnline }}</div>
-            <div class="stat-desc text-error">包含待注册及离线节点</div>
+            <div class="stat-desc text-error">{{ tr("包含待注册及离线节点") }}</div>
           </div>
         </div>
 
         <div class="card bg-base-100 card-border border-base-300 p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h3 class="font-semibold">扫描器列表</h3>
+            <h3 class="font-semibold">{{ tr("扫描器列表") }}</h3>
             <button class="btn btn-ghost btn-xs" :disabled="isLoadingData" @click="loadScanners()">
-              {{ isLoadingData ? '加载中...' : '刷新' }}
+              {{ isLoadingData ? tr("加载中...") : tr("刷新") }}
             </button>
           </div>
 
@@ -287,14 +289,14 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           <EmptyState
             v-else-if="initialLoadFailed"
             type="error"
-            title="扫描器列表加载失败"
-            message="无法从服务器获取扫描器信息，请稍后重试。"
+            :title="tr(&quot;扫描器列表加载失败&quot;)"
+            :message="tr(&quot;无法从服务器获取扫描器信息，请稍后重试。&quot;)"
           />
 
           <EmptyState
             v-else-if="scannerList.length === 0"
-            title="暂无扫描器"
-            message="请使用右侧表单创建第一个扫描器。"
+            :title="tr(&quot;暂无扫描器&quot;)"
+            :message="tr(&quot;请使用右侧表单创建第一个扫描器。&quot;)"
           />
 
           <div v-else class="overflow-x-auto rounded-box border border-base-300">
@@ -302,16 +304,16 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
               <thead>
                 <tr>
                   <th></th>
-                  <th>名称</th>
-                  <th>区域</th>
-                  <th>地址</th>
-                  <th>状态</th>
-                  <th>版本</th>
-                  <th>协议</th>
-                  <th>延迟</th>
-                  <th>添加者</th>
-                  <th>最后心跳</th>
-                  <th>当前任务</th>
+                  <th>{{ tr("名称") }}</th>
+                  <th>{{ tr("区域") }}</th>
+                  <th>{{ tr("地址") }}</th>
+                  <th>{{ tr("状态") }}</th>
+                  <th>{{ tr("版本") }}</th>
+                  <th>{{ tr("协议") }}</th>
+                  <th>{{ tr("延迟") }}</th>
+                  <th>{{ tr("添加者") }}</th>
+                  <th>{{ tr("最后心跳") }}</th>
+                  <th>{{ tr("当前任务") }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,9 +343,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
                   <td>{{ item.creator }}</td>
                   <td class="whitespace-nowrap">{{ formatDate(item.lastSeenAt) }}</td>
                   <td>
-                    <router-link v-if="item.currentTaskId" class="link link-neutral text-xs" :to="`/task/${item.currentTaskId}`">
-                      查看任务
-                    </router-link>
+                    <router-link v-if="item.currentTaskId" class="link link-neutral text-xs" :to="`/task/${item.currentTaskId}`"> {{ tr("查看任务") }} </router-link>
                     <span v-else>-</span>
                   </td>
                 </tr>
@@ -352,9 +352,9 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           </div>
 
           <div v-if="!initialLoadFailed && scannerList.length > 0" class="flex items-center justify-between mt-3">
-            <div class="text-xs opacity-70">第 {{ currentPage }} / {{ totalPages }} 页</div>
+            <div class="text-xs opacity-70">{{ tr("第") }} {{ currentPage }} / {{ totalPages }} {{ tr("页") }}</div>
             <div class="join">
-              <button class="join-item btn btn-xs" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">上一页</button>
+              <button class="join-item btn btn-xs" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">{{ tr("上一页") }}</button>
               <button
                 v-for="p in pageNumbers"
                 :key="p"
@@ -364,7 +364,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
               >
                 {{ p }}
               </button>
-              <button class="join-item btn btn-xs" :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">下一页</button>
+              <button class="join-item btn btn-xs" :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">{{ tr("下一页") }}</button>
             </div>
           </div>
         </div>
@@ -372,45 +372,45 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
 
       <div class="xl:col-span-1">
         <div class="card bg-base-100 card-border border-base-300 p-4">
-          <h3 class="font-semibold mb-3">创建扫描器</h3>
+          <h3 class="font-semibold mb-3">{{ tr("创建扫描器") }}</h3>
 
           <div class="grid grid-cols-1 gap-3">
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">扫描器名称 <span class="text-error">*</span></label></legend>
-              <input :id="`${formFieldId}-1`" v-model="scannerForm.name" type="text" class="input input-bordered w-full" placeholder="例如：scanner-04" :disabled="submitting" />
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("扫描器名称") }} <span class="text-error">*</span></label></legend>
+              <input :id="`${formFieldId}-1`" v-model="scannerForm.name" type="text" class="input input-bordered w-full" :placeholder="tr(&quot;例如：scanner-04&quot;)" :disabled="submitting" />
             </fieldset>
 
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">位置</label></legend>
-              <input :id="`${formFieldId}-2`" v-model="scannerForm.location" type="text" class="input input-bordered w-full" placeholder="例如：华东-上海" :disabled="submitting" />
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-2`">{{ tr("位置") }}</label></legend>
+              <input :id="`${formFieldId}-2`" v-model="scannerForm.location" type="text" class="input input-bordered w-full" :placeholder="tr(&quot;例如：华东-上海&quot;)" :disabled="submitting" />
             </fieldset>
 
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">备注</label></legend>
-              <input :id="`${formFieldId}-3`" v-model="scannerForm.remark" type="text" class="input input-bordered w-full" placeholder="备注信息（可选）" :disabled="submitting" />
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-3`">{{ tr("备注") }}</label></legend>
+              <input :id="`${formFieldId}-3`" v-model="scannerForm.remark" type="text" class="input input-bordered w-full" :placeholder="tr(&quot;备注信息（可选）&quot;)" :disabled="submitting" />
             </fieldset>
 
             <fieldset class="fieldset min-w-0 w-full">
-              <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">标签</label></legend>
-              <input :id="`${formFieldId}-4`" v-model="scannerForm.tag" type="text" class="input input-bordered w-full" placeholder="标签（可选）" :disabled="submitting" />
+              <legend class="fieldset-legend"><label :for="`${formFieldId}-4`">{{ tr("标签") }}</label></legend>
+              <input :id="`${formFieldId}-4`" v-model="scannerForm.tag" type="text" class="input input-bordered w-full" :placeholder="tr(&quot;标签（可选）&quot;)" :disabled="submitting" />
             </fieldset>
 
             <button class="btn btn-neutral w-full mt-1" :disabled="submitting || !scannerForm.name.trim()" @click="createScanner">
-              {{ submitting ? '提交中...' : '提交' }}
+              {{ submitting ? tr("提交中...") : tr("提交") }}
             </button>
           </div>
 
           <!-- 创建结果展开 -->
           <div v-if="scannerResult" class="mt-5 space-y-2 border-t border-base-300 pt-4">
-            <h4 class="text-sm font-semibold">创建成功</h4>
-            <p class="text-xs opacity-60">以下信息仅在本次展示，请立即保存。</p>
+            <h4 class="text-sm font-semibold">{{ tr("创建成功") }}</h4>
+            <p class="text-xs opacity-60">{{ tr("以下信息仅在本次展示，请立即保存。") }}</p>
 
             <label class="form-control w-full">
               <span class="label-text text-xs mb-1">Scanner ID</span>
               <div class="flex items-center gap-2">
                 <code class="flex-1 truncate rounded-lg bg-base-200 px-3 py-2 text-xs">{{ scannerResult.scanner_id }}</code>
                 <button class="btn btn-ghost btn-xs shrink-0" @click="copyToClipboard(scannerResult.scanner_id, 'id')">
-                  {{ copiedField === 'id' ? '已复制' : '复制' }}
+                  {{ copiedField === 'id' ? tr("已复制") : tr("复制") }}
                 </button>
               </div>
             </label>
@@ -420,7 +420,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
               <div class="flex items-center gap-2">
                 <code class="flex-1 truncate rounded-lg bg-base-200 px-3 py-2 text-xs">{{ scannerResult.registration_token }}</code>
                 <button class="btn btn-ghost btn-xs shrink-0" @click="copyToClipboard(scannerResult.registration_token, 'token')">
-                  {{ copiedField === 'token' ? '已复制' : '复制' }}
+                  {{ copiedField === 'token' ? tr("已复制") : tr("复制") }}
                 </button>
               </div>
             </label>

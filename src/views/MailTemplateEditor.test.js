@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -16,7 +17,7 @@ function createPage({ initialTemplateKey = '', confirm = () => true, failDetail 
   const calls = [], events = [], posts = []
   const timers = new Map(), stopWatchers = []
   let exposed, cleanup, nextTimer = 0
-  const page = vm.runInNewContext(`${code}\n;({initialize,selectTemplate,applyTemplateDetail,currentTemplate,source,hasUnsavedChanges,selectNotificationState,notificationState,validateAndPreview,sendTestMail,testRecipient,previewing,preview,previewError,alerts,useDefaultTemplate})`, {
+  const page = localizedVm(`${code}\n;({initialize,selectTemplate,applyTemplateDetail,currentTemplate,source,hasUnsavedChanges,selectNotificationState,notificationState,validateAndPreview,sendTestMail,testRecipient,previewing,preview,previewError,alerts,useDefaultTemplate})`, {
     computed, nextTick, ref, shallowRef, AbortController, useId: () => 'mail-navigation',
     watch: (...args) => { if (autoPreview) stopWatchers.push(watch(...args)) },
     setTimeout: callback => { const id = ++nextTimer; timers.set(id, callback); return id }, clearTimeout: id => timers.delete(id),
@@ -227,3 +228,9 @@ test('failed template loading does not select another template in the grouped me
   assert.equal(page.currentTemplate.value.templateKey, 'login')
   assert.equal(page.events.length, 1)
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

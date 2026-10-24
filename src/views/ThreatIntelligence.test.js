@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -13,7 +14,7 @@ function deferred() { let resolve; const promise = new Promise(done => { resolve
 function readyResponse() { return { data: { data: { ready: true } } } }
 function page(http, routeQuery = {}) {
   let dispose; const timers = new Map(); let count = 0
-  const p = vm.runInNewContext(`${source}\n;({editSource,loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog,confirmDelete,deleteItem,deleteTarget,deleteDialog,managementError,editArticle,saveArticle,articleEditForm,articleEditDialog,articleEditLoading,busy})`, {
+  const p = localizedVm(`${source}\n;({editSource,loadSettings,tab,records,articles,total,query,settings,sourceForm,hostsText,selected,reason,reviewDecision,article,refresh,saveSource,submitReview,openReview,loadReviewArticle,poll,openImport,uploadImport,importFile,importSource,uploadProgress,kindChanged,importError,cancelImport,retryArticle,actorDecision,error,notice,locateEvidence,focusedEvidence,focusedExcerpt,evidenceMark,showSourceDetails,copySourceId,sourceDetails,sourceCopyMessage,sourceDetailsDialog,confirmDelete,deleteItem,deleteTarget,deleteDialog,managementError,editArticle,saveArticle,articleEditForm,articleEditDialog,articleEditLoading,busy})`, {
     ...intel, articleIocLocations, computed, nextTick, ref, watch, AbortController, TextEncoder, TextDecoder, http, formatDateTime: v => v, useRoute: () => ({ query: routeQuery }),
     document: { visibilityState: 'visible' }, navigator: { clipboard: { writeText: async () => {} } }, onMounted: () => {}, onBeforeUnmount: fn => { dispose = fn },
     setTimeout: fn => { timers.set(++count, fn); return count }, clearTimeout: id => timers.delete(id),
@@ -388,3 +389,9 @@ test('source editing isolates request headers until save and opens old sources w
   assert.equal(p.sourceForm.value.request_config.headers.length, 0)
   p.dispose()
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

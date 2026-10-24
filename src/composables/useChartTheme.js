@@ -1,5 +1,8 @@
 import { computed } from 'vue'
 import { useTheme } from './useTheme.js'
+import { locale } from '../i18n/index.js'
+import english from 'apexcharts/dist/locales/en.json' with { type: 'json' }
+import chinese from 'apexcharts/dist/locales/zh-cn.json' with { type: 'json' }
 
 // Keep each chart's data, callbacks and interaction settings while sharing its
 // surface colors. Reactive options update the existing ApexCharts instance.
@@ -16,7 +19,7 @@ export function useChartTheme(buildOptions) {
     return {
       ...options,
       theme: { ...options.theme, mode },
-      chart: { ...options.chart, background: 'transparent', foreColor: foreground },
+      chart: { ...options.chart, background: 'transparent', foreColor: foreground, locales: [english, chinese], defaultLocale: locale.value === 'zh-CN' ? 'zh-cn' : 'en' },
       ...(options.plotOptions?.bar?.dataLabels?.total ? {
         plotOptions: {
           ...options.plotOptions,

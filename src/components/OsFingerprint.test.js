@@ -16,6 +16,8 @@ test('system evidence renders as escaped text and conflict summaries remain expl
     logLevel: 'silent',
   })
   try {
+    const { i18n } = await server.ssrLoadModule('/src/i18n/index.js')
+    i18n.global.locale.value = 'zh-CN'
     const { default: component } = await server.ssrLoadModule('/src/components/OsFingerprint.vue')
     const value = {
       status: 'identified', family: 'linux', confidence: 'medium', inference_scope: 'service_environment',

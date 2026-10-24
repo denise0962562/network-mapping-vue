@@ -1,7 +1,9 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { useChartTheme } from '@/composables/useChartTheme'
 import ChartCsvExport from '@/components/ChartCsvExport.vue'
-import { formatTime as formatSystemClock } from '@/utils/systemTime'
+import { formatTime as formatSystemClock } from '../i18n/time.js'
 import axios from 'axios'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -20,12 +22,12 @@ const props = defineProps({
 })
 
 const rangeOptions = [
-  { value: '30m', label: '最近 30 分钟', milliseconds: 30 * 60 * 1000 },
-  { value: '1h', label: '最近 1 小时', milliseconds: 60 * 60 * 1000 },
-  { value: '6h', label: '最近 6 小时', milliseconds: 6 * 60 * 60 * 1000 },
-  { value: '24h', label: '最近 24 小时', milliseconds: 24 * 60 * 60 * 1000 },
-  { value: '7d', label: '最近 7 天', milliseconds: 7 * 24 * 60 * 60 * 1000 },
-  { value: '30d', label: '最近 30 天', milliseconds: 30 * 24 * 60 * 60 * 1000 }
+  { value: '30m', get label() { return tr("最近 30 分钟") }, milliseconds: 30 * 60 * 1000 },
+  { value: '1h', get label() { return tr("最近 1 小时") }, milliseconds: 60 * 60 * 1000 },
+  { value: '6h', get label() { return tr("最近 6 小时") }, milliseconds: 6 * 60 * 60 * 1000 },
+  { value: '24h', get label() { return tr("最近 24 小时") }, milliseconds: 24 * 60 * 60 * 1000 },
+  { value: '7d', get label() { return tr("最近 7 天") }, milliseconds: 7 * 24 * 60 * 60 * 1000 },
+  { value: '30d', get label() { return tr("最近 30 天") }, milliseconds: 30 * 24 * 60 * 60 * 1000 }
 ]
 
 const range = ref('30m')
@@ -74,7 +76,7 @@ async function loadHistory({ silent = false } = {}) {
     })
     const responsePoints = response.data?.data?.points
     if (response.data?.success !== true || !Array.isArray(responsePoints)) {
-      throw new Error('服务器未返回有效延迟历史')
+      throw new Error(tr("服务器未返回有效延迟历史"))
     }
     if (version !== requestVersion) return
     points.value = responsePoints
@@ -96,15 +98,15 @@ async function loadHistory({ silent = false } = {}) {
 
 const chartSeries = computed(() => [
   {
-    name: '网络 RTT 平均值',
+    rawName: "网络 RTT 平均值", get name() { return tr("网络 RTT 平均值") },
     data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.network_avg_ms }))
   },
   {
-    name: '网络 RTT P95',
+    rawName: "网络 RTT P95", get name() { return tr("网络 RTT P95") },
     data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.network_p95_ms }))
   },
   {
-    name: '服务端处理',
+    rawName: "服务端处理", get name() { return tr("服务端处理") },
     data: points.value.map((point) => ({ x: point.timestamp_ms, y: point.server_processing_avg_ms }))
   }
 ])
@@ -141,11 +143,11 @@ const chartOptions = useChartTheme(() => ({
       return renderChartTooltip({
         title: formatChartTooltipTime(point.timestamp_ms),
         rows: [
-          { label: '网络 RTT 平均值', value: formatLatency(point.network_avg_ms), color: '#00a76f' },
-          { label: '网络 RTT P95', value: formatLatency(point.network_p95_ms), color: '#f59e0b' },
-          { label: '服务端处理', value: formatLatency(point.server_processing_avg_ms), color: '#008ffb' }
+          { get label() { return tr("网络 RTT 平均值") }, value: formatLatency(point.network_avg_ms), color: '#00a76f' },
+          { get label() { return tr("网络 RTT P95") }, value: formatLatency(point.network_p95_ms), color: '#f59e0b' },
+          { get label() { return tr("服务端处理") }, value: formatLatency(point.server_processing_avg_ms), color: '#008ffb' }
         ],
-        footer: `样本数 ${Number(point.sample_count).toLocaleString('zh-CN')}`
+        footer: tr("样本数 {0}", [Number(point.sample_count).toLocaleString('zh-CN')])
       })
     }
   },
@@ -157,8 +159,8 @@ const totalSamples = computed(() =>
 )
 
 const statusText = computed(() => {
-  if (!lastUpdatedAt.value) return '尚未完成加载'
-  return `粒度 ${meta.value?.granularity || 'auto'} · ${totalSamples.value.toLocaleString('zh-CN')} 个样本 · 更新于 ${formatSystemClock(lastUpdatedAt.value)}`
+  if (!lastUpdatedAt.value) return tr("尚未完成加载")
+  return tr("粒度 {0} · {1} 个样本 · 更新于 {2}", [meta.value?.granularity || 'auto', totalSamples.value.toLocaleString('zh-CN'), formatSystemClock(lastUpdatedAt.value)])
 })
 
 watch(() => props.scannerId, () => {
@@ -184,8 +186,8 @@ onBeforeUnmount(() => {
   <div class="card bg-base-100 card-border border-base-300 p-4">
     <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h3 class="font-semibold">服务端通信延迟趋势</h3>
-        <p class="mt-1 text-xs opacity-60">网络 RTT 为 HTTPS 总 RTT 扣除服务端处理耗时后的估算值。</p>
+        <h3 class="font-semibold">{{ tr("服务端通信延迟趋势") }}</h3>
+        <p class="mt-1 text-xs opacity-60">{{ tr("网络 RTT 为 HTTPS 总 RTT 扣除服务端处理耗时后的估算值。") }}</p>
       </div>
       <div class="flex items-center gap-2">
         <select v-model="range" class="select select-bordered select-sm w-36" :disabled="loading">
@@ -209,13 +211,13 @@ onBeforeUnmount(() => {
     <EmptyState
       v-else-if="failed"
       type="error"
-      title="延迟趋势加载失败"
-      message="无法获取扫描器延迟历史，请稍后重试。"
+      :title="tr(&quot;延迟趋势加载失败&quot;)"
+      :message="tr(&quot;无法获取扫描器延迟历史，请稍后重试。&quot;)"
     />
     <EmptyState
       v-else-if="points.length === 0"
-      title="暂无延迟样本"
-      message="升级扫描器并完成两个心跳周期后，这里将显示通信延迟趋势。"
+      :title="tr(&quot;暂无延迟样本&quot;)"
+      :message="tr(&quot;升级扫描器并完成两个心跳周期后，这里将显示通信延迟趋势。&quot;)"
     />
     <div v-else class="relative">
       <ApexChart ref="maintenanceChartRef" type="line" height="340" :options="chartOptions" :series="chartSeries" @mounted="applyMaintenanceAnnotations" />

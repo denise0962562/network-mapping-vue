@@ -4,6 +4,8 @@
 
 本文面向前端维护者，说明应用入口、路由、共享组件和交互约定。安装与构建命令见[项目首页](../README.md#开发与验证)；依赖和版本要求以 `package.json` 为准。
 
+多语言改造按[语言切换与维护说明](LOCALIZATION.md)分批进行，现已接入浏览器语言与 cookie 切换。实施时同时覆盖四个应用入口、挂载前的失败提示、路由/页面标题、共享工具、图表、无障碍标签和英文文档；语言不得改变系统时区、协议标识、原始证据或既有 CSV 契约。
+
 ## 应用入口
 
 | 入口 | 代码 | 职责 |
@@ -144,3 +146,7 @@ Nuclei 结果只展示结构化字段；引用链接使用 `rel="noopener norefe
 
 `src/components/WebTechnologies.vue` 负责统一展示，`src/utils/webDetection.js` 提供摘要和 CSV 格式。
 执行 `pnpm test:web` 检查状态和证据转义；接口与边界见 [Web 技术栈展示](WEB_DETECTION.md)。
+
+## 多语言与构建
+
+当前语言规则、英文首批覆盖与完整中英构建命令见[语言切换与多语言文档](LOCALIZATION.md)。使用 `python scripts/build-docs.py` 依次严格构建中文和英文；只构建中文会清理英文产物。

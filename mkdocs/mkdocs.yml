@@ -1,0 +1,65 @@
+site_name: Network Mapping Web 文档
+site_description: Network Mapping Web 控制台使用与开发文档
+site_url: https://blog.abdc.world/
+docs_dir: ../docs
+site_dir: site
+exclude_docs: |
+  /en/
+  /INTERNATIONALIZATION_PLAN.md
+theme:
+  name: material
+  custom_dir: overrides
+  language: zh
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    absolute_links: relative_to_docs
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+plugins:
+  - search:
+      lang: zh
+nav:
+  - 文档首页: README.md
+  - 更新日志: CHANGELOG.md
+  - 功能指南: FEATURES.md
+  - 前端维护: maintenance-guide.md
+  - 语言切换与文档维护: LOCALIZATION.md
+  - 外观主题: theme-guide.md
+  - Docker 集成: DOCKER.md
+  - 登录人机验证: HUMAN_VERIFICATION.md
+  - 扫描器诊断: scanner-diagnostics.md
+  - 域名发现: DOMAIN_DISCOVERY.md
+  - 开放平台: OPEN_PLATFORM.md
+  - 通知渠道: NOTIFICATIONS.md
+  - LLM 配置: LLM.md
+  - 威胁情报: THREAT_INTELLIGENCE.md
+  - Web 识别: WEB_DETECTION.md
+  - 技术标签图标: WEB_TECHNOLOGY_ICONS.md
+repo_url: https://github.com/wshijiang/network-mapping-vue
+repo_name: wshijiang/network-mapping-vue
+edit_uri: edit/main/docs/
+hooks:
+  - hooks.py
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+extra:
+  locale: zh-CN
+extra_javascript:
+  - assets/language.js

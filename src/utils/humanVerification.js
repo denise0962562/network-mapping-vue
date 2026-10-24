@@ -1,10 +1,11 @@
+import { tr } from '../i18n/index.js'
 import { createTurnstileWidget } from './humanVerification/turnstile.js'
 
 const adapters = { turnstile: createTurnstileWidget }
 
 export function parseHumanVerificationConfig(value) {
   if (!value || value.schema_version !== 1 || !Array.isArray(value.actions)) {
-    throw new Error('无法读取登录验证配置，请刷新后重试。')
+    throw new Error(tr("无法读取登录验证配置，请刷新后重试。"))
   }
   if (value.provider === 'none' && value.actions.length === 0 && value.widget === null) {
     return { schema_version: 1, provider: 'none', actions: [], widget: null }
@@ -16,7 +17,7 @@ export function parseHumanVerificationConfig(value) {
       widget: { site_key: value.widget.site_key, theme: 'auto', size: 'flexible' },
     }
   }
-  throw new Error('当前登录验证配置不受支持，请联系管理员。')
+  throw new Error(tr("当前登录验证配置不受支持，请联系管理员。"))
 }
 
 export function requiresHumanVerification(config, action = 'login') {
@@ -25,14 +26,14 @@ export function requiresHumanVerification(config, action = 'login') {
 
 export function verificationAdapter(config) {
   const adapter = adapters[config?.provider]
-  if (!adapter) throw new Error('当前验证服务不受支持。')
+  if (!adapter) throw new Error(tr("当前验证服务不受支持。"))
   return adapter
 }
 
 export function loginProof(config, token) {
-  if (!config) throw new Error('请等待登录验证配置加载完成。')
+  if (!config) throw new Error(tr("请等待登录验证配置加载完成。"))
   const policy = parseHumanVerificationConfig(config)
   if (!requiresHumanVerification(policy)) return {}
-  if (typeof token !== 'string' || !token.trim()) throw new Error('请先完成人机验证。')
+  if (typeof token !== 'string' || !token.trim()) throw new Error(tr("请先完成人机验证。"))
   return { human_verification: { token } }
 }

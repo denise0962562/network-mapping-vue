@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/', component: () => import('../views/dashboard.vue'), meta: { title: 'Dashboard' } },
+    { path: '/', component: () => import('../views/dashboard.vue'), meta: { title: '仪表盘' } },
     { path: '/domain-discovery', component: () => import('../views/DomainDiscovery.vue'), meta: { title: '域名发现' } },
     { path: '/domains/:domain', component: () => import('../views/DomainDiscovery.vue'), meta: { title: '域名关联' } },
     { path: '/create_scan', component: () => import('../views/createscan.vue'), meta: { title: '创建任务' } },

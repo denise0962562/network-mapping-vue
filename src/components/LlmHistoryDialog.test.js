@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
@@ -10,7 +11,7 @@ const compiled = compileScript(descriptor, { id: 'history-dialog-test' })
 const source = compiled.scriptSetupAst.filter(n => n.type === 'ImportDeclaration').reverse().reduce((s, n) => s.slice(0, n.start) + s.slice(n.end), descriptor.scriptSetup.content)
 function page(http) {
   const events = []; let dispose
-  const p = vm.runInNewContext(`${source};({dialog,rows,selected,offset,total,loading,error,fetchPage,loadSelected,remove})`, {
+  const p = localizedVm(`${source};({dialog,rows,selected,offset,total,loading,error,fetchPage,loadSelected,remove})`, {
     ref, llmError, http, AbortController, defineEmits: () => (...args) => events.push(args), defineExpose() {},
     onBeforeUnmount: fn => { dispose = fn }, window: { confirm: () => true },
   })
@@ -33,3 +34,9 @@ test('modal selects a historical snapshot and deletion refreshes the correct pag
   assert(!descriptor.template.content.includes('v-html'))
   p.dispose()
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

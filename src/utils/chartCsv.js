@@ -14,7 +14,7 @@ export function chartCsvData({ series = [], options = {}, categoryHeader = '类�
   if (type === 'heatmap') {
     return {
       headers: [categoryHeader, '系列', valueLabel(valueHeader)],
-      rows: series.flatMap((item) => item.data.map((point) => [point.dateLabel ?? point.x, item.name, point.y]))
+      rows: series.flatMap((item) => item.data.map((point) => [point.dateLabel ?? point.x, item.rawName ?? item.name, point.y]))
         .sort((left, right) => String(left[0]).localeCompare(String(right[0])))
     }
   }
@@ -38,7 +38,7 @@ export function chartCsvData({ series = [], options = {}, categoryHeader = '类�
   const orderedKeys = [...keys.keys()]
   if (datetime) orderedKeys.sort((left, right) => left - right)
   return {
-    headers: [datetime ? `时间（${timeSettings.timezone}）` : categoryHeader, ...series.map((item) => valueLabel(item.name))],
+    headers: [datetime ? `时间（${timeSettings.timezone}）` : categoryHeader, ...series.map((item) => valueLabel(item.rawName ?? item.name))],
     rows: orderedKeys.map((key) => [keys.get(key), ...values.map((item) => item.get(key) ?? null)])
   }
 }

@@ -1,9 +1,11 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useChartTheme } from '@/composables/useChartTheme'
 import { chartLabels, chartSeries, downloadBlob, imageCaption, metrics, rowLabel } from '@/utils/statistics'
 import { renderChartTooltip } from '@/utils/chartTooltip'
-import { formatDateTime } from '@/utils/systemTime'
+import { formatDateTime } from '../i18n/time.js'
 
 const emit = defineEmits(['select'])
 const props = defineProps({
@@ -55,10 +57,10 @@ const options = useChartTheme(buildOptions)
 
 function footerLines() {
   return [
-    `生成时间：${formatDateTime(props.meta.generated_at, props.meta.timezone)} · ${props.meta.data_as_of ? `处理水位：${formatDateTime(props.meta.data_as_of, props.meta.timezone)}` : '基于查询时保留的数据'} · ${chartLabels[props.type]}`,
-    `扫描器：${props.meta.scanner_id || '全部'} · 任务来源：${rowLabel(props.meta.task_source, 'task_source') || '全部'} · 口径版本：${props.meta.metric_version}`,
+    tr("生成时间：{0} · {1} · {2}", [formatDateTime(props.meta.generated_at, props.meta.timezone), props.meta.data_as_of ? `处理水位：${formatDateTime(props.meta.data_as_of, props.meta.timezone)}` : '基于查询时保留的数据', chartLabels[props.type]]),
+    tr("扫描器：{0} · 任务来源：{1} · 口径版本：{2}", [props.meta.scanner_id || '全部', rowLabel(props.meta.task_source, 'task_source') || '全部', props.meta.metric_version]),
     props.meta.notes[0],
-    props.meta.data_type === 'discovery' ? 'IP 按分组独立去重，周期去重数不能累加分组数量。' : props.meta.notes.at(-1),
+    props.meta.data_type === 'discovery' ? tr("IP 按分组独立去重，周期去重数不能累加分组数量。") : props.meta.notes.at(-1),
   ].filter(Boolean)
 }
 
@@ -107,13 +109,13 @@ async function exportImage({ format, width, background, filename }) {
       const canvas = document.createElement('canvas')
       canvas.width = width * 2; canvas.height = (chartHeight + footerHeight) * 2
       const context = canvas.getContext('2d')
-      if (!context) throw new Error('浏览器不支持图片导出')
+      if (!context) throw new Error(tr("浏览器不支持图片导出"))
       if (background === 'white') { context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height) }
       context.drawImage(image, 0, 0)
       context.fillStyle = '#4b5563'; context.font = '24px Arial, "Microsoft YaHei", sans-serif'
       lines.forEach((line, index) => context.fillText(line, 32, (chartHeight + 20 + index * 22) * 2))
       blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
-      if (!blob) throw new Error('图片生成失败')
+      if (!blob) throw new Error(tr("图片生成失败"))
     }
     if (mounted) downloadBlob(blob, `${filename}.${format}`)
   } finally {

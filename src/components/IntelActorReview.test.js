@@ -1,3 +1,4 @@
+import { tr, i18n } from '../i18n/index.js'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
@@ -13,7 +14,7 @@ function response(id = 'G0001') { return { data: { data: { items: [{ attack_id: 
 function review(http, initialDecision = null) {
   const props = { record: { id: 'record', payload: { actor_name: 'Fixture actor' } }, initialDecision }
   const decisions = []
-  const state = vm.runInNewContext(`${source}\n;({load,search,publish,action,actorId,name,query,options,currentActor,searchState,results,loading})`, {
+  const state = localizedVm(`${source}\n;({load,search,publish,action,actorId,name,query,options,currentActor,searchState,results,loading})`, {
     computed, ref, watch, AbortController, http, intelError: String,
     defineProps: () => props, defineEmits: () => (event, decision) => { decisions.push(JSON.parse(JSON.stringify(decision))) },
     onMounted: () => {}, onBeforeUnmount: () => {},
@@ -128,3 +129,9 @@ test('a search completing after switching records cannot replace the new candida
   assert.deepEqual(Array.from(p.options.value, item => item.attack_id), ['G0001'])
   assert.equal(p.results.value.length, 0)
 })
+
+// Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
+function localizedVm(code, context, options) {
+  i18n.global.locale.value = 'zh-CN'
+  return vm.runInNewContext(code, { tr, ...context }, options)
+}

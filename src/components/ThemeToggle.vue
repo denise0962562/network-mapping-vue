@@ -1,11 +1,13 @@
 <script setup>
+import { tr } from '../i18n/index.js'
+
 import { Moon, Sun, SunMoon } from '@lucide/vue'
 import { ref, watchEffect } from 'vue'
 import { useTheme } from '@/composables/useTheme'
 
 const { themePreference, setThemePreference } = useTheme()
 const modes = ['light', 'dark', 'system']
-const labels = { light: '亮色', dark: '暗色', system: '跟随系统' }
+const labels = { get light() { return tr("亮色") }, get dark() { return tr("暗色") }, get system() { return tr("跟随系统") } }
 const themeInput = ref(null)
 
 // Native activation clears indeterminate and toggles checked. Restore both
@@ -25,12 +27,12 @@ function cycleTheme() {
 <template>
   <label
     class="swap swap-rotate btn btn-ghost btn-circle btn-sm shrink-0 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary"
-    :title="`当前：${labels[themePreference]}；点击循环切换外观`"
+    :title="tr(&quot;当前：{0}；点击循环切换外观&quot;, [labels[themePreference]])"
   >
     <input
       ref="themeInput"
       type="checkbox"
-      aria-label="外观主题"
+      :aria-label="tr(&quot;外观主题&quot;)"
       class="h-full w-full cursor-pointer"
       @change="cycleTheme"
     />
@@ -41,6 +43,6 @@ function cycleTheme() {
       :class="themePreference === 'system' ? 'rotate-0' : 'rotate-45'"
       aria-hidden="true"
     />
-    <span class="sr-only">{{ labels[themePreference] }}；按空格键循环切换亮色、暗色和跟随系统</span>
+    <span class="sr-only">{{ labels[themePreference] }}{{ tr("；按空格键循环切换亮色、暗色和跟随系统") }}</span>
   </label>
 </template>

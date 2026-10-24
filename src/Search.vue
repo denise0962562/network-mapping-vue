@@ -1,6 +1,9 @@
 <script setup>
+import { formatDateTime as formatCsvDateTime } from './utils/systemTime.js'
+import { tr } from './i18n/index.js'
+
 import ServiceLabel from '@/components/ServiceLabel.vue'
-import { formatDateTime as formatSystemDateTime } from '@/utils/systemTime'
+import { formatDateTime as formatSystemDateTime } from './i18n/time.js'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AssetTags from './components/AssetTags.vue'
 import IntelEvidence from './components/IntelEvidence.vue'
@@ -36,14 +39,14 @@ const tagCatalog = ref([])
 const autoGeneration = ref(null)
 let searchSequence = 0
 const generationMessage = computed(() => ({
-  created: '已创建目标更新任务，扫描完成后可重新搜索。',
-  existing: '该目标已有任务正在排队或执行。',
-  cooldown: '该目标近期已由搜索生成任务，冷却期间不会重复创建。',
-  fresh: '该目标数据仍在有效期内，无需创建更新任务。',
-  queue_full: '搜索更新队列已满，请稍后重新搜索。',
-  rate_limited: '本小时搜索生成任务已达上限。',
-  out_of_scope: '该目标不在已启用的搜索扫描范围内。',
-  unavailable: '自动更新暂不可用，请稍后重新搜索确认任务状态。',
+  get created() { return tr("已创建目标更新任务，扫描完成后可重新搜索。") },
+  get existing() { return tr("该目标已有任务正在排队或执行。") },
+  get cooldown() { return tr("该目标近期已由搜索生成任务，冷却期间不会重复创建。") },
+  get fresh() { return tr("该目标数据仍在有效期内，无需创建更新任务。") },
+  get queue_full() { return tr("搜索更新队列已满，请稍后重新搜索。") },
+  get rate_limited() { return tr("本小时搜索生成任务已达上限。") },
+  get out_of_scope() { return tr("该目标不在已启用的搜索扫描范围内。") },
+  get unavailable() { return tr("自动更新暂不可用，请稍后重新搜索确认任务状态。") },
 }[autoGeneration.value?.status] || ''))
 
 const examples = [
@@ -59,7 +62,7 @@ const examples = [
   'has_endpoint(port = 80) AND has_endpoint(port = 443)',
 ]
 
-const supportedSyntax = '支持域名、AND、OR、NOT、括号、IN、标签及资产服务组合条件'
+const supportedSyntax = tr("支持域名、AND、OR、NOT、括号、IN、标签及资产服务组合条件")
 const visibleTags = computed(() => tagCatalog.value.slice(0, 10))
 
 function openSyntaxDialog() {
@@ -124,7 +127,7 @@ async function runSearch(nextOffset = 0, generateIfNeeded = false) {
   } catch (error) {
     if (sequence !== searchSequence) return
     searchResult.value = null
-    errorMessage.value = error.response?.data?.message || '搜索失败，请稍后重试。'
+    errorMessage.value = error.response?.data?.message || tr("搜索失败，请稍后重试。")
     errorSpan.value = error.response?.data?.span || null
     if (errorSpan.value) {
       await nextTick()
@@ -144,7 +147,7 @@ function doSearch() {
     activeSearch.value = null
     autoGeneration.value = null
     searchResult.value = null
-    errorMessage.value = '请输入搜索内容'
+    errorMessage.value = tr("请输入搜索内容")
     errorSpan.value = null
     return
   }
@@ -208,9 +211,9 @@ function formatNetworkOwner(item) {
 function certificateStatus(item) {
   if (!item.tls_subject && !item.tls_not_after && !item.tls_version) return null
   if (item.tls_not_after && Number(item.tls_not_after) <= Date.now()) {
-    return { text: '证书已过期', class: 'badge-error' }
+    return { get text() { return tr("证书已过期") }, class: 'badge-error' }
   }
-  if (item.tls_self_signed === true) return { text: '自签名', class: 'badge-warning' }
+  if (item.tls_self_signed === true) return { get text() { return tr("自签名") }, class: 'badge-warning' }
   return { text: item.tls_version || 'TLS', class: 'badge-success' }
 }
 
@@ -221,6 +224,7 @@ function csvCell(value) {
 }
 
 function exportCurrentPage() {
+  const formatTime = timestamp => timestamp ? formatCsvDateTime(new Date(timestamp)) : '-'
   if (!searchResult.value?.items.length) return
 
   exporting.value = true
@@ -286,9 +290,10 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
 
 <template>
   <nav class="absolute top-0 right-0 flex flex-wrap items-center justify-end gap-3 px-4 py-5 sm:gap-5 sm:px-8">
-    <ThemeToggle />
-    <a class="link" target="_blank" href="/">仪表盘</a>
-    <a class="link" target="_blank" rel="noopener noreferrer" href="https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md">搜索文档</a>
+    <LanguageSelect />
+          <ThemeToggle />
+    <a class="link" target="_blank" href="/">{{ tr("仪表盘") }}</a>
+    <a class="link" target="_blank" rel="noopener noreferrer" href="https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md">{{ tr("搜索文档") }}</a>
   </nav>
 
   <main class="bg-base-200 min-h-screen px-4 py-24">
@@ -301,11 +306,11 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
             <svg class="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2.5" /><path d="m20 20-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2.5" /></svg>
             <input ref="searchInputRef" v-model="searchInput" type="text" class="grow font-mono" :placeholder="supportedSyntax" autofocus @focus="showHistory = true" @keyup.enter="doSearch" />
           </label>
-          <button class="btn btn-neutral join-item px-6" :disabled="loading" @click="doSearch">{{ loading ? '搜索中' : '搜索' }}</button>
+          <button class="btn btn-neutral join-item px-6" :disabled="loading" @click="doSearch">{{ loading ? tr("搜索中") : tr("搜索") }}</button>
         </div>
         <div class="mt-2 flex items-center justify-between gap-3 text-xs opacity-60">
           <span>{{ supportedSyntax }}</span>
-          <button type="button" class="link link-hover shrink-0" @click="openSyntaxDialog">搜索语法说明</button>
+          <button type="button" class="link link-hover shrink-0" @click="openSyntaxDialog">{{ tr("搜索语法说明") }}</button>
         </div>
 
         <!-- <div class="mt-3 flex flex-wrap gap-2">
@@ -315,59 +320,59 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
         </div> -->
 
         <div v-if="visibleTags.length" class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span class="opacity-60">标签：</span>
-          <button v-for="tag in visibleTags" :key="tag.id" type="button" class="badge badge-outline cursor-pointer" :title="`添加标签条件：${tag.name}`" @click="appendTag(tag)">{{ tag.name }}</button>
+          <span class="opacity-60">{{ tr("标签：") }}</span>
+          <button v-for="tag in visibleTags" :key="tag.id" type="button" class="badge badge-outline cursor-pointer" :title="tr(&quot;添加标签条件：{0}&quot;, [tag.name])" @click="appendTag(tag)">{{ tag.name }}</button>
         </div>
 
         <div v-if="showHistory" class="absolute z-20 mt-2 w-full rounded-xl border border-base-300 bg-base-100 shadow-lg">
-          <div class="flex items-center justify-between border-b border-base-300 px-4 py-3"><span class="text-sm font-medium">搜索历史</span><button class="btn btn-ghost btn-xs" @click="clearHistory">清空</button></div>
-          <div v-if="searchHistory.length === 0" class="px-4 py-6 text-center text-sm opacity-60">暂无搜索历史</div>
+          <div class="flex items-center justify-between border-b border-base-300 px-4 py-3"><span class="text-sm font-medium">{{ tr("搜索历史") }}</span><button class="btn btn-ghost btn-xs" @click="clearHistory">{{ tr("清空") }}</button></div>
+          <div v-if="searchHistory.length === 0" class="px-4 py-6 text-center text-sm opacity-60">{{ tr("暂无搜索历史") }}</div>
           <ul v-else class="max-h-64 overflow-y-auto p-2"><li v-for="item in searchHistory" :key="item.keyword"><button class="btn btn-ghost w-full justify-start rounded-lg" @click="pickHistory(item)">{{ item.keyword }}</button></li></ul>
         </div>
       </div>
 
       <div v-if="errorMessage" role="alert" class="alert alert-error mx-auto mt-6 max-w-2xl">
-        <span>{{ errorMessage }}<span v-if="errorSpan">（位置 {{ errorSpan.start + 1 }}）</span></span>
+        <span>{{ errorMessage }}<span v-if="errorSpan">{{ tr("（位置") }} {{ errorSpan.start + 1 }}）</span></span>
       </div>
 
       <div v-if="generationMessage" role="status" class="alert alert-info alert-soft mx-auto mt-6 max-w-2xl text-sm">
         <span>
           {{ generationMessage }}
-          <span v-if="autoGeneration.status === 'cooldown' && autoGeneration.next_eligible_at">冷却至 {{ formatTime(autoGeneration.next_eligible_at) }}。</span>
+          <span v-if="autoGeneration.status === 'cooldown' && autoGeneration.next_eligible_at">{{ tr("冷却至") }} {{ formatTime(autoGeneration.next_eligible_at) }}。</span>
         </span>
-        <a v-if="autoGeneration.task_id" :href="`/task/${autoGeneration.task_id}`" class="link whitespace-nowrap" target="_blank" rel="noopener">查看任务</a>
+        <a v-if="autoGeneration.task_id" :href="`/task/${autoGeneration.task_id}`" class="link whitespace-nowrap" target="_blank" rel="noopener">{{ tr("查看任务") }}</a>
       </div>
 
       <section v-if="searchResult" class="mt-10 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 class="text-lg font-semibold">组合搜索结果</h2>
+          <h2 class="text-lg font-semibold">{{ tr("组合搜索结果") }}</h2>
           <div class="flex flex-wrap items-center gap-3">
-            <span class="text-sm opacity-70">“{{ searchResult.query }}” · 共 {{ searchResult.total }} 条</span>
+            <span class="text-sm opacity-70">“{{ searchResult.query }}{{ tr("” · 共") }} {{ searchResult.total }} {{ tr("条") }}</span>
             <label class="flex items-center gap-1 text-sm">
-              <span>排序</span>
-              <select v-model="sortField" class="select select-bordered select-sm" aria-label="排序字段" :disabled="loading" @change="changeSortField">
-                <option value="last_seen">扫描时间</option>
-                <option value="first_seen">首次发现</option>
+              <span>{{ tr("排序") }}</span>
+              <select v-model="sortField" class="select select-bordered select-sm" :aria-label="tr(&quot;排序字段&quot;)" :disabled="loading" @change="changeSortField">
+                <option value="last_seen">{{ tr("扫描时间") }}</option>
+                <option value="first_seen">{{ tr("首次发现") }}</option>
                 <option value="ip">IP</option>
-                <option value="port">端口</option>
+                <option value="port">{{ tr("端口") }}</option>
               </select>
-              <select v-model="sortOrder" class="select select-bordered select-sm" aria-label="排序方向" :disabled="loading" @change="runSearch(0)">
-                <option value="desc">降序</option>
-                <option value="asc">升序</option>
+              <select v-model="sortOrder" class="select select-bordered select-sm" :aria-label="tr(&quot;排序方向&quot;)" :disabled="loading" @change="runSearch(0)">
+                <option value="desc">{{ tr("降序") }}</option>
+                <option value="asc">{{ tr("升序") }}</option>
               </select>
             </label>
             <button class="btn btn-outline btn-sm" :disabled="loading || exporting || searchResult.items.length === 0" @click="exportCurrentPage">
-              {{ exporting ? '导出中…' : '导出当前页 CSV' }}
+              {{ exporting ? tr("导出中…") : tr("导出当前页 CSV") }}
             </button>
           </div>
         </div>
-        <div v-if="searchResult.items.length === 0" class="py-12 text-center opacity-60">没有匹配的资产。</div>
+        <div v-if="searchResult.items.length === 0" class="py-12 text-center opacity-60">{{ tr("没有匹配的资产。") }}</div>
         <div v-else class="overflow-x-auto">
           <table class="table table-zebra table-sm">
-            <thead><tr><th>IP</th><th>端口</th><th>协议</th><th>服务</th><th>Banner</th><th>系统线索</th><th>Web 技术栈</th><th>网页 / TLS</th><th>ASN / AS 组织</th><th>位置</th><th>扫描时间</th></tr></thead>
+            <thead><tr><th>IP</th><th>{{ tr("端口") }}</th><th>{{ tr("协议") }}</th><th>{{ tr("服务") }}</th><th>Banner</th><th>{{ tr("系统线索") }}</th><th>{{ tr("Web 技术栈") }}</th><th>{{ tr("网页 / TLS") }}</th><th>{{ tr("ASN / AS 组织") }}</th><th>{{ tr("位置") }}</th><th>{{ tr("扫描时间") }}</th></tr></thead>
             <tbody>
               <tr v-for="(item, index) in searchResult.items" :key="`${item.ip_address}-${item.port}-${item.scan_time}-${index}`">
-                <td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" title="查看资产详情">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /><IntelEvidence :intel="item.intel" label="端点情报" /></div></td>
+                <td><div class="flex min-w-max items-center gap-2"><a class="link whitespace-nowrap font-mono" :href="`/asset.html?ip=${encodeURIComponent(item.ip_address)}`" target="_blank" rel="noopener noreferrer" :title="tr(&quot;查看资产详情&quot;)">{{ item.ip_address }}</a><AssetTags :tags="item.tags || []" :limit="3" size="xs" /><IntelEvidence :intel="item.intel" :label="tr(&quot;端点情报&quot;)" /></div></td>
                 <td>{{ item.port ?? '-' }}</td>
                 <td>{{ item.protocol ?? '-' }}</td>
                 <td><ServiceLabel :service="item.service" :data="item.data" /></td>
@@ -393,9 +398,9 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
           </table>
         </div>
         <div v-if="searchResult.total > PAGE_SIZE" class="mt-5 flex flex-wrap items-center justify-end gap-2">
-          <span v-if="searchResult.total > MAX_RESULT_WINDOW" class="mr-auto text-xs opacity-60">最多可浏览前 {{ MAX_RESULT_WINDOW }} 条结果。</span>
-          <button class="btn btn-sm" :disabled="loading || offset === 0" @click="previousPage">上一页</button>
-          <button class="btn btn-sm" :disabled="loading || offset + PAGE_SIZE >= Math.min(searchResult.total, MAX_RESULT_WINDOW)" @click="nextPage">下一页</button>
+          <span v-if="searchResult.total > MAX_RESULT_WINDOW" class="mr-auto text-xs opacity-60">{{ tr("最多可浏览前") }} {{ MAX_RESULT_WINDOW }} {{ tr("条结果。") }}</span>
+          <button class="btn btn-sm" :disabled="loading || offset === 0" @click="previousPage">{{ tr("上一页") }}</button>
+          <button class="btn btn-sm" :disabled="loading || offset + PAGE_SIZE >= Math.min(searchResult.total, MAX_RESULT_WINDOW)" @click="nextPage">{{ tr("下一页") }}</button>
         </div>
       </section>
     </div>
@@ -403,53 +408,53 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentClick)
 
   <dialog ref="syntaxDialogRef" class="modal">
     <div class="modal-box w-[calc(100vw-2rem)] max-w-lg">
-      <h3 class="text-lg font-bold">搜索语法说明</h3>
-      <p class="py-3 text-sm opacity-70">支持域名、布尔组合、括号、精确匹配、包含匹配、集合和资产标签；旧版单条件语法仍然兼容。</p>
+      <h3 class="text-lg font-bold">{{ tr("搜索语法说明") }}</h3>
+      <p class="py-3 text-sm opacity-70">{{ tr("支持域名、布尔组合、括号、精确匹配、包含匹配、集合和资产标签；旧版单条件语法仍然兼容。") }}</p>
 
       <div class="space-y-3 text-sm">
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
-          <p class="font-medium">逻辑与运算符</p>
-          <p class="opacity-70"><code>NOT</code> 优先于 <code>AND</code>，<code>AND</code> 优先于 <code>OR</code>；可用括号改变顺序。</p>
+          <p class="font-medium">{{ tr("逻辑与运算符") }}</p>
+          <p class="opacity-70"><code>NOT</code> {{ tr("优先于") }} <code>AND</code>，<code>AND</code> {{ tr("优先于") }} <code>OR</code>{{ tr("；可用括号改变顺序。") }}</p>
           <div class="flex flex-wrap gap-2"><code class="rounded bg-base-300 px-2 py-1">=</code><code class="rounded bg-base-300 px-2 py-1">!=</code><code class="rounded bg-base-300 px-2 py-1">~</code><code class="rounded bg-base-300 px-2 py-1">!~</code><code class="rounded bg-base-300 px-2 py-1">IN (...)</code><code class="rounded bg-base-300 px-2 py-1">EXISTS(...)</code></div>
         </div>
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
-          <p class="font-medium">资产字段</p>
+          <p class="font-medium">{{ tr("资产字段") }}</p>
           <code class="block rounded bg-base-300 px-2 py-1">ip IN 221.233.151.0/24 AND country = CN</code>
           <code class="block rounded bg-base-300 px-2 py-1">asn = AS4134 AND tag = "生产环境"</code>
         </div>
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
-          <p class="font-medium">域名关联资产</p>
+          <p class="font-medium">{{ tr("域名关联资产") }}</p>
           <code class="block rounded bg-base-300 px-2 py-1">domain = "www.example.com" AND port = 443</code>
-          <p class="text-xs opacity-70">域名会关联当前 A/AAAA 记录及 CNAME 链后返回对应的 IP 端点。</p>
+          <p class="text-xs opacity-70">{{ tr("域名会关联当前 A/AAAA 记录及 CNAME 链后返回对应的 IP 端点。") }}</p>
         </div>
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
-          <p class="font-medium">端口与服务字段</p>
+          <p class="font-medium">{{ tr("端口与服务字段") }}</p>
           <code class="block rounded bg-base-300 px-2 py-1">port IN (80, 443) AND service ~ "http"</code>
           <code class="block rounded bg-base-300 px-2 py-1">service = "https" AND banner ~ "nginx"</code>
         </div>
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
-          <p class="font-medium">TLS 与证书字段</p>
+          <p class="font-medium">{{ tr("TLS 与证书字段") }}</p>
           <code class="block rounded bg-base-300 px-2 py-1">service = "smtps" AND tls.self_signed = true</code>
           <code class="block rounded bg-base-300 px-2 py-1">tls.not_after &lt; "2026-10-01T00:00:00Z"</code>
           <code class="block rounded bg-base-300 px-2 py-1">tls.san = "mail.example.com"</code>
         </div>
         <div class="rounded-lg bg-base-200 p-3 space-y-2">
-          <p class="font-medium">同一资产的多个端点</p>
+          <p class="font-medium">{{ tr("同一资产的多个端点") }}</p>
           <code class="block rounded bg-base-300 px-2 py-1">has_endpoint(port = 80) AND has_endpoint(port = 443)</code>
         </div>
         <div class="rounded-lg border border-base-300 p-3">
-          <p class="font-medium">支持字段</p>
+          <p class="font-medium">{{ tr("支持字段") }}</p>
           <p class="mt-1 break-words font-mono text-xs opacity-70">ip, domain, asn, isp, org, country, city, tag, tag.id, tag.kind, tag.category, port, protocol, service, banner, os.family, os.distribution, os.version, os.confidence, os.status, os.score, tech, web.status, title, http.body, tls.mode, tls.version, tls.cipher, tls.subject, tls.issuer, tls.san, tls.serial, tls.not_before, tls.not_after, tls.fingerprint, tls.self_signed, source, scanner, first_seen, last_seen</p>
         </div>
       </div>
 
       <div class="modal-action">
-        <a class="btn btn-ghost" target="_blank" rel="noopener noreferrer" href="https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md">查看完整文档</a>
-        <button type="button" class="btn btn-neutral" @click="closeSyntaxDialog">知道了</button>
+        <a class="btn btn-ghost" target="_blank" rel="noopener noreferrer" href="https://github.com/wshijiang/network-mapping/blob/dev/docs/SEARCH_SYNTAX.md">{{ tr("查看完整文档") }}</a>
+        <button type="button" class="btn btn-neutral" @click="closeSyntaxDialog">{{ tr("知道了") }}</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop">
-      <button type="button" @click="closeSyntaxDialog">关闭</button>
+      <button type="button" @click="closeSyntaxDialog">{{ tr("关闭") }}</button>
     </form>
   </dialog>
 </template>

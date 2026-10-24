@@ -28,6 +28,7 @@ jobs:
       - name: Test and build
         run: |
           node --test src/utils/*.test.js src/views/*.test.js src/components/*.test.js
+          pnpm test:i18n
           pnpm test:targets
           pnpm test:os
           pnpm test:web
