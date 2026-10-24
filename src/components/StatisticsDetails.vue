@@ -6,6 +6,7 @@ import http from '@/utils/http'
 import { addCalendarDays, calendarMidnight, formatDateTime } from '../i18n/time.js'
 import { downloadBlob } from '@/utils/statistics'
 import { chartCsv } from '@/utils/chartCsv'
+import { formatDateTime as exportDateTime } from '../utils/systemTime.js'
 
 const props = defineProps({ result: { type: Object, required: true }, row: { type: Object, required: true } })
 defineEmits(['close'])
@@ -15,6 +16,15 @@ let controller, disposed = false
 const columns = computed(() => props.result.meta.data_type === 'tasks' ? ['task_id', 'status', 'created_at', 'ended_at', 'created_in_period', 'completed_in_period'] : props.result.meta.data_type === 'scanners' ? ['task_id', 'execution_id', 'scanner_id', 'status', 'started_at', 'ended_at'] : ['ip_address', 'port', 'service', 'category', 'count', 'observed_at', 'scanner_id', 'execution_id', 'task_id'])
 const labels = { get task_id() { return tr("任务") }, get execution_id() { return tr("执行") }, get scanner_id() { return tr("扫描器") }, get status() { return tr("状态") }, get created_at() { return tr("创建时间") }, get ended_at() { return tr("结束时间") }, get started_at() { return tr("开始时间") }, ip_address: 'IP', get port() { return tr("端口") }, get service() { return tr("服务") }, get category() { return tr("类别") }, get count() { return tr("端点观测数") }, get observed_at() { return tr("观测时间") }, get created_in_period() { return tr("本期创建") }, get completed_in_period() { return tr("本期完成") } }
 const statuses = { get succeeded() { return tr("成功") }, get failed() { return tr("失败") }, get partial() { return tr("部分完成") }, get cancelled() { return tr("取消") }, get pending() { return tr("待执行") }, get running() { return tr("执行中") } }
+// Existing CSV consumers use fixed Chinese columns and values, independent of UI locale.
+const csvLabels = { task_id: '任务', execution_id: '执行', scanner_id: '扫描器', status: '状态', created_at: '创建时间', ended_at: '结束时间', started_at: '开始时间', ip_address: 'IP', port: '端口', service: '服务', category: '类别', count: '端点观测数', observed_at: '观测时间', created_in_period: '本期创建', completed_in_period: '本期完成' }
+const csvStatuses = { succeeded: '成功', failed: '失败', partial: '部分完成', cancelled: '取消', pending: '待执行', running: '执行中' }
+function csvValue(row, key) {
+  if (row[key] == null) return '--'
+  if (key.endsWith('_at')) return exportDateTime(row[key], props.result.meta.timezone)
+  if (typeof row[key] === 'boolean') return row[key] ? '是' : '否'
+  return key === 'status' ? (csvStatuses[row[key]] || row[key]) : row[key]
+}
 function value(row, key) {
   if (row[key] == null) return '--'
   if (key.endsWith('_at')) return formatDateTime(row[key], props.result.meta.timezone)
@@ -51,7 +61,7 @@ async function load(target) {
 }
 function next() { cursors[page.value] = cursor.value; load(page.value + 1) }
 function exportPage() {
-  const csv = chartCsv({ headers: columns.value.map((key) => labels[key]), rows: rows.value.map((row) => columns.value.map((key) => value(row, key))) })
+  const csv = chartCsv({ headers: columns.value.map((key) => csvLabels[key]), rows: rows.value.map((row) => columns.value.map((key) => csvValue(row, key))) })
   downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `statistics-details-${page.value}.csv`)
 }
 onMounted(() => load(1))

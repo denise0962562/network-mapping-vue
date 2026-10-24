@@ -70,7 +70,7 @@ export function chartRows(rows, meta, topN, metric) {
     const rest = ordered.slice(topN)
     const count = rest.reduce((sum, row) => sum + row.count, 0)
     const total = ordered.reduce((sum, row) => sum + row.count, 0)
-    shown.push({ get label() { return tr("其他") }, count, percentage: total ? Math.round(count / total * 1000) / 10 : 0 })
+    shown.push({ synthetic: true, get label() { return tr("其他") }, count, percentage: total ? Math.round(count / total * 1000) / 10 : 0 })
   }
   return shown
 }

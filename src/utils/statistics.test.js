@@ -20,7 +20,7 @@ test('calendar date ranges use exclusive local midnight across DST', () => {
 test('Top N only affects charts and other keeps exact counts', () => {
   const rows = [{ label: '80', count: 8 }, { label: '443', count: 9 }, { label: '22', count: 2 }]
   const shown = chartRows(rows, { data_type: 'port', group_by: 'port' }, 1)
-  assert.deepEqual(shown, [{ label: '443', count: 9 }, { label: '其他', count: 10, percentage: 52.6 }])
+  assert.deepEqual(shown, [{ label: '443', count: 9 }, { synthetic: true, label: '其他', count: 10, percentage: 52.6 }])
   assert.equal(rows.length, 3)
   assert.equal(chartRows(rows, { group_by: 'day' }, 1).length, 3)
 })

@@ -26,6 +26,9 @@ const scannerError = ref('')
 const exportError = ref('')
 const result = ref(null)
 const detailRow = ref(null)
+function selectRow(row) {
+  if (row && !row.synthetic && !dirty.value && !loading.value) detailRow.value = row
+}
 const applied = ref('')
 const display = ref({ metric: 'count', chart: 'line', top: 10, title: '' })
 const image = ref({ format: 'png', width: 1400, background: 'white' })
@@ -250,7 +253,7 @@ onBeforeUnmount(() => { disposed = true; controller?.abort(); setupController?.a
               <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-10`">{{ tr("图表标题") }}</label></legend><input :id="`${formFieldId}-10`" v-model="display.title" maxlength="80" class="input input-bordered input-sm w-full" :disabled="exporting" /></fieldset>
             </div>
             <p v-if="!['day', 'week', 'month'].includes(result.meta.group_by)" class="mt-1 text-xs text-base-content/50">{{ tr("按当前指标从高到低展示；") }}{{ ['port', 'service'].includes(result.meta.data_type) ? tr("剩余类别合并为“其他”。") : tr("完整汇总保留所有分组。") }}</p>
-            <div v-if="hasData" class="min-w-0"><StatisticsChart ref="chartRef" :rows="plottedRows" :meta="result.meta" :metric="display.metric" :type="display.chart" :title="title" @select="(row) => { if (!dirty && !loading && row.label !== '其他') detailRow = row }" /></div>
+            <div v-if="hasData" class="min-w-0"><StatisticsChart ref="chartRef" :rows="plottedRows" :meta="result.meta" :metric="display.metric" :type="display.chart" :title="title" @select="selectRow" /></div>
             <EmptyState v-else :title="tr(&quot;当前范围内没有统计数据&quot;)" :message="tr(&quot;可以扩大时间范围或调整扫描器、任务来源条件。&quot;)" class="mt-3" />
             <div class="flex flex-wrap items-end gap-3 border-t border-base-300 pt-4">
               <fieldset class="fieldset min-w-0 w-full sm:w-auto"><legend class="fieldset-legend"><label :for="`${formFieldId}-11`">{{ tr("图片格式") }}</label></legend><select :id="`${formFieldId}-11`" v-model="image.format" class="select select-bordered select-sm w-full" :disabled="exporting"><option value="png">{{ tr("PNG 高清") }}</option><option value="svg">SVG</option></select></fieldset>
