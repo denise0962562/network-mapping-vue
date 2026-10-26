@@ -7,6 +7,10 @@
 
 Web 控制台提供扫描管理、资产搜索、分析报告及运维界面。页面行为与前端开发在此维护，服务端配置和协议由配套服务端文档说明。
 
+## 本次待发布版本
+
+控制台 **0.1.24**；配套服务端 **0.1.30**、扫描器 **0.1.21**、控制台 **0.1.24**。变更见[更新日志](CHANGELOG.md)，迁移、IPC 3 与发布次序见[配套发布指南](https://github.com/wshijiang/network-mapping/blob/main/docs/RELEASING.md)。release PR 待审，不表示制品已发布。
+
 ## 版本更新
 
 [更新日志](CHANGELOG.md)按阶段记录已实现变更与明确标注的规划；[服务探测分批计划](https://github.com/wshijiang/network-mapping/blob/main/docs/SERVICE_DETECTION_ROADMAP.md)区分当前交付与后续批次。

@@ -10,7 +10,7 @@ pnpm 11.9.0，冻结锁文件安装，执行所有工具测试、目标校验、
 
 更新服务端镜像所包含的前端：
 
-1. 提交前端变更，完成 CI；正式集成的前端提交先进入远端 main。
+1. 提交前端变更，完成 CI；正式集成的前端提交先进入远端 main。跨仓库 release PR 预检可暂时固定前端 release 分支的完整提交；正式合并服务端 release PR 前，确认该提交已由普通 merge 保留在 main，或在 squash/rebase 后更新为最终 main 提交并重验。
 2. 在后端仓库将 `.github/frontend-ref` 改为该前端完整 40 位 SHA，通过开发分支 PR 合入 main。
 3. 后端分支 CI 构建并测试含该前端的镜像；经用户对具体组件与版本批准后发布新的服务端版本。
 
@@ -19,3 +19,5 @@ pnpm 11.9.0，冻结锁文件安装，执行所有工具测试、目标校验、
 本地使用相邻仓库作为 named context 时，先确认该仓库提交与 frontend-ref 相同且工作区干净。
 
 完整流程、GitHub 设置及 Compose 见服务端仓库 [Docker 部署指南](https://github.com/wshijiang/network-mapping/blob/main/docs/DOCKER.md)。
+
+本次配套版本为控制台 **0.1.24**、服务端 **0.1.30**、扫描器 **0.1.21**。PR 保留待审，tag 仅在本地准备，未触发正式发布；合并后检查与升级次序见[配套发布指南](https://github.com/wshijiang/network-mapping/blob/main/docs/RELEASING.md)。
