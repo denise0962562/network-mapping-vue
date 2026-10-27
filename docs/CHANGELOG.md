@@ -2,15 +2,15 @@
 
 [文档中心](README.md) · [配套发布与升级](https://github.com/wshijiang/network-mapping/blob/main/docs/RELEASING.md)
 
-## v0.1.24（待发布）
+## v0.1.24（2026-10-27 重新发布）
 
-发布准备日期：**2026-10-26（北京时间）**。release PR 待审；本地 tag 尚未推送，不表示已发布制品。本节按最终实现汇总原“未发布”阶段记录。
+**2026-10-26 的同版本发布已撤回，2026-10-27 修复后重新发布**。请以本次 tag 指向的提交、BUILD-INFO 和 SHA-256 校验文件为准，不复用已撤回制品或旧 Actions 构建附件。本节按最终实现汇总此前阶段记录。
 
 | 核对项 | 固定范围 |
 | --- | --- |
 | 上次发布 | `v0.1.23` · `0550af86ed42986a92c6a19e2cbfdcb9fb86acc9` |
-| 本次代码基线 | `7764ecf832c2ce0742c759e114be37ce440daa2e`（`main`） |
-| 变动范围 | 104 个提交（含合并提交）；[完整比较](https://github.com/wshijiang/network-mapping-vue/compare/v0.1.23...7764ecf832c2ce0742c759e114be37ce440daa2e) |
+| 本次代码基线 | `fb2b33cff64f929badac0ae9bef961daf7b285b1`（`main`） |
+| 变动范围 | 106 个提交（含合并提交）；[完整比较](https://github.com/wshijiang/network-mapping-vue/compare/v0.1.23...fb2b33cff64f929badac0ae9bef961daf7b285b1) |
 
 本次另含版本、发布说明及文档整理；服务端同时固定配套控制台发布提交。
 
