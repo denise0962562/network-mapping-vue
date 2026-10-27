@@ -41,6 +41,18 @@ test('secret removal is explicit and errors never echo unknown provider text', (
   assert.equal(deliveryReason('https://example.invalid/leaked-secret'), '投递异常，请检查服务状态')
 })
 
+test('Feishu report app credentials are write-only and require matching app ID', () => {
+  const form = channelForm({ id: 'channel', name: 'ops', revision: 1, feishu_app_secret_configured: true, settings: { feishu_app_id: 'cli_example' } })
+  assert.equal(validateChannel(form), '')
+  assert.equal(channelPayload(form).feishu_app_secret, '')
+  assert.equal(channelPayload(form).settings.feishu_app_id, 'cli_example')
+  form.clear_feishu_app_secret = true
+  assert.notEqual(validateChannel(form), '')
+  form.settings.feishu_app_id = ''
+  assert.equal(validateChannel(form), '')
+  assert.equal(channelPayload(form).clear_feishu_app_secret, true)
+})
+
 test('email and Telegram share event subscriptions and preserve credentials on edit', () => {
   for (const provider of ['email', 'telegram']) {
     const form = channelForm({ id: 'channel', provider, revision: 2, name: provider, credential_configured: true,
