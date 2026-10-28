@@ -100,7 +100,7 @@ export function validateChannel(form) {
   }
 
   if (!form.name.trim() || [...form.name.trim()].length > 80) return tr("请输入 1 至 80 个字符的渠道名称。")
-  if (!form.event_types.length) return tr("请至少选择一种通知事件。")
+  if (!form.id && !form.event_types.length) return tr("请至少选择一种通知事件。")
   if (form.provider === 'email') {
     const s = channelPayload(form).settings
     if (!s.smtp_host || s.smtp_host.length > 253 || /[\s/\\:@?#]/.test(s.smtp_host)) return tr("请输入 SMTP 服务器域名。")
