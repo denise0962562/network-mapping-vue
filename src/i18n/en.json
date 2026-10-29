@@ -4125,6 +4125,14 @@
   "飞书应用 ID": "Feishu app ID",
   "请选择飞书机器人类型。": "Select a Feishu bot type.",
   "应用机器人须填写应用 ID、密钥和群聊 ID。": "Enter the app ID, app secret, and group chat ID.",
-  "飞书应用消息发送失败，请检查机器人权限和目标群": "Feishu app message failed; check bot permissions and the target group",
-  "请启用并发布应用机器人，授予发送消息和上传图片权限，并将机器人加入目标群。测试发送只验证文字，报告图片须通过发送报告验证。": "Enable and publish the application bot, grant message and image upload permissions, and add it to the target group. Test messages verify text only; send a report to verify images."
+  "飞书应用消息发送失败，请检查机器人权限和接收目标": "Feishu app message failed; check bot permissions and the recipient",
+  "请启用并发布应用机器人，授予发送消息和上传图片权限，并将机器人加入目标群。测试发送只验证文字，报告图片须通过发送报告验证。": "Enable and publish the application bot, grant message and image upload permissions, and add it to the target group. Test messages verify text only; send a report to verify images.",
+  "接收对象": "Recipient",
+  "群聊": "Group chat",
+  "个人聊天": "Direct message",
+  "用户 Open ID": "User Open ID",
+  "更改接收对象并保存后，旧配置下未完成的投递会取消。": "Saving a different recipient cancels unfinished deliveries for the previous configuration.",
+  "填写当前飞书应用对应的用户 Open ID，接收人须在应用可用范围内。": "Enter the user's Open ID for this Feishu app. The recipient must be within the app's availability scope.",
+  "请启用并发布应用机器人，授予发送消息和上传图片权限。测试发送只验证文字，报告图片须通过发送报告验证。": "Enable and publish the application bot and grant message and image upload permissions. Test messages verify text only; send a report to verify images.",
+  "应用机器人须填写应用 ID、密钥和有效的接收目标。": "Enter the app ID, app secret, and a valid recipient."
 }

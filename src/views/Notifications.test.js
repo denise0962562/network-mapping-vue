@@ -115,6 +115,22 @@ test('the same page saves each provider with independent common event subscripti
   page.dispose()
 })
 
+test('saving an application bot with a personal target sends its Open ID', async () => {
+  const requests = []
+  const page = createPage(async url => url.endsWith('/channels') ? channels : history,
+    async config => { requests.push(config); return { data: { success: true, data: {} } } })
+  const form = channelForm()
+  Object.assign(form, { provider: 'feishu', name: 'personal', feishu_app_secret: 'secret' })
+  Object.assign(form.settings, { feishu_bot_type: 'app', feishu_target_type: 'user', feishu_app_id: 'cli_app', feishu_open_id: 'ou_user' })
+  page.form.value = form
+  await page.save()
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].data.settings.feishu_target_type, 'user')
+  assert.equal(requests[0].data.settings.feishu_open_id, 'ou_user')
+  assert.equal(requests[0].data.settings.feishu_chat_id, '')
+  page.dispose()
+})
+
 // Existing business fixtures select Chinese explicitly; locale behavior has its own tests.
 function localizedVm(code, context, options) {
   i18n.global.locale.value = 'zh-CN'
