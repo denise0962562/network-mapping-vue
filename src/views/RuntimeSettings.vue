@@ -19,7 +19,7 @@ const namespaces = [
   { key: 'automatic_target', get title() { return tr("自动扫描策略") }, get description() { return tr("管理搜索触发与周期生成的扫描任务，以及授权范围和任务参数。") } },
   { key: 'dns_follow_up', get title() { return tr("DNS 排除与解析后扫描") }, get description() { return tr("管理域名排除规则及 DNS 解析后的扫描范围。") } },
   { key: 'dns_resolvers', get title() { return tr("DNS 解析服务器") }, get description() { return tr("维护创建域名扫描任务时可选择的常用 DNS 解析服务器。") } },
-  { key: 'statistics_cache', get title() { return tr("统计缓存") }, get description() { return tr("配置缓存有效期、容量及查询结果复用，查看实例状态。") } },
+  { key: 'statistics_cache', get title() { return tr("统计缓存") }, get description() { return tr("配置统计分组上限、缓存容量和有效期，查看实例状态。") } },
   { key: 'report_mail', get title() { return tr("报告邮件") }, get description() { return tr("配置报告详情地址、远程趋势图片和扫描器展示数量。") } },
   { key: 'analytics_snapshot', get title() { return tr("分析模式与快照") }, get description() { return tr("选择分析数据的读取模式与后台快照处理间隔。") } },
 ]

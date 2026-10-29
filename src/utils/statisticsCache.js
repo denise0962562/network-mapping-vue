@@ -1,11 +1,12 @@
 import { tr } from '../i18n/index.js'
-export const cacheDefaults = { enabled: true, realtime_ttl_seconds: 30, history_ttl_seconds: 30, snapshot_ttl_seconds: 60, max_entries: 256, max_size_mib: 32, max_entry_kib: 2048 }
+export const cacheDefaults = { enabled: true, realtime_ttl_seconds: 30, history_ttl_seconds: 30, snapshot_ttl_seconds: 60, max_entries: 256, max_size_mib: 32, max_entry_kib: 2048, max_groups: 20000 }
 export const cacheFields = [
   { key: 'realtime_ttl_seconds', get label() { return tr("实时统计有效期（秒）") }, min: 5, max: 300 },
   { key: 'history_ttl_seconds', get label() { return tr("任务历史有效期（秒）") }, min: 5, max: 300 },
   { key: 'snapshot_ttl_seconds', get label() { return tr("快照统计有效期（秒）") }, min: 10, max: 900 },
   { key: 'max_entries', get label() { return tr("最大缓存条目数") }, min: 16, max: 4096 },
   { key: 'max_size_mib', get label() { return tr("总容量上限（MiB）") }, min: 8, max: 256 },
+  { key: 'max_groups', get label() { return tr("统计分组上限") }, min: 1, max: 65536 },
   { key: 'max_entry_kib', get label() { return tr("单条容量上限（KiB）") }, min: 256, max: 8192 },
 ]
 export function validateCache(config) {
