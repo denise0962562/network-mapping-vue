@@ -52,7 +52,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
 <template>
   <section class="space-y-4 rounded-lg border border-base-300 p-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div><h4 class="font-semibold">{{ tr("统计结果缓存") }}</h4><p class="mt-1 text-xs opacity-60">{{ tr("复用相同条件下的统计结果，减少重复计算。关闭缓存后仍保留查询并发和计算量限制。") }}</p></div>
+      <div><h4 class="font-semibold">{{ tr("统计查询与结果缓存") }}</h4><p class="mt-1 text-xs opacity-60">{{ tr("复用相同条件下的统计结果，减少重复计算。分组上限适用于实时、快照和任务历史统计；调高会增加资源消耗。关闭缓存后仍保留计算限制。") }}</p></div>
       <button type="button" class="btn btn-ghost btn-sm" @click="emit('update:modelValue', { ...cacheDefaults })">{{ tr("恢复默认值") }}</button>
     </div>
     <label class="flex items-center gap-3 text-sm"><input type="checkbox" class="toggle toggle-sm" :checked="modelValue.enabled" @change="update('enabled', $event.target.checked)" />{{ tr("启用结果缓存") }}</label>
