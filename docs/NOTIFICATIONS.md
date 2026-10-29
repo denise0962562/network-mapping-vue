@@ -21,6 +21,15 @@
 
 飞书自定义机器人关键词校验须允许 **Network Mapping**。飞书机器人类型创建后不可更改，历史渠道为自定义机器人；当前应用机器人仅支持群聊。渠道测试只验证普通消息，报告图片须通过实际发送报告验证。Telegram 机器人须先加入目标群/频道并可发送消息，私聊须先发送 `/start`。服务端出口分别允许 `open.feishu.cn:443`、`api.telegram.org:443` 和 SMTP 服务器；Web 不需要公开机器人回调。
 
+### 飞书机器人与报告图片
+
+- **群聊自定义机器人**：在飞书目标群添加机器人，使用该机器人的 Webhook 和可选签名密钥发送；WebHook 已绑定目标群，无须填写群聊 ID。若要附加报告趋势图，还需另外填写飞书自建应用的 App ID、App Secret，并使该应用具备图片上传权限；不配置应用凭据时报告只发送文字。
+- **应用机器人**：在飞书开放平台创建自建应用，启用并发布机器人，将其加入目标群。在本页面填写该应用的 App ID、App Secret 和目标群的 chat ID（通常以 `oc_` 开头），不需要 Webhook 或群机器人签名密钥。应用凭据既用于发消息，也用于上传报告趋势图。
+
+应用机器人发送报告卡片时，飞书卡片文档列出的消息权限为「以应用的身份发消息」`im:message:send_as_bot` 和「获取与发送单聊、群组消息」`im:message`；上传图片还需「获取与上传图片或文件资源」`im:resource`。在应用权限管理中申请并按飞书要求发布、审批后生效。群聊自定义机器人若要发送报告图片，额外配置的上传应用也需图片上传权限。权限要求和详细步骤见服务端[通知渠道文档](https://github.com/wshijiang/network-mapping/blob/main/docs/NOTIFICATIONS.md#添加飞书渠道)，并以[飞书发送卡片](https://open.feishu.cn/document/feishu-cards/send-feishu-card)与[上传图片](https://open.feishu.cn/document/server-docs/im-v1/image/create)文档为准。
+
+在飞书客户端 7.60 及以上，可从目标群右上角的群设置查看群 ID，其他方法见[飞书群 ID 说明](https://open.feishu.cn/document/server-docs/group/chat/chat-id-description)。保存并启用渠道后先执行「测试发送」，再在报告详情实际发送报告并检查趋势图；前者不验证图片上传。上传应用和自定义机器人的组合应在实际租户验证图片是否可见。
+
 ## 操作与状态
 
 - 各渠道独立启停；可同时启用多个渠道接收同一事件。停用一个不会改变其他渠道。
