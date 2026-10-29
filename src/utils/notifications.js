@@ -41,6 +41,7 @@ const reasons = {
   get feishu_auth_unavailable() { return tr("无法连接飞书应用认证服务") },
   get feishu_auth_failed() { return tr("飞书应用认证失败，请检查应用凭据") },
   get feishu_image_upload_failed() { return tr("飞书图片上传失败，请检查应用权限和网络") },
+  get feishu_send_failed() { return tr("飞书应用消息发送失败，请检查机器人权限和接收目标") },
   get report_image_invalid() { return tr("报告趋势图生成失败，请检查归档数据") },
 }
 
@@ -57,6 +58,8 @@ export function channelForm(channel) {
     signing_secret_configured: channel?.signing_secret_configured || false,
     credential_configured: channel?.credential_configured || false,
     feishu_app_secret_configured: channel?.feishu_app_secret_configured || false,
+    original_feishu_target: channel?.settings?.feishu_target_type || 'group',
+    original_feishu_app_id: channel?.settings?.feishu_app_id || '',
     feishu_app_secret: '', clear_feishu_app_secret: false,
     bot_token: '', smtp_password: '',
     proxy_mode: channel?.proxy_mode || 'system', proxy_url: '',
@@ -64,15 +67,19 @@ export function channelForm(channel) {
 
     settings: { smtp_host: channel?.settings?.smtp_host || '', smtp_port: channel?.settings?.smtp_port || 465,
       smtp_sender: channel?.settings?.smtp_sender || '', chat_id: channel?.settings?.chat_id || '', feishu_app_id: channel?.settings?.feishu_app_id || '',
+      feishu_bot_type: channel?.settings?.feishu_bot_type || 'webhook', feishu_chat_id: channel?.settings?.feishu_chat_id || '',
+      feishu_target_type: channel?.settings?.feishu_target_type || 'group', feishu_open_id: channel?.settings?.feishu_open_id || '',
       recipients: [...(channel?.settings?.recipients || [])] },
     recipients_text: (channel?.settings?.recipients || []).join('\n'),
   }
 }
 export function channelPayload(form) {
+  const appChanged = form.id && form.original_feishu_app_id !== form.settings.feishu_app_id.trim()
+  const pendingFeishuUser = form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'user' && (!form.settings.feishu_open_id.trim() || appChanged)
   return {
-    provider: form.provider, name: form.name.trim(), enabled: Boolean(form.enabled), event_types: [...form.event_types],
-    minimum_severity: form.minimum_severity, webhook_url: form.webhook_url.trim(),
-    signing_secret: form.signing_secret.trim(), clear_signing_secret: Boolean(form.clear_signing_secret),
+    provider: form.provider, name: form.name.trim(), enabled: Boolean(form.enabled) && !pendingFeishuUser, event_types: [...form.event_types],
+    minimum_severity: form.minimum_severity, webhook_url: form.settings.feishu_bot_type === 'app' ? '' : form.webhook_url.trim(),
+    signing_secret: form.settings.feishu_bot_type === 'app' ? '' : form.signing_secret.trim(), clear_signing_secret: form.settings.feishu_bot_type === 'app' ? false : Boolean(form.clear_signing_secret),
     feishu_app_secret: form.provider === 'feishu' ? form.feishu_app_secret : '', clear_feishu_app_secret: Boolean(form.clear_feishu_app_secret),
     expected_revision: form.expected_revision,
     bot_token: form.provider === 'telegram' ? form.bot_token.trim() : '',
@@ -81,6 +88,10 @@ export function channelPayload(form) {
 
     settings: { ...form.settings, smtp_host: form.settings.smtp_host.trim(), smtp_sender: form.settings.smtp_sender.trim(),
       smtp_port: Number(form.settings.smtp_port), chat_id: form.settings.chat_id.trim(), feishu_app_id: (form.settings.feishu_app_id || '').trim(),
+      feishu_bot_type: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' ? 'app' : '',
+      feishu_target_type: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' ? form.settings.feishu_target_type : null,
+      feishu_chat_id: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'group' ? (form.settings.feishu_chat_id || '').trim() : '',
+      feishu_open_id: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'user' && !appChanged ? (form.settings.feishu_open_id || '').trim() : '',
       recipients: [...new Set(form.recipients_text.split(/[\n,;]+/).map(value => value.trim()).filter(Boolean))] },
   }
 }
@@ -117,6 +128,15 @@ export function validateChannel(form) {
     return ''
   }
   if (form.provider !== 'feishu') return tr("请选择支持的通知渠道类型。")
+  if (!['webhook', 'app'].includes(form.settings.feishu_bot_type)) return tr("请选择飞书机器人类型。")
+  if (form.settings.feishu_bot_type === 'app') {
+    const type = form.settings.feishu_target_type
+    const target = type === 'group' ? form.settings.feishu_chat_id.trim() : (form.settings.feishu_open_id || '').trim()
+    const pendingUser = type === 'user' && !target
+    if (pendingUser && form.id && form.original_feishu_target === 'group') return tr("请在渠道列表点击“绑定个人”，绑定成功后自动切换目标。")
+    if (!['group', 'user'].includes(type) || !form.settings.feishu_app_id.trim() || (!target && !pendingUser) || /[\s\u0000-\u001f\u007f]/.test(target) || new TextEncoder().encode(target).length > 128 || (type === 'user' && !pendingUser && (!target.startsWith('ou_') || target.length <= 3)) || form.clear_feishu_app_secret || (!form.feishu_app_secret && !form.feishu_app_secret_configured)) return tr("应用机器人须填写应用 ID、密钥和有效的接收目标。")
+    return ''
+  }
   if (!form.id || form.webhook_url.trim()) {
     try {
       const url = new URL(form.webhook_url.trim())

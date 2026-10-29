@@ -53,6 +53,47 @@ test('Feishu report app credentials are write-only and require matching app ID',
   assert.equal(channelPayload(form).clear_feishu_app_secret, true)
 })
 
+test('Feishu application bot requires credentials and chat ID without a webhook', () => {
+  const form = channelForm()
+  form.name = 'ops'
+  form.settings.feishu_bot_type = 'app'
+  assert.ok(validateChannel(form))
+  form.settings.feishu_app_id = 'cli_example'
+  form.feishu_app_secret = 'secret'
+  form.settings.feishu_chat_id = 'oc_example'
+  assert.equal(validateChannel(form), '')
+  const payload = channelPayload(form)
+  assert.equal(payload.webhook_url, '')
+  assert.equal(payload.settings.feishu_bot_type, 'app')
+  assert.equal(payload.settings.feishu_chat_id, 'oc_example')
+  const existing = channelForm({ id: 'id', provider: 'feishu', name: 'ops', revision: 1, feishu_app_secret_configured: true, settings: payload.settings })
+  assert.equal(validateChannel(existing), '')
+  assert.equal(channelPayload(existing).feishu_app_secret, '')
+  assert.equal(channelForm({ settings: {} }).settings.feishu_bot_type, 'webhook')
+})
+
+test('Feishu app switches between a group and a personal recipient without mixing IDs', () => {
+  const form = channelForm({ id: 'id', provider: 'feishu', name: 'ops', revision: 1,
+    feishu_app_secret_configured: true, settings: { feishu_bot_type: 'app', feishu_app_id: 'cli_app', feishu_chat_id: 'oc_group' } })
+  assert.equal(form.settings.feishu_target_type, 'group')
+  form.settings.feishu_target_type = 'user'
+  assert.ok(validateChannel(form))
+  form.settings.feishu_open_id = 'ou_person'
+  assert.equal(validateChannel(form), '')
+  let payload = channelPayload(form)
+  assert.equal(payload.settings.feishu_target_type, 'user')
+  assert.equal(payload.settings.feishu_open_id, 'ou_person')
+  assert.equal(payload.settings.feishu_chat_id, '')
+  form.settings.feishu_target_type = 'group'
+  payload = channelPayload(form)
+  assert.equal(payload.settings.feishu_target_type, 'group')
+  assert.equal(payload.settings.feishu_chat_id, 'oc_group')
+  assert.equal(payload.settings.feishu_open_id, '')
+  form.settings.feishu_target_type = 'user'
+  form.settings.feishu_open_id = 'oc_wrong'
+  assert.ok(validateChannel(form))
+})
+
 test('email and Telegram share event subscriptions and preserve credentials on edit', () => {
   for (const provider of ['email', 'telegram']) {
     const form = channelForm({ id: 'channel', provider, revision: 2, name: provider, credential_configured: true,

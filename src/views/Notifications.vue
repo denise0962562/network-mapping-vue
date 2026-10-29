@@ -12,12 +12,13 @@ const formFieldId = useId()
 const channels = ref([]), deliveries = ref([]), alerts = ref([])
 const loading = ref(false), busy = ref(false), forbidden = ref(false), loadFailed = ref(false)
 const editor = ref(null), form = ref(channelForm()), savedForm = ref('')
+const bindingDialog = ref(null), bindingChannel = ref(null), bindingCode = ref(''), bindingStatus = ref(null), bindingBusy = ref(false)
 const filterChannel = ref(''), filterStatus = ref(''), nextBefore = ref(null)
 const historyLoading = ref(false), historyFailed = ref(false), lastRefresh = ref(null)
 const browsingHistory = ref(false)
 const dirty = computed(() => Boolean(editor.value?.open) && JSON.stringify(form.value) !== savedForm.value)
 useUnsavedChanges(dirty, save)
-let sequence = 0, timer, disposed = false
+let sequence = 0, timer, bindingTimer, bindingController, disposed = false
 const readControllers = new Set()
 
 function notify(type, title, description = '') {
@@ -95,6 +96,7 @@ async function save() {
   if (busy.value) return
   const problem = validateChannel(form.value)
   if (problem) { notify('warning', tr("请检查渠道配置"), problem); return }
+  if (form.value.provider === 'feishu' && form.value.settings.feishu_bot_type === 'app' && form.value.settings.feishu_target_type === 'user' && !form.value.settings.feishu_open_id.trim()) form.value.enabled = false
   busy.value = true
   try {
     dataOf(await http({ method: form.value.id ? 'PUT' : 'POST', url: `/api/notifications/channels${form.value.id ? `/${form.value.id}` : ''}`, data: channelPayload(form.value) }))
@@ -140,6 +142,56 @@ async function retry(item) {
   } catch (error) { notify('error', tr("重试失败"), errorText(error)) }
   finally { busy.value = false }
 }
+async function pollBinding() {
+  window.clearTimeout(bindingTimer)
+  if (disposed || !bindingChannel.value || !bindingDialog.value?.open) return
+  bindingController?.abort()
+  const controller = new AbortController()
+  bindingController = controller
+  try {
+    const state = dataOf(await http.get(`/api/notifications/channels/${bindingChannel.value.id}/feishu-binding`, { signal: controller.signal }))
+    if (disposed || controller.signal.aborted) return
+    bindingStatus.value = state
+    if (state.binding_status === 'bound') { bindingCode.value = ''; await loadChannels(); return }
+    if (state.binding_status === 'expired' || state.binding_status === 'cancelled') { bindingCode.value = ''; return }
+  } catch (error) {
+    if (!disposed && !controller.signal.aborted) notify('warning', tr("绑定状态加载失败"), errorText(error))
+  }
+  if (!disposed && bindingDialog.value?.open) bindingTimer = window.setTimeout(pollBinding, 3000)
+}
+async function startBinding(channel) {
+  if (bindingBusy.value || busy.value) return
+  bindingBusy.value = true
+  try {
+    const data = dataOf(await http.post(`/api/notifications/channels/${channel.id}/feishu-binding`, { expected_revision: channel.revision }))
+    bindingChannel.value = channel; bindingCode.value = data.code; bindingStatus.value = { binding_status: 'pending', expires_at: data.expires_at, connection_status: 'connecting' }
+    bindingDialog.value?.showModal()
+    await pollBinding()
+  } catch (error) { notify('error', tr("生成绑定码失败"), errorText(error)) }
+  finally { bindingBusy.value = false }
+}
+function closeBinding() {
+  window.clearTimeout(bindingTimer); bindingController?.abort(); bindingController = null
+  bindingDialog.value?.close(); bindingCode.value = ''; bindingChannel.value = null; bindingStatus.value = null
+}
+async function cancelBinding() {
+  if (!bindingChannel.value || bindingBusy.value) return
+  bindingBusy.value = true
+  try { dataOf(await http.delete(`/api/notifications/channels/${bindingChannel.value.id}/feishu-binding`)); closeBinding() }
+  catch (error) { notify('error', tr("取消绑定失败"), errorText(error)) }
+  finally { bindingBusy.value = false }
+}
+async function unbindRecipient(channel) {
+  if (busy.value || bindingBusy.value || !window.confirm(tr("解除个人绑定会停用渠道并取消待处理通知，确定继续吗？"))) return
+  busy.value = true
+  try {
+    dataOf(await http.delete(`/api/notifications/channels/${channel.id}/feishu-binding/recipient`, { data: { expected_revision: channel.revision } }))
+    notify('success', tr("已解除个人绑定"))
+    await loadChannels()
+    await loadHistory()
+  } catch (error) { notify('error', tr("操作失败"), errorText(error)) }
+  finally { busy.value = false }
+}
 async function refresh() { await loadChannels(); if (!disposed && !forbidden.value) await loadHistory() }
 onMounted(async () => {
   await refresh()
@@ -152,6 +204,7 @@ onBeforeUnmount(() => {
   disposed = true
   ++sequence
   window.clearInterval(timer)
+  window.clearTimeout(bindingTimer); bindingController?.abort()
   for (const controller of readControllers) controller.abort()
   readControllers.clear()
 })
@@ -176,11 +229,16 @@ onBeforeUnmount(() => {
           <article v-for="channel in channels" :key="channel.id" class="rounded-lg border border-base-300 p-4">
             <div class="flex items-center justify-between gap-3"><h3 class="break-all font-semibold">{{ channel.name }}</h3><span class="badge badge-sm" :class="channel.enabled ? 'badge-success' : 'badge-ghost'">{{ channel.enabled ? tr("已启用") : tr("已停用") }}</span></div>
             <span class="badge badge-outline badge-sm mt-2">{{ providerLabel(channel.provider || 'feishu') }}</span>
+            <span v-if="channel.provider === 'feishu'" class="badge badge-outline badge-sm mt-2 ml-2">{{ channel.settings?.feishu_bot_type === 'app' ? tr("应用机器人") : tr("群聊自定义机器人") }}</span>
+            <span v-if="channel.provider === 'feishu' && channel.settings?.feishu_bot_type === 'app'" class="badge badge-outline badge-sm mt-2 ml-2">{{ channel.settings?.feishu_target_type === 'user' ? tr("个人聊天") : tr("群聊") }}</span>
             <p class="mt-2 text-sm">{{ channel.event_types.map(eventLabel).join(' · ') }}</p>
-            <p class="mt-2 text-xs opacity-60">{{ channel.minimum_severity === 'critical' ? tr("仅严重通知") : tr("警告及严重通知") }} · {{ channel.provider === 'feishu' ? (channel.signing_secret_configured ? tr("已配置签名") : tr("未配置签名")) : (channel.credential_configured ? tr("已配置凭据") : tr("待配置凭据")) }} {{ tr("· 版本") }} {{ channel.revision }}</p>
+            <p class="mt-2 text-xs opacity-60">{{ channel.minimum_severity === 'critical' ? tr("仅严重通知") : tr("警告及严重通知") }} · {{ channel.provider === 'feishu' ? (channel.settings?.feishu_bot_type === 'app' ? tr("已配置应用凭据") : (channel.signing_secret_configured ? tr("已配置签名") : tr("未配置签名"))) : (channel.credential_configured ? tr("已配置凭据") : tr("待配置凭据")) }} {{ tr("· 版本") }} {{ channel.revision }}</p>
+            <p v-if="channel.provider === 'feishu'" class="mt-1 text-xs opacity-60">{{ channel.feishu_app_secret_configured ? tr("报告趋势图：已配置上传凭据") : tr("报告趋势图：仅文本，未配置上传凭据") }}</p>
             <p class="mt-1 text-xs opacity-60 break-all">{{ tr("代理：") }}{{ channel.proxy_mode === 'custom' ? channel.proxy_endpoint : channel.proxy_mode === 'direct' ? tr("直接连接") : tr("沿用系统") }}</p>
             <div class="mt-4 flex flex-wrap gap-2">
               <button class="btn btn-sm" :disabled="busy || loadFailed" @click="openEditor(channel)">{{ tr("编辑") }}</button>
+              <button v-if="channel.provider === 'feishu' && channel.settings?.feishu_bot_type === 'app'" class="btn btn-sm" :disabled="busy || bindingBusy || loadFailed" @click="startBinding(channel)">{{ channel.settings?.feishu_target_type === 'user' && channel.settings?.feishu_open_id ? tr("重新绑定个人") : tr("绑定个人") }}</button>
+              <button v-if="channel.provider === 'feishu' && channel.settings?.feishu_bot_type === 'app' && channel.settings?.feishu_target_type === 'user' && channel.settings?.feishu_open_id" class="btn btn-sm" :disabled="busy || bindingBusy || loadFailed" @click="unbindRecipient(channel)">{{ tr("解除个人绑定") }}</button>
               <button class="btn btn-sm" :disabled="busy || !channel.enabled || loadFailed" @click="action(channel, 'test')">{{ tr("测试发送") }}</button>
               <button class="btn btn-sm" :disabled="busy || loadFailed" @click="action(channel, 'toggle')">{{ channel.enabled ? tr("停用") : tr("启用") }}</button>
               <button class="btn btn-ghost btn-sm text-error" :disabled="busy || loadFailed" @click="action(channel, 'delete')">{{ tr("删除") }}</button>
@@ -206,14 +264,25 @@ onBeforeUnmount(() => {
         <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-1`">{{ tr("渠道类型") }}</label></legend><select :id="`${formFieldId}-1`" :aria-label="tr(&quot;渠道类型&quot;)" v-model="form.provider" :disabled="Boolean(form.id)" class="select select-bordered w-full"><option v-for="provider in notificationProviders" :key="provider.value" :value="provider.value">{{ provider.label }}</option></select></fieldset>
         <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-2`">{{ tr("渠道名称") }}</label></legend><input :id="`${formFieldId}-2`" v-model="form.name" class="input input-bordered w-full" maxlength="80" required autocomplete="off" :placeholder="tr(&quot;例如：运维告警群&quot;)" /></fieldset>
         <template v-if="form.provider === 'feishu'">
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-feishu-type`">{{ tr("飞书机器人类型") }}</label></legend><select :id="`${formFieldId}-feishu-type`" v-model="form.settings.feishu_bot_type" :disabled="Boolean(form.id)" class="select select-bordered w-full"><option value="webhook">{{ tr("群聊自定义机器人") }}</option><option value="app">{{ tr("应用机器人") }}</option></select></fieldset>
+        <template v-if="form.settings.feishu_bot_type === 'webhook'">
         <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-3`">{{ tr("Webhook 地址") }}{{ form.id ? tr("（留空保留）") : '' }}</label></legend><input :id="`${formFieldId}-3`" v-model="form.webhook_url" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" :placeholder="tr(&quot;粘贴飞书自定义机器人 Webhook&quot;)" /></fieldset>
         <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-4`">{{ tr("签名密钥") }}{{ form.id ? tr("（留空保留）") : tr("（建议配置）") }}</label></legend><input :id="`${formFieldId}-4`" v-model="form.signing_secret" type="password" class="input input-bordered w-full" autocomplete="new-password" :disabled="form.clear_signing_secret" /></fieldset>
         <label v-if="form.signing_secret_configured" class="flex items-center gap-2 text-sm"><input v-model="form.clear_signing_secret" type="checkbox" class="checkbox checkbox-sm" />{{ tr("清除已保存的签名密钥") }}</label>
-        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-feishu-app-id`">{{ tr("飞书应用 ID（报告图片）") }}</label></legend><input :id="`${formFieldId}-feishu-app-id`" v-model="form.settings.feishu_app_id" class="input input-bordered w-full" autocomplete="off" /></fieldset>
+        </template>
+        <template v-if="form.settings.feishu_bot_type === 'app'">
+        <fieldset><legend class="mb-2 text-sm">{{ tr("接收对象") }}</legend><div class="flex flex-wrap gap-4"><label class="flex items-center gap-2 text-sm"><input v-model="form.settings.feishu_target_type" :name="`${formFieldId}-feishu-target`" type="radio" value="group" class="radio radio-sm" />{{ tr("群聊") }}</label><label class="flex items-center gap-2 text-sm"><input v-model="form.settings.feishu_target_type" :name="`${formFieldId}-feishu-target`" type="radio" value="user" class="radio radio-sm" />{{ tr("个人聊天") }}</label></div><p v-if="form.id" class="mt-2 text-xs opacity-60">{{ tr("更改接收对象并保存后，旧配置下未完成的投递会取消。") }}</p></fieldset>
+        <fieldset v-if="form.settings.feishu_target_type === 'group'" class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-feishu-chat-id`">{{ tr("飞书群聊 ID") }}</label></legend><input :id="`${formFieldId}-feishu-chat-id`" v-model="form.settings.feishu_chat_id" class="input input-bordered w-full" required placeholder="oc_..." /></fieldset>
+        <p v-else class="text-xs opacity-60">{{ form.settings.feishu_open_id ? tr("已配置个人接收者，可在渠道列表重新绑定。") : form.id && form.original_feishu_target === 'group' ? tr("请在渠道列表点击“绑定个人”，绑定成功后自动切换目标。") : tr("保存后渠道暂不启用，请在渠道列表点击“绑定个人”，通过飞书私聊发送绑定指令。") }}</p>
+        </template>
+        <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-feishu-app-id`">{{ form.settings.feishu_bot_type === 'app' ? tr("飞书应用 ID") : tr("飞书应用 ID（报告图片）") }}</label></legend><input :id="`${formFieldId}-feishu-app-id`" v-model="form.settings.feishu_app_id" class="input input-bordered w-full" :required="form.settings.feishu_bot_type === 'app'" autocomplete="off" /></fieldset>
+        <p v-if="form.id && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'user' && form.original_feishu_app_id !== form.settings.feishu_app_id.trim()" class="text-xs opacity-60">{{ tr("更换应用后渠道将停用，需要重新绑定个人接收者。") }}</p>
         <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-feishu-app-secret`">{{ tr("飞书应用密钥") }}{{ form.feishu_app_secret_configured ? tr("（留空保留）") : '' }}</label></legend><input :id="`${formFieldId}-feishu-app-secret`" v-model="form.feishu_app_secret" type="password" class="input input-bordered w-full" autocomplete="new-password" :disabled="form.clear_feishu_app_secret" /></fieldset>
-        <label v-if="form.feishu_app_secret_configured" class="flex items-center gap-2 text-sm"><input v-model="form.clear_feishu_app_secret" type="checkbox" class="checkbox checkbox-sm" />{{ tr("清除应用密钥（同时清空应用 ID）") }}</label>
-        <p class="text-xs opacity-60">{{ tr("配置飞书自建应用凭据后，报告趋势图会先上传飞书，再发送到此机器人。未配置时发送文本。") }}</p>
-        <p class="text-xs opacity-60">{{ tr("机器人若开启关键词校验，请允许固定前缀“Network Mapping”。") }}</p>
+        <label v-if="form.feishu_app_secret_configured && form.settings.feishu_bot_type === 'webhook'" class="flex items-center gap-2 text-sm"><input v-model="form.clear_feishu_app_secret" type="checkbox" class="checkbox checkbox-sm" />{{ tr("清除应用密钥（同时清空应用 ID）") }}</label>
+        <p v-if="form.settings.feishu_bot_type === 'webhook'" class="text-xs opacity-60">{{ tr("配置飞书自建应用凭据后，报告趋势图会先上传飞书，再发送到此机器人。未配置时发送文本。") }}</p>
+        <p v-if="form.settings.feishu_bot_type === 'webhook'" class="text-xs opacity-60">{{ tr("机器人若开启关键词校验，请允许固定前缀“Network Mapping”。") }}</p>
+        <p v-else-if="form.settings.feishu_target_type === 'group'" class="text-xs opacity-60">{{ tr("请启用并发布应用机器人，授予发送消息和上传图片权限，并将机器人加入目标群。测试发送只验证文字，报告图片须通过发送报告验证。") }}</p>
+        <p v-else class="text-xs opacity-60">{{ tr("请启用并发布应用机器人，授予发送消息和上传图片权限。测试发送只验证文字，报告图片须通过发送报告验证。") }}</p>
         </template>
         <template v-else-if="form.provider === 'telegram'">
           <fieldset class="fieldset min-w-0 w-full"><legend class="fieldset-legend"><label :for="`${formFieldId}-5`">Bot Token{{ form.id ? tr("（留空保留）") : '' }}</label></legend><input :id="`${formFieldId}-5`" v-model="form.bot_token" type="password" class="input input-bordered w-full" :required="!form.id" autocomplete="new-password" :placeholder="tr(&quot;从 BotFather 获取的 Token&quot;)" /></fieldset>
@@ -237,6 +306,16 @@ onBeforeUnmount(() => {
         <p class="text-xs leading-relaxed opacity-60">{{ tr("Webhook、邮箱密钥和 Bot Token 保存后不会回显，编辑留空保留。测试发送需要先保存并启用渠道。") }}</p>
         <div class="modal-action"><button type="button" class="btn btn-sm" :disabled="busy" @click="closeEditor">{{ tr("取消") }}</button><button class="btn btn-neutral btn-sm" :disabled="busy">{{ busy ? tr("正在保存…") : tr("保存渠道") }}</button></div>
       </form>
+    </dialog>
+    <dialog ref="bindingDialog" class="modal" @cancel.prevent="closeBinding">
+      <div class="modal-box space-y-4"><h2 class="text-lg font-semibold">{{ tr("绑定飞书个人聊天") }}</h2>
+        <p class="text-sm">{{ tr("请将下面的指令发送给飞书应用机器人，绑定码 10 分钟内有效，只能使用一次。") }}</p>
+        <div v-if="bindingCode" class="rounded-lg border border-base-300 p-3 font-mono break-all select-all">/bind {{ bindingCode }}</div>
+        <p class="text-sm">{{ tr("绑定状态：") }}{{ bindingStatus?.binding_status === 'bound' ? tr("已绑定") : bindingStatus?.binding_status === 'expired' ? tr("绑定码已过期") : bindingStatus?.binding_status === 'cancelled' ? tr("已取消") : tr("等待用户发送指令") }}</p>
+        <p class="text-xs opacity-60">{{ tr("连接状态：") }}{{ bindingStatus?.connection_status === 'connected' ? tr("已连接") : bindingStatus?.connection_status === 'conflict' ? tr("同一应用的凭据或代理不一致") : tr("连接中或未连接，请检查飞书权限与网络") }}</p>
+        <p v-if="bindingStatus?.binding_status === 'bound'" class="text-xs opacity-60">{{ tr("绑定成功。新渠道需要在列表中启用后才会接收通知。") }}</p>
+        <div class="modal-action"><button v-if="bindingStatus?.binding_status === 'pending'" type="button" class="btn btn-sm" :disabled="bindingBusy" @click="cancelBinding">{{ tr("取消绑定") }}</button><button type="button" class="btn btn-sm" @click="closeBinding">{{ tr("关闭") }}</button></div>
+      </div><form method="dialog" class="modal-backdrop"><button @click.prevent="closeBinding">{{ tr("关闭") }}</button></form>
     </dialog>
   </div>
 </template>
