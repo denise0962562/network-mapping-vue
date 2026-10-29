@@ -8,6 +8,7 @@ import EmptyState from '@/components/EmptyState.vue'
 import ReportTrendChart from '@/components/ReportTrendChart.vue'
 import http from '@/utils/http'
 import { deliveryStatuses, reportCsv, reportDate, reportTimezone, reportPeriod, reportStatuses } from '@/utils/reports'
+import { deliveryReason } from '@/utils/notifications'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +16,8 @@ const report = ref(null)
 const deliveries = ref([])
 const recipients = ref([])
 const selectedRecipients = ref([])
+const channels = ref([])
+const selectedChannels = ref([])
 const loading = ref(true)
 const error = ref('')
 const forbidden = ref(false)
@@ -85,9 +88,11 @@ async function action(name) {
 async function prepareSend() {
   actionLoading.value = true
   try {
-    const response = await http.get('/api/report-schedules')
+    const [response, channelResponse] = await Promise.all([http.get('/api/report-schedules'), http.get('/api/notifications/channels')])
     recipients.value = response.data.data.recipients.filter((u) => u.email)
+    channels.value = channelResponse.data.data.filter((c) => c.enabled && ['feishu', 'telegram'].includes(c.provider))
     selectedRecipients.value = []
+    selectedChannels.value = []
     sendDialog.value?.showModal()
   } catch (e) { alert('error', e.response?.data?.message || tr("收件人加载失败")) }
   finally { actionLoading.value = false }
@@ -96,9 +101,9 @@ async function prepareSend() {
 async function send() {
   actionLoading.value = true
   try {
-    await http.post(`/api/reports/${report.value.id}/deliveries`, { recipient_ids: selectedRecipients.value })
+    await http.post(`/api/reports/${report.value.id}/deliveries`, { recipient_ids: selectedRecipients.value, channel_ids: selectedChannels.value })
     sendDialog.value?.close()
-    alert('success', tr("报告邮件已加入投递队列"))
+    alert('success', tr("报告已加入投递队列"))
     await load({ silent: true })
   } catch (e) { alert('error', e.response?.data?.message || tr("发送请求失败")) }
   finally { actionLoading.value = false }
@@ -140,7 +145,7 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
         <button v-if="report && ['ready', 'failed'].includes(report.status)" class="btn btn-sm" :disabled="actionLoading" @click="action('revisions')">{{ tr("生成修订版") }}</button>
         <template v-if="report?.status === 'ready'">
           <button class="btn btn-sm" @click="exportCsv">{{ tr("导出 CSV") }}</button><button class="btn btn-sm" @click="printReport">{{ tr("打印") }}</button>
-          <button class="btn btn-sm btn-neutral" :disabled="actionLoading || !!report.mail_image?.revoked_at || deliveries.some((d) => ['pending', 'sending'].includes(d.status))" @click="prepareSend">{{ tr("发送邮件") }}</button>
+          <button class="btn btn-sm btn-neutral" :disabled="actionLoading" @click="prepareSend">{{ tr("发送报告") }}</button>
         </template>
       </div>
     </div>
@@ -170,9 +175,9 @@ onBeforeUnmount(() => { disposed = true; clearTimeout(timer); controller?.abort(
         <div class="card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">{{ tr("统计口径与完整性") }}</h2><p class="mt-3 text-sm">{{ tr("成功执行统计已完成：") }}{{ report.quality.current.ready }} / {{ report.quality.current.expected }}</p><p v-for="note in payload.notes" :key="note" class="mt-2 text-xs opacity-60">{{ note }}</p><p class="mt-3 break-all font-mono text-xs opacity-50">SHA-256：{{ report.content_checksum }}</p></div>
       </template>
       <div v-if="report.mail_image" class="report-controls card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">{{ tr("邮件趋势图片") }}</h2><p class="mt-3 text-sm">{{ report.mail_image.revoked_at ? tr("图片已撤销") : tr("有效期至 {0}", [reportDate(report.mail_image.expires_at, true)]) }}</p><p class="mt-2 text-xs opacity-60">{{ tr("图片与当前报告版本固定对应；撤销后需要生成修订版才能再次发送。邮箱已缓存的图像可能继续显示。") }}</p><button v-if="!report.mail_image.revoked_at" class="btn btn-sm btn-outline mt-3 self-start" :disabled="actionLoading" @click="revokeImage">{{ tr("撤销图片访问") }}</button></div>
-      <div class="report-controls card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">{{ tr("邮件投递记录") }}</h2><p v-if="deliveryError" class="mt-3 text-sm text-error">{{ deliveryError }}</p><div v-else-if="deliveries.length" class="mt-3 overflow-x-auto"><table class="table table-sm"><thead><tr><th>{{ tr("收件人") }}</th><th>{{ tr("批次") }}</th><th>{{ tr("状态") }}</th><th>{{ tr("尝试次数") }}</th><th>{{ tr("说明") }}</th></tr></thead><tbody><tr v-for="delivery in deliveries" :key="delivery.id"><td>{{ delivery.recipient }}</td><td>#{{ delivery.dispatch_seq }}</td><td>{{ deliveryStatuses[delivery.status] || delivery.status }}</td><td>{{ delivery.attempts }}</td><td class="max-w-sm break-words text-xs">{{ delivery.last_error || reportDate(delivery.sent_at, true) }}</td></tr></tbody></table></div><p v-else class="mt-3 text-sm opacity-60">{{ tr("尚无投递记录。手动生成与修订版默认只归档。") }}</p></div>
+      <div class="report-controls card border border-base-300 bg-base-100 p-5"><h2 class="font-semibold">{{ tr("报告投递记录") }}</h2><p v-if="deliveryError" class="mt-3 text-sm text-error">{{ deliveryError }}</p><div v-else-if="deliveries.length" class="mt-3 overflow-x-auto"><table class="table table-sm"><thead><tr><th>{{ tr("收件人 / 渠道") }}</th><th>{{ tr("批次") }}</th><th>{{ tr("状态") }}</th><th>{{ tr("尝试次数") }}</th><th>{{ tr("说明") }}</th></tr></thead><tbody><tr v-for="delivery in deliveries" :key="delivery.id"><td>{{ delivery.recipient }}</td><td>{{ delivery.dispatch_seq ? `#${delivery.dispatch_seq}` : '—' }}</td><td>{{ deliveryStatuses[delivery.status] || delivery.status }}</td><td>{{ delivery.attempts }}</td><td class="max-w-sm break-words text-xs">{{ delivery.last_error ? (delivery.dispatch_seq ? delivery.last_error : deliveryReason(delivery.last_error)) : (delivery.status === 'sent' ? reportDate(delivery.sent_at, true) : '') }}</td></tr></tbody></table></div><p v-else class="mt-3 text-sm opacity-60">{{ tr("尚无投递记录。") }}</p></div>
     </template>
-    <dialog ref="sendDialog" class="modal"><div class="modal-box"><h2 class="text-lg font-semibold">{{ tr("发送报告邮件") }}</h2><p class="mt-2 text-sm opacity-60">{{ tr("发送当前版本的归档邮件。邮件内容取决于生成时的模板；配置远程趋势图后，图片从平台加载。发送失败会自动重试，重发会延长未撤销图片的有效期。") }}</p><form class="mt-4" @submit.prevent="send"><label v-for="user in recipients" :key="user.id" class="mt-3 flex items-center gap-2 text-sm"><input v-model="selectedRecipients" type="checkbox" class="checkbox checkbox-sm" :value="user.id" />{{ user.username }} · {{ user.email }}</label><p v-if="!recipients.length" class="text-sm text-warning">{{ tr("没有可用管理员邮箱，请先完善个人信息。") }}</p><div class="modal-action"><button type="button" class="btn" @click="sendDialog.close()">{{ tr("取消") }}</button><button class="btn btn-neutral" :disabled="!selectedRecipients.length || actionLoading">{{ tr("确认发送") }}</button></div></form></div><form method="dialog" class="modal-backdrop"><button>{{ tr("关闭") }}</button></form></dialog>
+    <dialog ref="sendDialog" class="modal"><div class="modal-box"><h2 class="text-lg font-semibold">{{ tr("发送报告") }}</h2><p class="mt-2 text-sm opacity-60">{{ tr("选择邮件收件人或已启用的通知渠道，发送当前归档版本。发送失败可能自动重试，重复发送可能产生重复消息。") }}</p><form class="mt-4" @submit.prevent="send"><h3 class="font-medium">{{ tr("邮件收件人") }}</h3><label v-for="user in recipients" :key="user.id" class="mt-3 flex items-center gap-2 text-sm"><input v-model="selectedRecipients" type="checkbox" class="checkbox checkbox-sm" :value="user.id" :disabled="!!report?.mail_image?.revoked_at" />{{ user.username }} · {{ user.email }}</label><p v-if="!recipients.length" class="text-sm opacity-60">{{ tr("没有可用管理员邮箱。") }}</p><h3 class="mt-4 font-medium">{{ tr("通知渠道") }}</h3><label v-for="channel in channels" :key="channel.id" class="mt-3 flex items-center gap-2 text-sm"><input v-model="selectedChannels" type="checkbox" class="checkbox checkbox-sm" :value="channel.id" />{{ channel.provider === 'feishu' ? tr("飞书") : 'Telegram' }} · {{ channel.name }}</label><p v-if="!channels.length" class="text-sm opacity-60">{{ tr("没有已启用的飞书或 Telegram 渠道。") }}</p><div class="modal-action"><button type="button" class="btn" @click="sendDialog.close()">{{ tr("取消") }}</button><button class="btn btn-neutral" :disabled="(!selectedRecipients.length && !selectedChannels.length) || actionLoading">{{ tr("确认发送") }}</button></div></form></div><form method="dialog" class="modal-backdrop"><button>{{ tr("关闭") }}</button></form></dialog>
   </div>
 </template>
 

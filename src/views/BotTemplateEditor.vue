@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
           <div class="mt-3 min-w-0 w-full space-y-4">
             <fieldset class="fieldset min-w-0 w-full" :disabled="busy || testing">
               <legend class="fieldset-legend"><label :for="`${formFieldId}-format`">{{ tr("消息格式") }}</label></legend>
-              <select :id="`${formFieldId}-format`" v-model="source.format" class="select min-w-0 w-full max-w-full"><option value="text">{{ tr("纯文本") }}</option><option value="html">{{ provider === 'feishu' ? tr("消息卡片（HTML 富文本）") : tr("HTML 富文本") }}</option></select>
+              <select :id="`${formFieldId}-format`" v-model="source.format" class="select min-w-0 w-full max-w-full"><option value="text">{{ tr("纯文本") }}</option><option value="html">{{ provider === 'feishu' ? tr("消息卡片（HTML 富文本）") : tr("HTML 富文本") }}</option><option v-if="provider === 'telegram'" value="rich_html">{{ tr("Telegram 富消息（sendRichMessage）") }}</option></select>
             </fieldset>
             <fieldset class="fieldset min-w-0 w-full" :disabled="busy || testing">
               <legend class="fieldset-legend"><label :for="`${formFieldId}-title`">{{ tr("消息标题") }}</label></legend>
@@ -281,7 +281,7 @@ onBeforeUnmount(() => {
               <legend class="fieldset-legend"><label :for="`${formFieldId}-state`">{{ tr("通知状态") }}</label></legend>
               <select :id="`${formFieldId}-state`" :value="event" class="select min-w-0 w-full max-w-full" @change="selectStateFromDropdown"><option v-for="variant in eventVariants" :key="variant.value" :value="variant.value">{{ variant.label }}</option></select>
             </fieldset>
-            <div><div class="mt-1 overflow-hidden rounded-lg border border-base-300"><TemplateCodeEditor v-model="source.bodyTemplate" :variables="detail.variables" :language="source.format === 'html' ? 'html' : 'text'" :disabled="busy || testing" @ready="bodyEditor=$event.view" @focus="activeField='body'" /></div></div>
+            <div><div class="mt-1 overflow-hidden rounded-lg border border-base-300"><TemplateCodeEditor v-model="source.bodyTemplate" :variables="detail.variables" :language="source.format === 'text' ? 'text' : 'html'" :disabled="busy || testing" @ready="bodyEditor=$event.view" @focus="activeField='body'" /></div></div>
           </div>
           <p class="mt-2 text-xs opacity-70">{{ tr("支持 Tera 变量和条件。") }}{{ provider === 'feishu' ? tr("飞书富文本自动转换为消息卡片，支持 b 粗体、i 斜体、s 删除线和 a 超链接；u 下划线标签按普通文本显示。告警按级别显示橙色或红色标题，恢复通知使用绿色。") : tr("HTML 富文本支持 b、i、u、s、a 超链接，另支持独立的 code、pre、blockquote 和 tg-spoiler。") }}{{ tr("换行请直接输入换行符。不支持 CSS、图片、自定义卡片 JSON 或任意网页 HTML。") }}</p>
           <p class="mt-2 text-xs opacity-70">{{ tr("标题以纯文本编辑；事件 ID 自动附加。变量内容自动转义。真实消息超过平台限制时会记录投递失败。") }}</p>

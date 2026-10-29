@@ -2,6 +2,13 @@
 
 [文档中心](README.md) · [配套发布与升级](https://github.com/wshijiang/network-mapping/blob/main/docs/RELEASING.md)
 
+## 未发布
+
+- 自动周报、月报计划可直接选择飞书和 Telegram 通知渠道。
+
+- Telegram 通知模板编辑器增加富消息发送格式选项。
+- 报告详情支持手动选择飞书、Telegram 渠道并查看投递记录；飞书渠道支持配置报告图片上传的应用凭据。
+
 ## v0.1.24（2026-10-27 重新发布）
 
 **2026-10-26 的同版本发布已撤回，2026-10-27 修复后重新发布**。请以本次 tag 指向的提交、BUILD-INFO 和 SHA-256 校验文件为准，不复用已撤回制品或旧 Actions 构建附件。本节按最终实现汇总此前阶段记录。

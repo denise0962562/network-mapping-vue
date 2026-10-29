@@ -38,6 +38,10 @@ const reasons = {
   get notification_source_unavailable() { return tr("通知数据暂不可用，将重试") },
   get mail_template_disabled() { return tr("对应邮件模板已停用") }, get report_unavailable() { return tr("归档报告邮件不可用") },
   get notification_template_invalid() { return tr("通知模板渲染失败或消息超出平台限制，请检查对应渠道的已发布模板") },
+  get feishu_auth_unavailable() { return tr("无法连接飞书应用认证服务") },
+  get feishu_auth_failed() { return tr("飞书应用认证失败，请检查应用凭据") },
+  get feishu_image_upload_failed() { return tr("飞书图片上传失败，请检查应用权限和网络") },
+  get report_image_invalid() { return tr("报告趋势图生成失败，请检查归档数据") },
 }
 
 export function deliveryReason(value) { return reasons[value] || (value ? tr("投递异常，请检查服务状态") : '—') }
@@ -52,12 +56,14 @@ export function channelForm(channel) {
     clear_signing_secret: false, expected_revision: channel?.revision ?? null,
     signing_secret_configured: channel?.signing_secret_configured || false,
     credential_configured: channel?.credential_configured || false,
+    feishu_app_secret_configured: channel?.feishu_app_secret_configured || false,
+    feishu_app_secret: '', clear_feishu_app_secret: false,
     bot_token: '', smtp_password: '',
     proxy_mode: channel?.proxy_mode || 'system', proxy_url: '',
     proxy_configured: Boolean(channel?.proxy_configured), proxy_endpoint: channel?.proxy_endpoint || '',
 
     settings: { smtp_host: channel?.settings?.smtp_host || '', smtp_port: channel?.settings?.smtp_port || 465,
-      smtp_sender: channel?.settings?.smtp_sender || '', chat_id: channel?.settings?.chat_id || '',
+      smtp_sender: channel?.settings?.smtp_sender || '', chat_id: channel?.settings?.chat_id || '', feishu_app_id: channel?.settings?.feishu_app_id || '',
       recipients: [...(channel?.settings?.recipients || [])] },
     recipients_text: (channel?.settings?.recipients || []).join('\n'),
   }
@@ -67,13 +73,14 @@ export function channelPayload(form) {
     provider: form.provider, name: form.name.trim(), enabled: Boolean(form.enabled), event_types: [...form.event_types],
     minimum_severity: form.minimum_severity, webhook_url: form.webhook_url.trim(),
     signing_secret: form.signing_secret.trim(), clear_signing_secret: Boolean(form.clear_signing_secret),
+    feishu_app_secret: form.provider === 'feishu' ? form.feishu_app_secret : '', clear_feishu_app_secret: Boolean(form.clear_feishu_app_secret),
     expected_revision: form.expected_revision,
     bot_token: form.provider === 'telegram' ? form.bot_token.trim() : '',
     smtp_password: form.provider === 'email' ? form.smtp_password : '',
     proxy_mode: form.proxy_mode, proxy_url: form.proxy_mode === 'custom' ? form.proxy_url.trim() : '',
 
     settings: { ...form.settings, smtp_host: form.settings.smtp_host.trim(), smtp_sender: form.settings.smtp_sender.trim(),
-      smtp_port: Number(form.settings.smtp_port), chat_id: form.settings.chat_id.trim(),
+      smtp_port: Number(form.settings.smtp_port), chat_id: form.settings.chat_id.trim(), feishu_app_id: (form.settings.feishu_app_id || '').trim(),
       recipients: [...new Set(form.recipients_text.split(/[\n,;]+/).map(value => value.trim()).filter(Boolean))] },
   }
 }
@@ -93,7 +100,7 @@ export function validateChannel(form) {
   }
 
   if (!form.name.trim() || [...form.name.trim()].length > 80) return tr("请输入 1 至 80 个字符的渠道名称。")
-  if (!form.event_types.length) return tr("请至少选择一种通知事件。")
+  if (!form.id && !form.event_types.length) return tr("请至少选择一种通知事件。")
   if (form.provider === 'email') {
     const s = channelPayload(form).settings
     if (!s.smtp_host || s.smtp_host.length > 253 || /[\s/\\:@?#]/.test(s.smtp_host)) return tr("请输入 SMTP 服务器域名。")
@@ -119,5 +126,9 @@ export function validateChannel(form) {
     } catch { return tr("请输入飞书自定义机器人的完整 HTTPS Webhook 地址。") }
   }
   if (form.clear_signing_secret && form.signing_secret.trim()) return tr("请在填写新密钥和清除旧密钥之间选择一项。")
+  const appId = (form.settings.feishu_app_id || '').trim()
+  const appSecret = form.feishu_app_secret || ''
+  if (form.clear_feishu_app_secret && (appId || appSecret)) return tr("清除飞书应用密钥时请同时清空应用 ID。")
+  if (Boolean(appId) !== Boolean(appSecret || (form.feishu_app_secret_configured && !form.clear_feishu_app_secret))) return tr("飞书应用 ID 与密钥须同时配置。")
   return ''
 }
