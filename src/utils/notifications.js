@@ -41,6 +41,7 @@ const reasons = {
   get feishu_auth_unavailable() { return tr("无法连接飞书应用认证服务") },
   get feishu_auth_failed() { return tr("飞书应用认证失败，请检查应用凭据") },
   get feishu_image_upload_failed() { return tr("飞书图片上传失败，请检查应用权限和网络") },
+  get feishu_send_failed() { return tr("飞书应用消息发送失败，请检查机器人权限和目标群") },
   get report_image_invalid() { return tr("报告趋势图生成失败，请检查归档数据") },
 }
 
@@ -64,6 +65,7 @@ export function channelForm(channel) {
 
     settings: { smtp_host: channel?.settings?.smtp_host || '', smtp_port: channel?.settings?.smtp_port || 465,
       smtp_sender: channel?.settings?.smtp_sender || '', chat_id: channel?.settings?.chat_id || '', feishu_app_id: channel?.settings?.feishu_app_id || '',
+      feishu_bot_type: channel?.settings?.feishu_bot_type || 'webhook', feishu_chat_id: channel?.settings?.feishu_chat_id || '',
       recipients: [...(channel?.settings?.recipients || [])] },
     recipients_text: (channel?.settings?.recipients || []).join('\n'),
   }
@@ -71,8 +73,8 @@ export function channelForm(channel) {
 export function channelPayload(form) {
   return {
     provider: form.provider, name: form.name.trim(), enabled: Boolean(form.enabled), event_types: [...form.event_types],
-    minimum_severity: form.minimum_severity, webhook_url: form.webhook_url.trim(),
-    signing_secret: form.signing_secret.trim(), clear_signing_secret: Boolean(form.clear_signing_secret),
+    minimum_severity: form.minimum_severity, webhook_url: form.settings.feishu_bot_type === 'app' ? '' : form.webhook_url.trim(),
+    signing_secret: form.settings.feishu_bot_type === 'app' ? '' : form.signing_secret.trim(), clear_signing_secret: form.settings.feishu_bot_type === 'app' ? false : Boolean(form.clear_signing_secret),
     feishu_app_secret: form.provider === 'feishu' ? form.feishu_app_secret : '', clear_feishu_app_secret: Boolean(form.clear_feishu_app_secret),
     expected_revision: form.expected_revision,
     bot_token: form.provider === 'telegram' ? form.bot_token.trim() : '',
@@ -81,6 +83,7 @@ export function channelPayload(form) {
 
     settings: { ...form.settings, smtp_host: form.settings.smtp_host.trim(), smtp_sender: form.settings.smtp_sender.trim(),
       smtp_port: Number(form.settings.smtp_port), chat_id: form.settings.chat_id.trim(), feishu_app_id: (form.settings.feishu_app_id || '').trim(),
+      feishu_bot_type: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' ? 'app' : '', feishu_chat_id: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' ? (form.settings.feishu_chat_id || '').trim() : '',
       recipients: [...new Set(form.recipients_text.split(/[\n,;]+/).map(value => value.trim()).filter(Boolean))] },
   }
 }
@@ -117,6 +120,11 @@ export function validateChannel(form) {
     return ''
   }
   if (form.provider !== 'feishu') return tr("请选择支持的通知渠道类型。")
+  if (!['webhook', 'app'].includes(form.settings.feishu_bot_type)) return tr("请选择飞书机器人类型。")
+  if (form.settings.feishu_bot_type === 'app') {
+    if (!form.settings.feishu_app_id.trim() || !form.settings.feishu_chat_id.trim() || /\s/.test(form.settings.feishu_chat_id) || form.settings.feishu_chat_id.length > 128 || form.clear_feishu_app_secret || (!form.feishu_app_secret && !form.feishu_app_secret_configured)) return tr("应用机器人须填写应用 ID、密钥和群聊 ID。")
+    return ''
+  }
   if (!form.id || form.webhook_url.trim()) {
     try {
       const url = new URL(form.webhook_url.trim())

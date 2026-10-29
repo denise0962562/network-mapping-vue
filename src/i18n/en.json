@@ -4114,5 +4114,17 @@
   "勾选后订阅该周期的报告生成事件；修改也会同步到通知渠道。": "Select channels to subscribe to report generation for this period. Changes are also reflected in notification channels.",
   "没有可用的飞书或 Telegram 渠道。请启用渠道并将最低级别设为警告。": "No Feishu or Telegram channels are available. Enable a channel and set its minimum severity to warning.",
   "管理通知渠道": "Manage notification channels",
-  "留空日期生成上一完整周期；指定日期生成该日期所在的完整周或月。生成后会通知已订阅的渠道，也可在详情页手动发送。": "Leave the date blank for the previous complete period, or select a date within the desired week or month. Subscribed channels are notified after generation; you can also send the report manually from its details."
+  "留空日期生成上一完整周期；指定日期生成该日期所在的完整周或月。生成后会通知已订阅的渠道，也可在详情页手动发送。": "Leave the date blank for the previous complete period, or select a date within the desired week or month. Subscribed channels are notified after generation; you can also send the report manually from its details.",
+  "飞书机器人类型": "Feishu bot type",
+  "群聊自定义机器人": "Group custom bot",
+  "应用机器人": "Application bot",
+  "已配置应用凭据": "App credentials configured",
+  "报告趋势图：已配置上传凭据": "Report chart: upload credentials configured",
+  "报告趋势图：仅文本，未配置上传凭据": "Report chart: text only, upload credentials not configured",
+  "飞书群聊 ID": "Feishu group chat ID",
+  "飞书应用 ID": "Feishu app ID",
+  "请选择飞书机器人类型。": "Select a Feishu bot type.",
+  "应用机器人须填写应用 ID、密钥和群聊 ID。": "Enter the app ID, app secret, and group chat ID.",
+  "飞书应用消息发送失败，请检查机器人权限和目标群": "Feishu app message failed; check bot permissions and the target group",
+  "请启用并发布应用机器人，授予发送消息和上传图片权限，并将机器人加入目标群。测试发送只验证文字，报告图片须通过发送报告验证。": "Enable and publish the application bot, grant message and image upload permissions, and add it to the target group. Test messages verify text only; send a report to verify images."
 }
