@@ -58,6 +58,8 @@ export function channelForm(channel) {
     signing_secret_configured: channel?.signing_secret_configured || false,
     credential_configured: channel?.credential_configured || false,
     feishu_app_secret_configured: channel?.feishu_app_secret_configured || false,
+    original_feishu_target: channel?.settings?.feishu_target_type || 'group',
+    original_feishu_app_id: channel?.settings?.feishu_app_id || '',
     feishu_app_secret: '', clear_feishu_app_secret: false,
     bot_token: '', smtp_password: '',
     proxy_mode: channel?.proxy_mode || 'system', proxy_url: '',
@@ -72,8 +74,10 @@ export function channelForm(channel) {
   }
 }
 export function channelPayload(form) {
+  const appChanged = form.id && form.original_feishu_app_id !== form.settings.feishu_app_id.trim()
+  const pendingFeishuUser = form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'user' && (!form.settings.feishu_open_id.trim() || appChanged)
   return {
-    provider: form.provider, name: form.name.trim(), enabled: Boolean(form.enabled), event_types: [...form.event_types],
+    provider: form.provider, name: form.name.trim(), enabled: Boolean(form.enabled) && !pendingFeishuUser, event_types: [...form.event_types],
     minimum_severity: form.minimum_severity, webhook_url: form.settings.feishu_bot_type === 'app' ? '' : form.webhook_url.trim(),
     signing_secret: form.settings.feishu_bot_type === 'app' ? '' : form.signing_secret.trim(), clear_signing_secret: form.settings.feishu_bot_type === 'app' ? false : Boolean(form.clear_signing_secret),
     feishu_app_secret: form.provider === 'feishu' ? form.feishu_app_secret : '', clear_feishu_app_secret: Boolean(form.clear_feishu_app_secret),
@@ -87,7 +91,7 @@ export function channelPayload(form) {
       feishu_bot_type: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' ? 'app' : '',
       feishu_target_type: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' ? form.settings.feishu_target_type : null,
       feishu_chat_id: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'group' ? (form.settings.feishu_chat_id || '').trim() : '',
-      feishu_open_id: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'user' ? (form.settings.feishu_open_id || '').trim() : '',
+      feishu_open_id: form.provider === 'feishu' && form.settings.feishu_bot_type === 'app' && form.settings.feishu_target_type === 'user' && !appChanged ? (form.settings.feishu_open_id || '').trim() : '',
       recipients: [...new Set(form.recipients_text.split(/[\n,;]+/).map(value => value.trim()).filter(Boolean))] },
   }
 }
@@ -128,7 +132,9 @@ export function validateChannel(form) {
   if (form.settings.feishu_bot_type === 'app') {
     const type = form.settings.feishu_target_type
     const target = type === 'group' ? form.settings.feishu_chat_id.trim() : (form.settings.feishu_open_id || '').trim()
-    if (!['group', 'user'].includes(type) || !form.settings.feishu_app_id.trim() || !target || /[\s\u0000-\u001f\u007f]/.test(target) || new TextEncoder().encode(target).length > 128 || (type === 'user' && (!target.startsWith('ou_') || target.length <= 3)) || form.clear_feishu_app_secret || (!form.feishu_app_secret && !form.feishu_app_secret_configured)) return tr("应用机器人须填写应用 ID、密钥和有效的接收目标。")
+    const pendingUser = type === 'user' && !target
+    if (pendingUser && form.id && form.original_feishu_target === 'group') return tr("请在渠道列表点击“绑定个人”，绑定成功后自动切换目标。")
+    if (!['group', 'user'].includes(type) || !form.settings.feishu_app_id.trim() || (!target && !pendingUser) || /[\s\u0000-\u001f\u007f]/.test(target) || new TextEncoder().encode(target).length > 128 || (type === 'user' && !pendingUser && (!target.startsWith('ou_') || target.length <= 3)) || form.clear_feishu_app_secret || (!form.feishu_app_secret && !form.feishu_app_secret_configured)) return tr("应用机器人须填写应用 ID、密钥和有效的接收目标。")
     return ''
   }
   if (!form.id || form.webhook_url.trim()) {

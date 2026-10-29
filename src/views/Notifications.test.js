@@ -21,7 +21,7 @@ function createPage(get, request = async () => ({ data: { success: true, data: {
   let mount, dispose
   const timers = new Map()
   let nextTimer = 0
-  const page = localizedVm(`${source}\n;({ loadChannels, loadHistory, channels, deliveries, loadFailed, historyFailed, form, save })`, {
+  const page = localizedVm(`${source}\n;({ loadChannels, loadHistory, channels, deliveries, loadFailed, historyFailed, form, save, bindingDialog, bindingCode, bindingStatus, startBinding, closeBinding })`, {
     computed, ref, useId: () => 'notification-test-field', channelForm, channelPayload, validateChannel, AbortController, crypto: globalThis.crypto,
     http: Object.assign(request, { get }), useUnsavedChanges: () => {},
     onMounted: (callback) => { mount = callback },
@@ -30,6 +30,8 @@ function createPage(get, request = async () => ({ data: { success: true, data: {
     window: {
       setInterval: (callback) => { const id = ++nextTimer; timers.set(id, callback); return id },
       clearInterval: (id) => { timers.delete(id) },
+      setTimeout: (callback) => { const id = ++nextTimer; timers.set(id, callback); return id },
+      clearTimeout: (id) => { timers.delete(id) },
     },
   })
   return { ...page, timers, mount: () => mount(), dispose: () => dispose() }
@@ -128,6 +130,54 @@ test('saving an application bot with a personal target sends its Open ID', async
   assert.equal(requests[0].data.settings.feishu_target_type, 'user')
   assert.equal(requests[0].data.settings.feishu_open_id, 'ou_user')
   assert.equal(requests[0].data.settings.feishu_chat_id, '')
+  page.dispose()
+})
+
+test('a new personal channel is saved disabled until a recipient binds', async () => {
+  const requests = []
+  const page = createPage(async url => url.endsWith('/channels') ? channels : history,
+    async config => { requests.push(config); return { data: { success: true, data: {} } } })
+  const form = channelForm()
+  Object.assign(form, { provider: 'feishu', name: 'personal', feishu_app_secret: 'secret' })
+  Object.assign(form.settings, { feishu_bot_type: 'app', feishu_target_type: 'user', feishu_app_id: 'cli_app' })
+  page.form.value = form
+  await page.save()
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].data.enabled, false)
+  assert.equal(requests[0].data.settings.feishu_open_id, '')
+  page.dispose()
+})
+
+test('changing the application clears its old personal recipient and disables delivery', async () => {
+  const requests = []
+  const page = createPage(async url => url.endsWith('/channels') ? channels : history,
+    async config => { requests.push(config); return { data: { success: true, data: {} } } })
+  const form = channelForm({ id: 'channel', revision: 3, provider: 'feishu', name: 'personal', enabled: true, event_types: ['health.alert'], feishu_app_secret_configured: true, settings: { feishu_bot_type: 'app', feishu_target_type: 'user', feishu_app_id: 'cli_old', feishu_open_id: 'ou_old' } })
+  form.settings.feishu_app_id = 'cli_new'
+  form.feishu_app_secret = 'new-secret'
+  page.form.value = form
+  await page.save()
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0].data.enabled, false)
+  assert.equal(requests[0].data.settings.feishu_open_id, '')
+  page.dispose()
+})
+
+test('binding shows the one-time command, polls status and stops polling when closed', async () => {
+  const requests = []
+  const request = async () => ({ data: { success: true, data: {} } })
+  request.post = async (url, body) => { requests.push({ url, body }); return { data: { success: true, data: { code: 'ABC123', expires_at: 'later' } } } }
+  const page = createPage(async url => { requests.push({ url }); return { data: { success: true, data: { binding_status: 'pending', connection_status: 'connected' } } } }, request)
+  const dialog = { open: false, showModal() { this.open = true }, close() { this.open = false } }
+  page.bindingDialog.value = dialog
+  await page.startBinding({ id: 'channel', revision: 7 })
+  assert.equal(requests[0].body.expected_revision, 7)
+  assert.equal(page.bindingCode.value, 'ABC123')
+  assert.equal(page.bindingStatus.value.connection_status, 'connected')
+  assert.equal(page.timers.size, 1)
+  page.closeBinding()
+  assert.equal(page.bindingCode.value, '')
+  assert.equal(page.timers.size, 0)
   page.dispose()
 })
 
